@@ -25,3 +25,57 @@ subscriptions:
     stage: A
     diff_threshold_pct: 15
   keyword_recall_mode: or
+  intent_profiles:
+    - tag: agent-memory
+      description: AI智能体记忆体系
+      enabled: true
+      paper_sources:
+        - arxiv
+      keywords:
+        - keyword: artificial intelligence
+          keyword_cn: 人工智能
+          query: artificial intelligence and memory systems
+        - keyword: intelligent agents
+          keyword_cn: 智能体
+          query: intelligent agents with memory
+        - keyword: memory architecture
+          keyword_cn: 记忆架构
+          query: memory architecture for AI agents
+        - keyword: agent memory system
+          keyword_cn: 智能体记忆体系
+          query: agent memory system design
+        - keyword: long-term memory
+          keyword_cn: 长期记忆
+          query: long-term memory in AI agents
+      intent_queries:
+        - query: What are the recent advancements in memory systems for AI agents?
+          query_cn: AI智能体记忆系统的最新进展是什么？
+          enabled: true
+          source: manual
+          note: ''
+        - query: Architecture and design of memory for intelligent agents
+          query_cn: 智能体记忆的架构与设计
+          enabled: true
+          source: manual
+          note: ''
+        - query: Cognitive memory models applied to artificial intelligence agents
+          query_cn: 应用于AI智能体的认知记忆模型
+          enabled: true
+          source: manual
+          note: ''
+      updated_at: '2026-06-23T12:00:41.605Z'
+source_backends:
+  arxiv:
+    papers_table: arxiv_papers
+    use_vector_rpc: true
+    vector_rpc: match_arxiv_papers
+    vector_rpc_exact: match_arxiv_papers_exact
+    use_bm25_rpc: true
+    bm25_rpc: match_arxiv_papers_bm25
+    sync_table: arxiv_sync_status
+    sync_success_value: success
+    schema: public
+    kind: supabase
+    enabled: true
+    url: https://lyucdwgefyfbmaiopjbk.supabase.co
+    anon_key: sb_publishable_lX-oi64Uxyd7SIVv3_w2Uw_MTOojeKq
