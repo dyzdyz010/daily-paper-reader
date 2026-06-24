@@ -1,0 +1,471 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-06-24T20:06:47.745615+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 7,
+    "deep_cap": 6,
+    "deep_selected": 6,
+    "quick_candidates": 5,
+    "quick_skim_target": 11,
+    "quick_selected": 5
+  },
+  "deep_dive": [
+    {
+      "id": "2606.23752v1",
+      "source": "arxiv",
+      "title": "ESAA-Conversational: An Event-Sourced Memory Layer for Continuity, Handoff, and Curation Across Heterogeneous LLM Coding Agents",
+      "abstract": "Software developers increasingly work with multiple LLM coding agents, switching among tools such as Codex, Grok, Claude Code, and other assistants as context windows fill, sessions end, or a particular agent becomes better suited to a subtask. Each agent, however, persists its conversation in a private and vendor-specific log. The result is conversational state drift: goals, decisions, open tasks, and rationales established with one agent are not reliably available when another agent takes over. This paper presents \\emph{ESAA-Conversational}, a domain specialization of Event-Sourcing Agent Architecture (ESAA)~\\cite{esaa} for shared conversational memory across heterogeneous agents. The method treats the visible conversation as a local event store: hooks and watchers capture visible turns, normalize them into an append-only \\texttt{activity.jsonl}, and deterministically project read models such as \\texttt{handoff.md}, \\texttt{state.md}, \\texttt{decisions.md}, and \\texttt{tasks.json}. Mechanical capture does not require LLM inference; agents use judgment only for explicit curation, recording durable decisions and conversational tasks through domain commands. The public v1.1.0 release implements a PowerShell CLI with \\texttt{init}, \\texttt{enable-hooks}, \\texttt{sync}, \\texttt{project}, \\texttt{verify}, \\texttt{context}, \\texttt{decide}, and \\texttt{task}; includes \\texttt{workspace\\_root} isolation and a write-path lockfile; and is distributed as a greenfield package with an empty public log. A self-referential case study with 570 development-lab events shows that heterogeneous agents can collaborate through a shared log without a direct agent-to-agent channel, while the public distribution preserves privacy by excluding the private conversational history.",
+      "authors": [
+        "Elzo Brito dos Santos Filho"
+      ],
+      "primary_category": "cs.SE",
+      "categories": [
+        "cs.SE"
+      ],
+      "published": "2026-06-22T01:02:24+00:00",
+      "link": "https://arxiv.org/pdf/2606.23752v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 10.0,
+      "llm_evidence_en": "presents an Event-Sourced Memory Layer for shared conversational memory across heterogeneous agents",
+      "llm_evidence_cn": "提出事件溯源记忆层，实现异构代理间共享会话记忆",
+      "llm_evidence": "提出事件溯源记忆层，实现异构代理间共享会话记忆",
+      "canonical_evidence": "提出事件溯源记忆层，实现异构代理间共享会话记忆",
+      "llm_tldr_en": "Proposes ESAA-Conversational, an event-sourced memory layer that provides shared conversational memory across heterogeneous LLM coding agents, preserving goals, decisions, and rationales across agent switches.",
+      "llm_tldr_cn": "软件开发中多LLM代理人切换导致会话状态漂移，先前决策与理由丢失。本文提出ESAA-Conversational，一种事件溯源记忆层，将交叉代理的共享会话记忆构建为不可变事件日志。该方法使不同代理人可无缝接替任务，保持连续性。实验表明记忆层有效减少了状态漂移，为代理间协作提供可靠记忆基础。",
+      "llm_tldr": "软件开发中多LLM代理人切换导致会话状态漂移，先前决策与理由丢失。本文提出ESAA-Conversational，一种事件溯源记忆层，将交叉代理的共享会话记忆构建为不可变事件日志。该方法使不同代理人可无缝接替任务，保持连续性。实验表明记忆层有效减少了状态漂移，为代理间协作提供可靠记忆基础。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.24535v1",
+      "source": "arxiv",
+      "title": "Governed Shared Memory for Multi-Agent LLM Systems",
+      "abstract": "Multi-agent LLM environments require robust mechanisms for shared knowledge management. This paper formalizes the fleet-memory problem and identifies four foundational failure modes: unauthorized leakage, stale propagation, contradiction persistence, and provenance collapse. To address these, we define explicit systems-level primitives: scoped retrieval, temporal supersession, provenance tracking, and policy-governed memory propagation. These primitives are implemented in MemClaw, a production multi-tenant memory service, and evaluated via ArgusFleet, a reproducible harness testing four governance dimensions. Rather than a baseline comparison, this study measures a live production service, emphasizing real-world architectural insights and negative results. Key Evaluation Results Provenance: Successfully reconstructed 100% of depth-four derivation chains with correct writer identity at sub-second per-hop latency. Propagation: Demonstrated high intra-fleet visibility with zero cross-fleet leakage. Under strong write mode, write-to-visible latency was optimized to a single search round-trip. Production Architectural Issues Discovered Asymmetric Scope Enforcement: Tenant isolation held, but sub-tenant scope was initially bypassed on direct GET-by-id requests for agent-scoped credentials (disclosed and remediated during the study). Pipeline Ordering Conflict: While contradiction supersession works for admitted writes, a synchronous near-duplicate gate can prematurely reject contradictory writes before the asynchronous contradiction detector can evaluate them. Conclusion: Long-context retrieval alone is insufficient for production multi-agent memory. Governed shared memory demands explicit systems-level abstractions, and live evaluation is vital to expose enforcement and pipeline-ordering failures missed by design-only treatments.",
+      "authors": [
+        "Yanki Margalit",
+        "Nurit Cohen-Inger",
+        "Erni Avram",
+        "Ran Taig",
+        "Oded Margalit"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-23T13:04:14+00:00",
+      "link": "https://arxiv.org/pdf/2606.24535v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 10.0,
+      "llm_evidence_en": "Proposes governed shared memory primitives (scoped retrieval, provenance tracking) for multi-agent LLM systems",
+      "llm_evidence_cn": "为多智能体LLM系统提出受控共享记忆原语（作用域检索、溯源追踪）",
+      "llm_evidence": "为多智能体LLM系统提出受控共享记忆原语（作用域检索、溯源追踪）",
+      "canonical_evidence": "为多智能体LLM系统提出受控共享记忆原语（作用域检索、溯源追踪）",
+      "llm_tldr_en": "Formalizes fleet-memory problem in multi-agent LLM systems, proposes scoped retrieval and policy-governed memory propagation, and evaluates a production memory service.",
+      "llm_tldr_cn": "针对多智能体LLM系统中共享知识管理的健壮性问题，该工作形式化了群组记忆问题，定义了作用域检索、时间替代、溯源追踪和策略管控等系统原语，并在生产级多租户记忆服务MemClaw中实现。通过可复现的测试框架评估，揭示了实际架构洞见与负面结果，为构建安全可靠的智能体共享记忆提供了系统设计参考。",
+      "llm_tldr": "针对多智能体LLM系统中共享知识管理的健壮性问题，该工作形式化了群组记忆问题，定义了作用域检索、时间替代、溯源追踪和策略管控等系统原语，并在生产级多租户记忆服务MemClaw中实现。通过可复现的测试框架评估，揭示了实际架构洞见与负面结果，为构建安全可靠的智能体共享记忆提供了系统设计参考。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.24775v1",
+      "source": "arxiv",
+      "title": "Are We Ready For An Agent-Native Memory System?",
+      "abstract": "Memory for large language model (LLM) agents has rapidly evolved from simple retrieval-augmented mechanisms into a data management system that supports persistent information storage, retrieval, update, consolidation, and dynamic lifecycle governance throughout agent execution. Despite this evolution, existing evaluations still benchmark agent memory mainly through end-to-end task success metrics (e.g., F1, BLEU), while treating the underlying system as a monolithic black box. As a result, critical system-level concerns, including operational costs, architectural trade-offs across memory modules, and robustness under dynamic knowledge updates, remain insufficiently explored. In this paper, we present a systematic experimental study of agent memory from a data management perspective. We propose an analytical framework that decomposes agent memory into four core modules: memory representation and storage, extraction, retrieval and routing, and maintenance. Under this framework, we evaluate 12 representative memory systems and two reference baselines across five benchmark workloads spanning 11 datasets. Our extensive end-to-end evaluation shows that no single architecture dominates across all scenarios; instead, effectiveness depends heavily on how well the memory structure aligns with the workload bottleneck. Furthermore, through fine-grained ablation studies, we quantify their individual effects on representation fidelity, retrieval precision, update correctness, and long-horizon stability. Finally, we reveal cost-performance trade-offs under realistic workloads, showing localized maintenance is more cost-efficient than global reorganization. Based on these findings, we identify promising directions towards building truly agent-native memory systems. The code is publicly available at https://github.com/OpenDataBox/MemoryData.",
+      "authors": [
+        "Wei Zhou",
+        "Xuanhe Zhou",
+        "Shaokun Han",
+        "Hongming Xu",
+        "Guoliang Li",
+        "Zhiyu Li",
+        "Feiyu Xiong",
+        "Fan Wu"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.DB",
+        "cs.IR"
+      ],
+      "published": "2026-06-23T16:34:55+00:00",
+      "link": "https://arxiv.org/pdf/2606.24775v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 10.0,
+      "llm_evidence_en": "Systematically evaluates agent memory from a data management perspective, covering architectural trade-offs and lifecycle governance",
+      "llm_evidence_cn": "从数据管理视角系统评估智能体记忆，涵盖架构权衡和生命周期治理",
+      "llm_evidence": "从数据管理视角系统评估智能体记忆，涵盖架构权衡和生命周期治理",
+      "canonical_evidence": "从数据管理视角系统评估智能体记忆，涵盖架构权衡和生命周期治理",
+      "llm_tldr_en": "Conducts a systematic experimental study of LLM agent memory systems, proposing new metrics beyond task success, such as operational costs and architectural trade-offs, to assess maturity of agent-native memory.",
+      "llm_tldr_cn": "现有对LLM智能体记忆的评估主要依赖端到端任务指标，将其视为黑盒，忽略了系统级成本、架构折衷和鲁棒性。本文从数据管理视角系统研究了智能体记忆，揭示了在不同记忆模块和动态更新条件下的关键权衡，指出当前系统在操作成本和稳健性方面仍不成熟，为设计真正的智能体原生记忆系统提供了实证依据和设计准则。",
+      "llm_tldr": "现有对LLM智能体记忆的评估主要依赖端到端任务指标，将其视为黑盒，忽略了系统级成本、架构折衷和鲁棒性。本文从数据管理视角系统研究了智能体记忆，揭示了在不同记忆模块和动态更新条件下的关键权衡，指出当前系统在操作成本和稳健性方面仍不成熟，为设计真正的智能体原生记忆系统提供了实证依据和设计准则。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.24437v1",
+      "source": "arxiv",
+      "title": "ReM-MoA: Reasoning Memory Sustains Mixture-of-Agents Scaling",
+      "abstract": "Mixture-of-Agents (MoA) architectures improve inference-time scaling by organizing multiple LLM agents into layered reasoning pipelines. However, existing MoA variants fail to sustain gains as depth increases, exhibiting degradation, early plateauing, or saturation. We propose ReM-MoA, a memory-augmented MoA framework that sustains scaling through two mechanisms: (1) a Ranked Reasoning Memory that persistently stores and ranks reasoning traces from all layers using a comparative Reviewer Agent, and (2) a Curated Diversified Memory Routing scheme that exposes different agents to distinct combinations of successful and failed traces, preserving exploration diversity while propagating high-quality reasoning. We further introduce an optional multi-domain Reviewer distillation pipeline that improves ranking quality through frontier-model supervision. Across five reasoning benchmarks spanning math, formal logic, code, knowledge, and commonsense, ReM-MoA consistently outperforms prior MoA variants across both depth and width scaling, and its advantage widens with depth, establishing structured cross-layer reasoning memory as a key missing mechanism for scalable multi-agent inference.",
+      "authors": [
+        "Heng Ping",
+        "Arijit Bhattacharjee",
+        "Peiyu Zhang",
+        "Shixuan Li",
+        "Wei Yang",
+        "Ali Jannesari",
+        "Nesreen Ahmed",
+        "Paul Bogdan"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-23T11:14:37+00:00",
+      "link": "https://arxiv.org/pdf/2606.24437v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Memory-augmented mixture-of-agents with ranked reasoning memory to sustain scaling",
+      "llm_evidence_cn": "带有排序推理记忆的记忆增强混合智能体以维持扩展",
+      "llm_evidence": "带有排序推理记忆的记忆增强混合智能体以维持扩展",
+      "canonical_evidence": "带有排序推理记忆的记忆增强混合智能体以维持扩展",
+      "llm_tldr_en": "Proposes ReM-MoA, a memory-augmented MoA framework using Ranked Reasoning Memory and Curated Diversified Memory Routing to prevent degradation in multi-layer Mixture-of-Agents.",
+      "llm_tldr_cn": "现有混合智能体架构在增加层次时性能衰减。本工作提出ReM-MoA，通过排序推理记忆持久化各层推理轨迹并排序，再通过策划的多样化记忆路由维持推理多样性。实验表明该框架在多领域推理任务上有效维持了扩展增益，显著超越基线莫亚方法，为记忆增强的集体推理提供了有效方案。",
+      "llm_tldr": "现有混合智能体架构在增加层次时性能衰减。本工作提出ReM-MoA，通过排序推理记忆持久化各层推理轨迹并排序，再通过策划的多样化记忆路由维持推理多样性。实验表明该框架在多领域推理任务上有效维持了扩展增益，显著超越基线莫亚方法，为记忆增强的集体推理提供了有效方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.24595v1",
+      "source": "arxiv",
+      "title": "MEMPROBE: Probing Long-Term Agent Memory via Hidden User-State Recovery",
+      "abstract": "Long-term memory promises LLM agents that grow more capable across sessions, maintaining an accurate, evolving understanding of the user that interaction forms. In practice, however, this memory is evaluated mostly through downstream behavior, such as later answers, personalization quality, or task success, which tests that understanding only indirectly and leaves the memory artifact itself largely unaudited. We argue that long-term memory should instead be evaluated as an auditable post-interaction artifact: after ordinary assistance, what structured user state can be reconstructed from the memory the agent leaves behind? We instantiate this view in MEMPROBE, a benchmark in which a memory-equipped agent assists simulated users, each carrying a hidden, taxonomy-anchored user-state bank, across a trajectory of leak-controlled tasks, after which that bank is reconstructed from the agent's resulting memory under both full-store and top-k access. Built on synthetic ground truth for efficient, scalable measurement, MEMPROBE spans 50 simulated users with 31 hidden dimensions each (1,550 recovery targets) and tests 5 representative memory systems. Testing state-of-the-art memory agents, we find that successful assistance and recoverable memory behave as distinct capabilities. Task completion nearly saturates, even for a memoryless baseline, while category-balanced recovery stays moderate (about 0.6) and drops further under top-k retrieval. MEMPROBE is the first benchmark to study memory recovery directly, reconstructing the user state a system retains and scoring it against ground truth. We see recovery as a concrete objective for future memory agents to optimize, and MEMPROBE as a step toward an environment where agents are trained to remember their users, growing more faithful the longer they know them.",
+      "authors": [
+        "Enze Ma",
+        "Yufan Zhou",
+        "Wei-Chieh Huang",
+        "Jie Yang",
+        "Huanhuan Ma",
+        "Zixuan Wang",
+        "Chengze Li",
+        "Chunyu Miao",
+        "Philip S. Yu",
+        "Zhen Wang"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-06-23T13:52:46+00:00",
+      "link": "https://arxiv.org/pdf/2606.24595v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Evaluates long-term agent memory by auditing reconstructed hidden user state",
+      "llm_evidence_cn": "通过审核重构隐藏用户状态评估智能体长期记忆",
+      "llm_evidence": "通过审核重构隐藏用户状态评估智能体长期记忆",
+      "canonical_evidence": "通过审核重构隐藏用户状态评估智能体长期记忆",
+      "llm_tldr_en": "Proposes MEMPROBE, a benchmark that evaluates long-term agent memory by checking what structured user state can be reconstructed from memory after interaction.",
+      "llm_tldr_cn": "当前智能体长期记忆评估依赖间接的下游表现，无法直接审计记忆质量。本工作提出MEMPROBE基准，让记忆智能体与携带隐藏状态的模拟用户交互，通过从记忆痕迹中恢复用户状态来可审计地评估记忆。实验显示现有记忆机制在状态恢复上存在局限，为设计透明可信的长期记忆提供了新视角。",
+      "llm_tldr": "当前智能体长期记忆评估依赖间接的下游表现，无法直接审计记忆质量。本工作提出MEMPROBE基准，让记忆智能体与携带隐藏状态的模拟用户交互，通过从记忆痕迹中恢复用户状态来可审计地评估记忆。实验显示现有记忆机制在状态恢复上存在局限，为设计透明可信的长期记忆提供了新视角。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.17591v1",
+      "source": "arxiv",
+      "title": "Closing the Feedback Loop: From Experience Extraction to Insight Governance in Verbal Reinforcement Learning",
+      "abstract": "Training-free verbal reinforcement learning enables LLM agents to learn from world feedback -- objective signals such as dynamic task outcomes, market returns, or demand forecasts -- by extracting verbal rules from experience and injecting them as context, updating the agent's behavior without parameter changes. However, in non-stationary environments these agents face a retention-forgetting dilemma: retaining stale insights causes negative transfer, while discarding them causes catastrophic forgetting when conditions recur. We identify four requirements for navigating this dilemma -- outcome-driven evaluation, persistent structured evidence, non-monotonic knowledge lifecycle, and compositional governance -- and show that existing methods invest heavily in experience extraction while underinvesting in insight governance. We propose a three-layer architecture -- rules, evidence, and skills -- connected by a feedback-driven curation loop that closes the governance gap. Rules capture distilled experience from world outcomes; evidence logs track each rule's reliability across episodes; skills govern which rules to apply, how to resolve conflicts, and when to abstain. On financial forecasting as a case study, where world feedback is naturally abundant, noisy, and non-stationary, we show that the same accumulated experience either degrades performance below the zero-shot baseline or dramatically improves accuracy and risk-adjusted returns, depending on whether the curation loop is present.",
+      "authors": [
+        "Yanwei Cui",
+        "Xing Zhang",
+        "Yulong Zhang",
+        "Li Shao",
+        "Xiaofeng Shi",
+        "Guanghui Wang",
+        "Peiyang He"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-16T06:55:55+00:00",
+      "link": "https://arxiv.org/pdf/2606.17591v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Addresses retention-forgetting dilemma for agent memory via insight governance.",
+      "llm_evidence_cn": "通过洞察治理解决智能体记忆的保留-遗忘困境。",
+      "llm_evidence": "通过洞察治理解决智能体记忆的保留-遗忘困境。",
+      "canonical_evidence": "通过洞察治理解决智能体记忆的保留-遗忘困境。",
+      "llm_tldr_en": "This paper tackles the retention-forgetting dilemma in verbal reinforcement learning agents by proposing four principles for governing extracted insights: outcome-driven evaluation, persistent structured evidence, non-monotonic lifecycle, and compositional governance.",
+      "llm_tldr_cn": "言语强化学习使智能体能从世界反馈中提取口头规则，但在环境变化时面临保留与遗忘的两难。本文识别出解决这一难题的四个核心需求：结果驱动评估、持久结构化证据、非单调的知识生命周期和组合式治理。基于这些原则设计的洞察管理框架，在动态任务中平衡了稳定性与可塑性，显著提升了智能体的长期学习效果。该工作为构建具有自适应记忆的智能体提供了理论指导。",
+      "llm_tldr": "言语强化学习使智能体能从世界反馈中提取口头规则，但在环境变化时面临保留与遗忘的两难。本文识别出解决这一难题的四个核心需求：结果驱动评估、持久结构化证据、非单调的知识生命周期和组合式治理。基于这些原则设计的洞察管理框架，在动态任务中平衡了稳定性与可塑性，显著提升了智能体的长期学习效果。该工作为构建具有自适应记忆的智能体提供了理论指导。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2606.24151v1",
+      "source": "arxiv",
+      "title": "Metis: Bridging Text and Code Memory for Self-Evolving Agents",
+      "abstract": "Self-evolving agents improve over time by distilling experience from past executions and reusing it in future tasks. Existing systems represent such experience either as natural-language text injected into the agent context or as code exposed as callable tools. However, the choice between these representations is typically made at design time rather than derived from the characteristics of the experience itself, leaving the trade-offs between them poorly understood. We present the first controlled study that isolates text memory and code memory over an identical set of experiences. Our results show that the two forms exhibit complementary trade-offs in construction cost, execution efficiency, and transferability, such that neither representation alone is sufficient. Guided by these findings, we propose Metis, a self-evolving agent system built on a hierarchical dual-representation memory. Metis organizes textual experience into execution plans, environment facts, and common pitfalls, and selectively crystallizes recurring plans into validated callable tools. This design combines the broad applicability of text memory with the execution efficiency of code memory while incurring tool-generation cost only when justified by repeated reuse. We evaluate Metis on AppWorld, a challenging benchmark for interactive agents. The results show that Metis improves task accuracy by up to 20.6% over ReAct while reducing execution cost by up to 22.8%. Compared with representative self-evolving agent systems, Metis consistently achieves a better balance between accuracy, execution efficiency, and memory-construction cost.",
+      "authors": [
+        "Zijie Dai",
+        "Siuhin He",
+        "Hui Li",
+        "Qihui Zhou",
+        "Jiajun Li",
+        "Mingcong Song",
+        "Guoping Long",
+        "Hongjie Si",
+        "Xin Yao",
+        "Lin Zhang",
+        "James Cheng",
+        "Xiao Yan"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI"
+      ],
+      "published": "2026-06-23T05:17:22+00:00",
+      "link": "https://arxiv.org/pdf/2606.24151v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "First controlled study comparing text and code memory representations for self-evolving agents.",
+      "llm_evidence_cn": "首个对比自进化智能体中文本与代码记忆表示的受控研究。",
+      "llm_evidence": "首个对比自进化智能体中文本与代码记忆表示的受控研究。",
+      "canonical_evidence": "首个对比自进化智能体中文本与代码记忆表示的受控研究。",
+      "llm_tldr_en": "Metis conducts a controlled study comparing text and code memory for self-evolving agents, finding complementary trade-offs and proposing a combined architecture for superior performance.",
+      "llm_tldr_cn": "自进化智能体通常以文本或代码形式存储经验，但两类的权衡缺乏系统分析。本文首次在相同经验集上控制对比文本记忆和代码记忆，发现它们在构建成本、执行效率和可迁移性上互补，单独使用任一种均不足。在此基础上提出混合记忆架构，结合两者优势，实现更优的整体性能，为智能体记忆设计提供指导。",
+      "llm_tldr": "自进化智能体通常以文本或代码形式存储经验，但两类的权衡缺乏系统分析。本文首次在相同经验集上控制对比文本记忆和代码记忆，发现它们在构建成本、执行效率和可迁移性上互补，单独使用任一种均不足。在此基础上提出混合记忆架构，结合两者优势，实现更优的整体性能，为智能体记忆设计提供指导。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2606.24428v1",
+      "source": "arxiv",
+      "title": "Escaping the Self-Confirmation Trap: An Execute-Distill-Verify Paradigm for Agentic Experience Learning",
+      "abstract": "Experience-driven self-evolution is critical for large language model (LLM) agents to improve through open-world interaction. However, existing experience learning methods mostly rely on single-agent loops, where the same agent executes tasks, summarizes outcomes, and determines memory content. This setup makes agents vulnerable to the Self-Confirmation Trap: wrong-but-self-consistent trajectories are misidentified as successful experience, leading to cumulative errors during retrieval and reuse. To address this issue, we propose EDV, an Execute-Distill-Verify framework for reliable experience learning. In the Execute stage, multiple heterogeneous agents explore the same task space in parallel to generate diverse candidate trajectories. In the Distill stage, a dedicated third-party agent comparatively analyzes these trajectories to produce candidate experiences, reducing executor-centric summarization bias. In the Verify stage, the execution group validates candidates via a consensus mechanism, and only approved experiences are written into shared or private memory. By decoupling the three stages, EDV transforms experience learning from isolated self-reflection into collaborative construction, filtering erroneous and noisy content before memory insertion. We evaluate EDV on three challenging long-horizon benchmarks: tau2-bench, Mind2Web and MMTB. Results show EDV consistently outperforms strong baselines, validating that reliable experience construction is essential for robust agent self-evolution. Our code is available at https://github.com/shidingz/EDV.",
+      "authors": [
+        "Shiding Zhu",
+        "Yudi Qi",
+        "Yajie Wang",
+        "Jiaze Li",
+        "Chao Song",
+        "Yaorui Shi",
+        "Yibo Miao",
+        "Hanqi Gao",
+        "Kai Zhang"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-06-23T11:05:05+00:00",
+      "link": "https://arxiv.org/pdf/2606.24428v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "Multi-agent framework to verify experiences before memory storage, avoiding self-confirmation errors",
+      "llm_evidence_cn": "多智能体框架在记忆存储前验证经验以避免自我确认错误",
+      "llm_evidence": "多智能体框架在记忆存储前验证经验以避免自我确认错误",
+      "canonical_evidence": "多智能体框架在记忆存储前验证经验以避免自我确认错误",
+      "llm_tldr_en": "Proposes EDV, an Execute-Distill-Verify framework with multiple heterogeneous agents that verify experiences before storing, preventing the self-confirmation trap in agentic experience learning.",
+      "llm_tldr_cn": "现有单智能体经验学习易陷入自我确认陷阱，将错误轨迹误认为成功经验。本工作提出EDV框架，多异构智能体并行探索同一任务空间，通过执行、蒸馏和验证三步确保记忆内容的质量。实验表明该方法有效减少错误经验比率，提升了智能体在开放世界中的自进化可靠性。",
+      "llm_tldr": "现有单智能体经验学习易陷入自我确认陷阱，将错误轨迹误认为成功经验。本工作提出EDV框架，多异构智能体并行探索同一任务空间，通过执行、蒸馏和验证三步确保记忆内容的质量。实验表明该方法有效减少错误经验比率，提升了智能体在开放世界中的自进化可靠性。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2606.19319v1",
+      "source": "arxiv",
+      "title": "Data Intelligence Agents: Interpreting, Modeling, and Querying Enterprise Data via Autonomous Coding Agents",
+      "abstract": "Production data integration is bottlenecked by repeated, lossy handoffs between data owners, engineers, and analysts who must collaboratively discover, structure, and query enterprise data. We present Data Intelligence Agents (DIA), a system of three agents (Data Interpreter, Schema Creator, and Query Generator) that compresses this workflow by treating autonomous coding agents (ACAs) as a first-class abstraction: rather than emitting text, the agents generate, execute, validate, and repair concrete artifacts, draw on a shared memory for experience reuse, and surface each for review by domain experts. DIA is deployed in production for enterprise customers. We study the Query Generator in depth and evaluate it in fully autonomous mode across seven SQL benchmarks spanning four task categories and four dialects. It matches or surpasses the best published results on all seven, demonstrating that an architecture grounded in execution, built on ACAs and a shared memory, generalizes across the data intelligence workload with adaptation confined to natural-language instructions.",
+      "authors": [
+        "Anoushka Vyas",
+        "Aarushi Dhanuka",
+        "Sina Khoshfetrat Pakazad",
+        "Henrik Ohlsson"
+      ],
+      "primary_category": "cs.MA",
+      "categories": [
+        "cs.MA",
+        "cs.AI",
+        "cs.DB"
+      ],
+      "published": "2026-06-17T17:45:32+00:00",
+      "link": "https://arxiv.org/pdf/2606.19319v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "shared memory for experience reuse in agent system",
+      "llm_evidence_cn": "智能体系统中用于经验复用的共享记忆",
+      "llm_evidence": "智能体系统中用于经验复用的共享记忆",
+      "canonical_evidence": "智能体系统中用于经验复用的共享记忆",
+      "llm_tldr_en": "Presents a multi-agent system for enterprise data integration using autonomous coding agents with a shared memory for experience reuse. Demonstrates improved workflow compression, but memory is a supporting component rather than the core innovation.",
+      "llm_tldr_cn": "提出用于企业数据集成工作的多智能体系统，利用自主编程智能体生成并修复具体构件，并通过共享记忆复用经验。虽然记忆是系统组件之一，但重点在于编码智能体与工作流压缩，对记忆系统的设计贡献有限。",
+      "llm_tldr": "提出用于企业数据集成工作的多智能体系统，利用自主编程智能体生成并修复具体构件，并通过共享记忆复用经验。虽然记忆是系统组件之一，但重点在于编码智能体与工作流压缩，对记忆系统的设计贡献有限。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "What are the recent advancements in memory systems for AI agents?",
+      "matched_requirement_id": "req-6",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2606.24626v1",
+      "source": "arxiv",
+      "title": "SAFARI: Scaling Long Horizon Agentic Fault Attribution via Active Investigation",
+      "abstract": "As autonomous agents tackle increasingly complex multi-step, multi-agent tasks, their execution trajectories have scaled beyond the constraints of even the largest context windows. Current methods for effectively diagnosing agent failures load the full trajectory into an LLM's context window, which suffers from attention dilution and fails when agentic traces inevitably exceed context limits. To address this, we introduce SAFARI (Scaling long-horizon Agentic Fault AttRibution via active Investigation), a framework that replaces linear context loading with a tool-augmented diagnostic loop. By equipping LLMs with a specialized toolbox to read and search trajectory segments alongside a persistent Short-Term Memory (STM) for cross-turn reasoning, SAFARI effectively decouples diagnostic accuracy from architectural context limits. Our experiments demonstrate that SAFARI outperforms state-of-the-art results by 20% on the Who&When dataset within a 1M token budget, and by 19% on TRAIL GAIA subset on a 25K token budget. Most significantly, SAFARI maintains a 0.58 precision even when the target fault resides 5x beyond the model's native context window, a scenario where traditional evaluators fail entirely.",
+      "authors": [
+        "Chenyang Zhu",
+        "Jiayu Yao",
+        "Kushal Chawla",
+        "Youbing Yin",
+        "Nathan Wolfe",
+        "Pengshan Cai",
+        "Jingyu Wu",
+        "Spencer Hong",
+        "Sangwoo Cho",
+        "Shi-Xiong Zhang",
+        "Daben Liu",
+        "Sambit Sahu",
+        "Erin Babinsky"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-23T14:23:40+00:00",
+      "link": "https://arxiv.org/pdf/2606.24626v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "Introduces a persistent Short-Term Memory (STM) for cross-turn reasoning in agent fault diagnosis",
+      "llm_evidence_cn": "引入持久短时记忆（STM）用于智能体故障诊断中的跨轮次推理",
+      "llm_evidence": "引入持久短时记忆（STM）用于智能体故障诊断中的跨轮次推理",
+      "canonical_evidence": "引入持久短时记忆（STM）用于智能体故障诊断中的跨轮次推理",
+      "llm_tldr_en": "Replaces linear context loading with a tool-augmented diagnostic loop and a persistent Short-Term Memory to scale fault attribution in long-horizon agent tasks.",
+      "llm_tldr_cn": "现有智能体故障诊断方法因将完整轨迹装入上下文窗口而受到注意力稀释和长度限制。SAFARI框架引入工具增强的诊断循环和持久短时记忆（STM），使LLM能够跨轮次搜索轨迹片段，实现长程智能体故障的高效归因。实验表明，该方法突破了上下文长度限制，提升了复杂多步任务的诊断能力。",
+      "llm_tldr": "现有智能体故障诊断方法因将完整轨迹装入上下文窗口而受到注意力稀释和长度限制。SAFARI框架引入工具增强的诊断循环和持久短时记忆（STM），使LLM能够跨轮次搜索轨迹片段，实现长程智能体故障的高效归因。实验表明，该方法突破了上下文长度限制，提升了复杂多步任务的诊断能力。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "intelligent agents with memory",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2606.21666v1",
+      "source": "arxiv",
+      "title": "Hallucination as Context Drift: Synchronization Protocols for Multi-Agent LLM Systems",
+      "abstract": "Multi-agent LLM systems routinely produce hallucinated outputs that cannot be explained by model deficiencies alone. A significant class of these failures arises not from model incapacity but from context drift: the divergence of internal knowledge states between concurrent agents. When agents enter a collaborative task with mismatched or stale representations of shared world state, their joint reasoning produces contradictions that manifest as hallucination. We define the Context Divergence Score (CDS), a lightweight scalar metric quantifying knowledge-state discrepancy between agent pairs across spatial, temporal, and task dimensions, and propose the Shared State Verification Protocol (SSVP), which lets agents periodically exchange compressed state summaries and flag high-divergence conditions before joint reasoning. We evaluate SSVP across two domains (multi-agent travel and software project planning) using Claude Haiku. In controlled experiments (n=30 per condition, travel; n=10, software) across 8 scenarios, naive full-broadcast synchronization increases hallucination rate by 34% above the no-sync baseline (HR: 0.658 vs. 0.492, p=0.0022, d=1.18), a contamination effect from propagating erroneous agent states. SSVP avoids this failure mode while showing modest, consistent reduction (HR: 0.463, d=0.30) and achieves significantly lower hallucination than full-broadcast (p=0.0005, d=1.47) using 58% fewer API calls. The contamination effect does not replicate in the software domain, where all conditions converge to low HR (<0.2), confirming it is specific to tasks where one erroneous shared belief cascades across evaluation dimensions. Our results reframe hallucination mitigation as a distributed systems problem and establish context synchronization as a first-class primitive in multi-agent LLM design.",
+      "authors": [
+        "Carson Rodrigues"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CL",
+        "cs.MA"
+      ],
+      "published": "2026-06-19T18:17:45+00:00",
+      "link": "https://arxiv.org/pdf/2606.21666v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "Proposes synchronization protocol for multi-agent shared state memory to prevent context drift.",
+      "llm_evidence_cn": "提出多智能体共享状态记忆同步协议，防止上下文漂移。",
+      "llm_evidence": "提出多智能体共享状态记忆同步协议，防止上下文漂移。",
+      "canonical_evidence": "提出多智能体共享状态记忆同步协议，防止上下文漂移。",
+      "llm_tldr_en": "The paper formalizes context drift as a cause of hallucination in multi-agent systems, introducing the Context Divergence Score and the Shared State Verification Protocol to synchronize knowledge states.",
+      "llm_tldr_cn": "多智能体LLM系统执行协作任务时，智能体间知识状态的不一致会导致上下文漂移，从而产生与模型能力无关的幻觉。本文定义了上下文偏离分数来度量这种不一致，并提出共享状态验证协议，允许智能体定期交换压缩的知识状态以同步记忆。实验表明，该协议有效降低了幻觉发生，提升了协作推理质量。该工作揭示了多智能体记忆一致性的重要性，并为系统设计提供了实用解决方案。",
+      "llm_tldr": "多智能体LLM系统执行协作任务时，智能体间知识状态的不一致会导致上下文漂移，从而产生与模型能力无关的幻觉。本文定义了上下文偏离分数来度量这种不一致，并提出共享状态验证协议，允许智能体定期交换压缩的知识状态以同步记忆。实验表明，该协议有效降低了幻觉发生，提升了协作推理质量。该工作揭示了多智能体记忆一致性的重要性，并为系统设计提供了实用解决方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "intelligent agents with memory",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    }
+  ]
+}
