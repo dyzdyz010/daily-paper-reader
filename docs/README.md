@@ -6,55 +6,52 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-24
-- 运行时间：2026-06-24 20:15:26 UTC
+- 最新运行日期：2026-06-25
+- 运行时间：2026-06-25 19:50:40 UTC
 - 运行状态：成功
-- 本次总论文数：11
+- 本次总论文数：10
 - 精读区：6
-- 速读区：5
+- 速读区：4
 
 ### 今日简报（AI）
-今天深入研读了多智能体系统的记忆与协同机制，聚焦怎样让异构 LLM 智能体在对话中保持连续、交接与经验复用。
-最值得关注的是事件溯源式记忆层和受管控共享记忆方案，它们为跨智能体的稳定协作与治理提供了全新架构基础。
-建议读者从这两篇满分论文入手，再结合“执行-蒸馏-验证”范式，思考如何将记忆与可靠经验学习闭环落地到自己的智能体系统。
-- 详情：[/202606/24/README](/202606/24/README)
+今日精读两篇满分长程记忆研究，从真实场景动态评测到视觉时空导航，系统拆解了智能体长期能力的边界。  
+关键突破：DynamicMem 给出首个真实世界长时记忆基准，RAVEN 用视觉时空记忆实现零样本自主规避与规划。  
+建议关注者直接研读这两篇，它们将是构建持久可信智能体的重要蓝图。
+- 详情：[/202606/25/README](/202606/25/README)
 
 ### 精读区论文标签
-1. [ESAA-Conversational: An Event-Sourced Memory Layer for Continuity, Handoff, and Curation Across Heterogeneous LLM Coding Agents](/202606/24/2606.23752v1-esaa-conversational-an-event-sourced-memory-layer-for-continuity-handoff-and-curation-across-heterogeneous-llm-coding-agents)  
+1. [DynamicMem: A Long-Horizon Memory Benchmark in Real-World Settings](/202606/25/2606.22877v1-dynamicmem-a-long-horizon-memory-benchmark-in-real-world-settings)  
    标签：评分：10.0/10、query:agent-memory
-   evidence：提出事件溯源记忆层，实现异构代理间共享会话记忆
-2. [Governed Shared Memory for Multi-Agent LLM Systems](/202606/24/2606.24535v1-governed-shared-memory-for-multi-agent-llm-systems)  
+   evidence：提出评估LLM代理长期记忆的基准，模拟用户属性、习惯和偏好的长时程漂移。
+2. [RAVEN: Long-Horizon Reasoning & Navigation with a Visuo-Spatio-Temporal Memory](/202606/25/2606.25206v1-raven-long-horizon-reasoning--navigation-with-a-visuo-spatio-temporal-memory)  
    标签：评分：10.0/10、query:agent-memory
-   evidence：为多智能体LLM系统提出受控共享记忆原语（作用域检索、溯源追踪）
-3. [Are We Ready For An Agent-Native Memory System?](/202606/24/2606.24775v1-are-we-ready-for-an-agent-native-memory-system)  
+   evidence：提出面向机器人长时程任务的视觉-时空记忆系统，利用向量库与空间地图实现高效检索。
+3. [Staying In Character: Perspective-Bounded Memory For Book-Based Role-Playing Agents](/202606/25/2606.25632v1-staying-in-character-perspective-bounded-memory-for-book-based-role-playing-agents)  
    标签：评分：10.0/10、query:agent-memory
-   evidence：从数据管理视角系统评估智能体记忆，涵盖架构权衡和生命周期治理
-4. [ReM-MoA: Reasoning Memory Sustains Mixture-of-Agents Scaling](/202606/24/2606.24437v1-rem-moa-reasoning-memory-sustains-mixture-of-agents-scaling)  
+   evidence：三层视角约束记忆架构用于智能体
+4. [Forget to Improve: On-Device LLM-Agent Continual Learning via Budget-Curated Memory](/202606/25/2606.25115v1-forget-to-improve-on-device-llm-agent-continual-learning-via-budget-curated-memory)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：带有排序推理记忆的记忆增强混合智能体以维持扩展
-5. [MEMPROBE: Probing Long-Term Agent Memory via Hidden User-State Recovery](/202606/24/2606.24595v1-memprobe-probing-long-term-agent-memory-via-hidden-user-state-recovery)  
+   evidence：面向设备端LLM智能体的预算管理记忆，按每字节净值评分条目
+5. [TRUSTMEM: Learning Trustworthy Memory Consolidation for LLM Agents with Long-Term Memory](/202606/25/2606.25161v1-trustmem-learning-trustworthy-memory-consolidation-for-llm-agents-with-long-term-memory)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：通过审核重构隐藏用户状态评估智能体长期记忆
-6. [Closing the Feedback Loop: From Experience Extraction to Insight Governance in Verbal Reinforcement Learning](/202606/24/2606.17591v1-closing-the-feedback-loop-from-experience-extraction-to-insight-governance-in-verbal-reinforcement-learning)  
+   evidence：提出TrustMem框架，用于LLM智能体长期记忆的可信记忆固化。
+6. [Self-Compacting Language Model Agents](/202606/25/2606.23525v1-self-compacting-language-model-agents)  
    标签：评分：8.0/10、query:agent-memory
-   evidence：通过洞察治理解决智能体记忆的保留-遗忘困境。
+   evidence：通过模型驱动的压缩决策管理LLM智能体上下文窗口的自压缩框架
 
 ### 速读区论文标签
-1. [Metis: Bridging Text and Code Memory for Self-Evolving Agents](/202606/24/2606.24151v1-metis-bridging-text-and-code-memory-for-self-evolving-agents)  
+1. [Memory Makes the Difference: Evaluating How Different Memory Roles Shape Conversational Agents](/202606/25/2606.25361v1-memory-makes-the-difference-evaluating-how-different-memory-roles-shape-conversational-agents)  
    标签：评分：8.0/10、query:agent-memory
-   evidence：首个对比自进化智能体中文本与代码记忆表示的受控研究。
-2. [Escaping the Self-Confirmation Trap: An Execute-Distill-Verify Paradigm for Agentic Experience Learning](/202606/24/2606.24428v1-escaping-the-self-confirmation-trap-an-execute-distill-verify-paradigm-for-agentic-experience-learning)  
+   evidence：评估不同记忆角色如何塑造对话智能体响应
+2. [Memory Contagion: Cross-Temporal Propagation of Evaluator Bias via Agent Memory](/202606/25/2606.23195v2-memory-contagion-cross-temporal-propagation-of-evaluator-bias-via-agent-memory)  
    标签：评分：7.0/10、query:agent-memory
-   evidence：多智能体框架在记忆存储前验证经验以避免自我确认错误
-3. [SAFARI: Scaling Long Horizon Agentic Fault Attribution via Active Investigation](/202606/24/2606.24626v1-safari-scaling-long-horizon-agentic-fault-attribution-via-active-investigation)  
-   标签：评分：7.0/10、query:agent-memory
-   evidence：引入持久短时记忆（STM）用于智能体故障诊断中的跨轮次推理
-4. [Data Intelligence Agents: Interpreting, Modeling, and Querying Enterprise Data via Autonomous Coding Agents](/202606/24/2606.19319v1-data-intelligence-agents-interpreting-modeling-and-querying-enterprise-data-via-autonomous-coding-agents)  
+   evidence：发现并形式化记忆传染现象：评估者偏见通过智能体内存跨时间传播
+3. [OpenRath: Session-Centered Runtime State for Agent Systems](/202606/25/2606.19409v1-openrath-session-centered-runtime-state-for-agent-systems)  
    标签：评分：6.0/10、query:agent-memory
-   evidence：智能体系统中用于经验复用的共享记忆
-5. [Hallucination as Context Drift: Synchronization Protocols for Multi-Agent LLM Systems](/202606/24/2606.21666v1-hallucination-as-context-drift-synchronization-protocols-for-multi-agent-llm-systems)  
+   evidence：以会话为中心的运行时状态整合智能体系统中的记忆事件
+4. [Memory Retrieval in Visuomotor Policies for Long-Horizon Robot Control](/202606/25/2606.25136v1-memory-retrieval-in-visuomotor-policies-for-long-horizon-robot-control)  
    标签：评分：6.0/10、query:agent-memory
-   evidence：提出多智能体共享状态记忆同步协议，防止上下文漂移。
+   evidence：提出基于Transformer的记忆检索机制用于长时域机器人控制，解决智能体记忆架构中的关键挑战。
 
 
 <div class="dpr-home-promo-card">
