@@ -6,52 +6,35 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-25
-- 运行时间：2026-06-25 19:50:40 UTC
+- 最新运行日期：2026-06-26
+- 运行时间：2026-06-26 20:03:02 UTC
 - 运行状态：成功
-- 本次总论文数：10
-- 精读区：6
-- 速读区：4
+- 本次总论文数：4
+- 精读区：4
+- 速读区：0
 
 ### 今日简报（AI）
-今日精读两篇满分长程记忆研究，从真实场景动态评测到视觉时空导航，系统拆解了智能体长期能力的边界。  
-关键突破：DynamicMem 给出首个真实世界长时记忆基准，RAVEN 用视觉时空记忆实现零样本自主规避与规划。  
-建议关注者直接研读这两篇，它们将是构建持久可信智能体的重要蓝图。
-- 详情：[/202606/25/README](/202606/25/README)
+今日精读两篇顶会论文，探索如何让AI代理摆脱“金鱼记忆”，实现数周甚至数月的持续运行。  
+核心洞察：一篇满分论文用“记忆深度”取代频繁检索，通过选择性参数巩固让模型像人类一样把重要经验“写入硬脑”；另一篇则让记忆表征自身进化，适配海量长上下文检索。  
+若想打造真正懂你的长期伙伴，建议从《Memory Depth》读起，理解其模型微调幻化为渐进式记忆雕刻的巧妙思路。
+- 详情：[/202606/26/README](/202606/26/README)
 
 ### 精读区论文标签
-1. [DynamicMem: A Long-Horizon Memory Benchmark in Real-World Settings](/202606/25/2606.22877v1-dynamicmem-a-long-horizon-memory-benchmark-in-real-world-settings)  
+1. [Memory Depth, Not Memory Access: Selective Parametric Consolidation for Long-Running Language Agents](/202606/26/2606.26806v1-memory-depth-not-memory-access-selective-parametric-consolidation-for-long-running-language-agents)  
    标签：评分：10.0/10、query:agent-memory
-   evidence：提出评估LLM代理长期记忆的基准，模拟用户属性、习惯和偏好的长时程漂移。
-2. [RAVEN: Long-Horizon Reasoning & Navigation with a Visuo-Spatio-Temporal Memory](/202606/25/2606.25206v1-raven-long-horizon-reasoning--navigation-with-a-visuo-spatio-temporal-memory)  
-   标签：评分：10.0/10、query:agent-memory
-   evidence：提出面向机器人长时程任务的视觉-时空记忆系统，利用向量库与空间地图实现高效检索。
-3. [Staying In Character: Perspective-Bounded Memory For Book-Based Role-Playing Agents](/202606/25/2606.25632v1-staying-in-character-perspective-bounded-memory-for-book-based-role-playing-agents)  
-   标签：评分：10.0/10、query:agent-memory
-   evidence：三层视角约束记忆架构用于智能体
-4. [Forget to Improve: On-Device LLM-Agent Continual Learning via Budget-Curated Memory](/202606/25/2606.25115v1-forget-to-improve-on-device-llm-agent-continual-learning-via-budget-curated-memory)  
+   evidence：提出EVAF，一种选择性参数巩固机制，为长运行智能体提供持久记忆深度
+2. [EvoEmbedding: Evolvable Representations for Long-Context Retrieval and Agentic Memory](/202606/26/2606.21649v2-evoembedding-evolvable-representations-for-long-context-retrieval-and-agentic-memory)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：面向设备端LLM智能体的预算管理记忆，按每字节净值评分条目
-5. [TRUSTMEM: Learning Trustworthy Memory Consolidation for LLM Agents with Long-Term Memory](/202606/25/2606.25161v1-trustmem-learning-trustworthy-memory-consolidation-for-llm-agents-with-long-term-memory)  
+   evidence：引入维护潜在记忆的进化式嵌入，用于智能体记忆检索
+3. [Temporal Validity in Retrieval Memory: Eliminating Stale-Fact Errors for AI Agents over Evolving Knowledge](/202606/26/2606.26511v1-temporal-validity-in-retrieval-memory-eliminating-stale-fact-errors-for-ai-agents-over-evolving-knowledge)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：提出TrustMem框架，用于LLM智能体长期记忆的可信记忆固化。
-6. [Self-Compacting Language Model Agents](/202606/25/2606.23525v1-self-compacting-language-model-agents)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：通过模型驱动的压缩决策管理LLM智能体上下文窗口的自压缩框架
+   evidence：提出MemStrata，一种维持时间有效性的检索记忆，以消除AI智能体因知识演化而产生的过时事实错误
+4. [Advancing Omnimodal Embodied Agents from Isolated Skills to Everyday Physical Autonomy](/202606/26/2606.27251v1-advancing-omnimodal-embodied-agents-from-isolated-skills-to-everyday-physical-autonomy)  
+   标签：评分：9.0/10、query:agent-memory
+   evidence：提出一种层次化异步架构，明确分离规划、记忆与验证，用于持续自主的具身智能体。
 
 ### 速读区论文标签
-1. [Memory Makes the Difference: Evaluating How Different Memory Roles Shape Conversational Agents](/202606/25/2606.25361v1-memory-makes-the-difference-evaluating-how-different-memory-roles-shape-conversational-agents)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：评估不同记忆角色如何塑造对话智能体响应
-2. [Memory Contagion: Cross-Temporal Propagation of Evaluator Bias via Agent Memory](/202606/25/2606.23195v2-memory-contagion-cross-temporal-propagation-of-evaluator-bias-via-agent-memory)  
-   标签：评分：7.0/10、query:agent-memory
-   evidence：发现并形式化记忆传染现象：评估者偏见通过智能体内存跨时间传播
-3. [OpenRath: Session-Centered Runtime State for Agent Systems](/202606/25/2606.19409v1-openrath-session-centered-runtime-state-for-agent-systems)  
-   标签：评分：6.0/10、query:agent-memory
-   evidence：以会话为中心的运行时状态整合智能体系统中的记忆事件
-4. [Memory Retrieval in Visuomotor Policies for Long-Horizon Robot Control](/202606/25/2606.25136v1-memory-retrieval-in-visuomotor-policies-for-long-horizon-robot-control)  
-   标签：评分：6.0/10、query:agent-memory
-   evidence：提出基于Transformer的记忆检索机制用于长时域机器人控制，解决智能体记忆架构中的关键挑战。
+- 本次无速读推荐。
 
 
 <div class="dpr-home-promo-card">
