@@ -1,0 +1,125 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-06-27T19:30:42.366534+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 3,
+    "deep_cap": 6,
+    "deep_selected": 3,
+    "quick_candidates": 0,
+    "quick_skim_target": 11,
+    "quick_selected": 0
+  },
+  "deep_dive": [
+    {
+      "id": "2606.24322v1",
+      "source": "arxiv",
+      "title": "Securing LLM-Agent Long-Term Memory Against Poisoning: Non-Malleable, Origin-Bound Authority with Machine-Checked Guarantees",
+      "abstract": "LLM agents increasingly rely on persistent long-term memory, which creates a critical vulnerability that we study here: memory poisoning. An adversary can store untrusted content in one session that later steers a consequential action, such as a payment, a setting change, or data exfiltration, in a future session. Existing defenses base a memory item's authority to act on either its content (detection or trust-scoring) or its derivation history (lineage). We show that both signals are malleable. An attacker can launder an untrusted origin through three channels specific to LLM agents: the agent's own summarization, a trusted-tool echo, and manufactured corroboration. Each makes the content look benign and breaks or flips its derivation edge to ``trusted.'' We formalize malleability for the memory write-retrieve-act pipeline and prove a machine-checked separation theorem. No content- or lineage-based defense is sound under laundering (T1), write-time origin binding is necessary (T2), and non-malleable origin-bound authority with Sybil-resistant corroboration-gated elevation is sufficient (T3). Our construction, TMA-NM (Tamper-evident Memory Authority, Non-Malleable), instantiates non-malleable information-flow control (IFC) for LLM-agent memory. A cross-defense, cross-attack, and cross-model benchmark over eight frontier models shows that existing defenses fail exactly where the theory predicts (up to 68% laundering attack-success), while TMA-NM reaches 0% attack success on both direct and laundering attacks across all models and channels, at full legitimate utility. We release the benchmark, harness, and machine-checked TLA+ models to support reproducibility.",
+      "authors": [
+        "Yedidel Louck"
+      ],
+      "primary_category": "cs.CR",
+      "categories": [
+        "cs.CR"
+      ],
+      "published": "2026-06-23T08:57:50+00:00",
+      "link": "https://arxiv.org/pdf/2606.24322v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 10.0,
+      "llm_evidence_en": "addresses memory poisoning in LLM agent long-term memory, providing non-malleable, origin-bound authority",
+      "llm_evidence_cn": "解决LLM智能体长期记忆投毒问题，提供不可延展、来源绑定的权限机制",
+      "llm_evidence": "解决LLM智能体长期记忆投毒问题，提供不可延展、来源绑定的权限机制",
+      "canonical_evidence": "解决LLM智能体长期记忆投毒问题，提供不可延展、来源绑定的权限机制",
+      "llm_tldr_en": "This paper identifies memory poisoning vulnerabilities in LLM agents' long-term memory and proposes defenses using non-malleable origin-bound authority with machine-checked guarantees.",
+      "llm_tldr_cn": "LLM智能体的持久长期记忆面临投毒攻击，敌手可在一次会话中植入恶意内容在后续会话引发不当操作。本文揭示现有基于内容或派生历史的防御均易被绕过，提出基于不可延展来源绑定权限的防御方案，并提供机器验证的保障。实验证明了攻击的有效性以及新防御在真实智能体场景下的安全增强。",
+      "llm_tldr": "LLM智能体的持久长期记忆面临投毒攻击，敌手可在一次会话中植入恶意内容在后续会话引发不当操作。本文揭示现有基于内容或派生历史的防御均易被绕过，提出基于不可延展来源绑定权限的防御方案，并提供机器验证的保障。实验证明了攻击的有效性以及新防御在真实智能体场景下的安全增强。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.27136v1",
+      "source": "arxiv",
+      "title": "Joint Learning of Experiential Rules and Policies for Large Language Model Agents",
+      "abstract": "For LLM agents in multi-step interactive environments, a key challenge is to make effective use of accumulated interaction experience. Existing work has typically separated two uses of such experience: keeping it outside the model as natural-language rules for later prompting, or using trajectories and feedback to update the model parameters. The former is easy to interpret but can fall out of sync with the evolving policy; the latter improves the policy more broadly but provides only limited correction for local mistakes in sparse-reward settings. We present Joint Learning of Experiential Rules and Policies for LLM Agents (JERP), which updates a long-term experiential-rule pool and the policy from the same interaction trajectories. At decision time, JERP retrieves task-relevant rules and conditions the agent on them together with the interaction history. After each episode, it uses the collected trajectories both to optimize the policy and to revise the rule pool by comparing current rollouts with reference successful trajectories. This coupling keeps the rule pool aligned with the evolving policy while allowing stable and effective behaviors to be gradually absorbed into the model itself. Experiments on AlfWorld and WebShop show that JERP yields consistent gains in decision performance for complex interactive tasks.",
+      "authors": [
+        "Shicheng Ye",
+        "Chao Yu"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-25T15:11:02+00:00",
+      "link": "https://arxiv.org/pdf/2606.27136v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Proposes updating a long-term experiential-rule pool from trajectories, directly designing agent memory for experience reuse.",
+      "llm_evidence_cn": "从交互轨迹更新长期经验规则池，直接设计智能体记忆以复用经验",
+      "llm_evidence": "从交互轨迹更新长期经验规则池，直接设计智能体记忆以复用经验",
+      "canonical_evidence": "从交互轨迹更新长期经验规则池，直接设计智能体记忆以复用经验",
+      "llm_tldr_en": "The paper presents JERP, a method to jointly update a long-term experiential-rule pool and policy from interaction trajectories, enabling LLM agents to effectively reuse accumulated experience without mismatches.",
+      "llm_tldr_cn": "现有LLM智能体将交互经验分离为提示中的自然语言规则或用于更新参数，两者各有不足。本文提出JERP，从相同交互轨迹同时更新长期经验规则池和策略，保持规则与策略同步，并缓解稀疏奖励下局部错误纠正不足的问题。实验表明该方法能有效利用经验，提升智能体在交互环境中的表现。",
+      "llm_tldr": "现有LLM智能体将交互经验分离为提示中的自然语言规则或用于更新参数，两者各有不足。本文提出JERP，从相同交互轨迹同时更新长期经验规则池和策略，保持规则与策略同步，并缓解稀疏奖励下局部错误纠正不足的问题。实验表明该方法能有效利用经验，提升智能体在交互环境中的表现。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.21188v1",
+      "source": "arxiv",
+      "title": "Remember what you did?: Learning Behavioral Memories for Partially Observable Object Manipulation",
+      "abstract": "Long horizon, contact-rich manipulation is inherently partially observable. This is as a single visual observation rarely captures a robot's full action context, including prior attempts, interactions, or progress. Consequently, standard visuomotor policies or vision-language-action models are prone to struggle in such tasks due to a lack of memory. To address this, we introduce Compressed Action Memory Policy (CAMP) based on the insight that a robot's own action history serves as a highly informative, self-supervised signal, enabling the policy to learn a robust, compact history representation. In our approach, we train a memory module to maintain a compressed representation of past actions, forcing it to encode a latent behavioral memory of all the robot's past interactions that can then be used to better contextualize future actions. This allows our approach to implicitly track generalized task progress and learn from failed attempts without any additional supervision, or external oversight. We evaluate CAMP across four real-robot setups and two novel simulation benchmarks: Memory-T-Bench and Memory-Manip-Bench. By demonstrating substantial gains over state-of-the-art baselines, CAMP is, to our knowledge, the first policy to demonstrate substantial success on contact-rich partially observable manipulation tasks purely through learned memory.",
+      "authors": [
+        "Kuancheng Wang",
+        "Seungho Yeom",
+        "Jinglin Cao",
+        "Yuheng Zhi",
+        "Nikhil Shinde",
+        "Michael Yip"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-06-19T07:56:58+00:00",
+      "link": "https://arxiv.org/pdf/2606.21188v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Proposes Compressed Action Memory Policy for long-horizon manipulation",
+      "llm_evidence_cn": "提出压缩动作记忆策略CAMP用于长时程操作任务",
+      "llm_evidence": "提出压缩动作记忆策略CAMP用于长时程操作任务",
+      "canonical_evidence": "提出压缩动作记忆策略CAMP用于长时程操作任务",
+      "llm_tldr_en": "Addresses the lack of memory in visuomotor policies for long-horizon manipulation by learning a compressed history of past actions as a self-supervised signal, improving robustness.",
+      "llm_tldr_cn": "针对部分可观测长时程操作中标准视觉运动策略缺乏记忆的问题，提出压缩动作记忆策略CAMP，将机器人自身动作历史作为自监督信号学习紧凑表示，显著提升任务鲁棒性。实验表明该方法能有效利用行为记忆，弥补视觉输入的不足。该研究为具身智能体设计了实用的行为记忆模块。",
+      "llm_tldr": "针对部分可观测长时程操作中标准视觉运动策略缺乏记忆的问题，提出压缩动作记忆策略CAMP，将机器人自身动作历史作为自监督信号学习紧凑表示，显著提升任务鲁棒性。实验表明该方法能有效利用行为记忆，弥补视觉输入的不足。该研究为具身智能体设计了实用的行为记忆模块。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": []
+}

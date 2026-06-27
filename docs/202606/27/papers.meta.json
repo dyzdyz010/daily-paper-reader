@@ -1,0 +1,54 @@
+{
+  "label": "2026-06-27",
+  "date": "2026-06-27",
+  "generated_at": "2026-06-27T19:33:42",
+  "count": 3,
+  "papers": [
+    {
+      "paper_id": "202606/27/2606.24322v1-securing-llm-agent-long-term-memory-against-poisoning-non-malleable-origin-bound-authority-with-machine-checked-guarantees",
+      "section": "deep",
+      "title_en": "Securing LLM-Agent Long-Term Memory Against Poisoning: Non-Malleable, Origin-Bound Authority with Machine-Checked Guarantees",
+      "authors": "Yedidel Louck",
+      "date": "2026-06-23",
+      "pdf": "https://arxiv.org/pdf/2606.24322v1",
+      "score": "10.0",
+      "evidence": "解决LLM智能体长期记忆投毒问题，提供不可延展、来源绑定的权限机制",
+      "tldr": "LLM代理的持久长期记忆面临投毒威胁，攻击者可在一次会话中存储恶意内容，进而引导未来的关键操作如支付、数据泄露等。现有防御基于内容检测或血统追踪，但攻击者通过摘要、工具回显与制造佐证三个通道洗白来源，使防御失效。本文提出非可塑来源绑定授权机制TMA-NM，通过机器检查的分离定理证明其必要性；实验在八款前沿模型上，该机制对所有攻击实现零成功率，并维持完全合法效用，同时开源基准与机器检查模型。",
+      "tags": "query:agent-memory",
+      "abstract_en": "LLM agents increasingly rely on persistent long-term memory, which creates a critical vulnerability that we study here: memory poisoning. An adversary can store untrusted content in one session that later steers a consequential action, such as a payment, a setting change, or data exfiltration, in a future session. Existing defenses base a memory item's authority to act on either its content (detection or trust-scoring) or its derivation history (lineage). We show that both signals are malleable. An attacker can launder an untrusted origin through three channels specific to LLM agents: the agent's own summarization, a trusted-tool echo, and manufactured corroboration. Each makes the content look benign and breaks or flips its derivation edge to ``trusted.'' We formalize malleability for the memory write-retrieve-act pipeline and prove a machine-checked separation theorem. No content- or lineage-based defense is sound under laundering (T1), write-time origin binding is necessary (T2), and non-malleable origin-bound authority with Sybil-resistant corroboration-gated elevation is sufficient (T3). Our construction, TMA-NM (Tamper-evident Memory Authority, Non-Malleable), instantiates non-malleable information-flow control (IFC) for LLM-agent memory. A cross-defense, cross-attack, and cross-model benchmark over eight frontier models shows that existing defenses fail exactly where the theory predicts (up to 68% laundering attack-success), while TMA-NM reaches 0% attack success on both direct and laundering attacks across all models and channels, at full legitimate utility. We release the benchmark, harness, and machine-checked TLA+ models to support reproducibility.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "paper_id": "202606/27/2606.27136v1-joint-learning-of-experiential-rules-and-policies-for-large-language-model-agents",
+      "section": "deep",
+      "title_en": "Joint Learning of Experiential Rules and Policies for Large Language Model Agents",
+      "authors": "Shicheng Ye, Chao Yu",
+      "date": "2026-06-25",
+      "pdf": "https://arxiv.org/pdf/2606.27136v1",
+      "score": "9.0",
+      "evidence": "从交互轨迹更新长期经验规则池，直接设计智能体记忆以复用经验",
+      "tldr": "针对LLM智能体在多步交互任务中的经验积累挑战，现有方法或只利用外部经验规则进行提示，或仅使用轨迹更新模型参数，导致规则易过时或局部错误纠正不足。本文提出JERP，从同一批交互轨迹中联合学习经验规则与策略，在决策时检索任务相关规则并与历史一同输入，交互后通过对比当前与成功轨迹优化策略并修订规则池，实现规则与策略的动态对齐。在AlfWorld和WebShop上，JERP取得了稳定的决策性能提升，证明了联合学习能促进稳定行为逐步内化到模型，提升复杂交互任务的解决能力。",
+      "tags": "query:agent-memory",
+      "abstract_en": "For LLM agents in multi-step interactive environments, a key challenge is to make effective use of accumulated interaction experience. Existing work has typically separated two uses of such experience: keeping it outside the model as natural-language rules for later prompting, or using trajectories and feedback to update the model parameters. The former is easy to interpret but can fall out of sync with the evolving policy; the latter improves the policy more broadly but provides only limited correction for local mistakes in sparse-reward settings. We present Joint Learning of Experiential Rules and Policies for LLM Agents (JERP), which updates a long-term experiential-rule pool and the policy from the same interaction trajectories. At decision time, JERP retrieves task-relevant rules and conditions the agent on them together with the interaction history. After each episode, it uses the collected trajectories both to optimize the policy and to revise the rule pool by comparing current rollouts with reference successful trajectories. This coupling keeps the rule pool aligned with the evolving policy while allowing stable and effective behaviors to be gradually absorbed into the model itself. Experiments on AlfWorld and WebShop show that JERP yields consistent gains in decision performance for complex interactive tasks.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "paper_id": "202606/27/2606.21188v1-remember-what-you-did-learning-behavioral-memories-for-partially-observable-object-manipulation",
+      "section": "deep",
+      "title_en": "Remember what you did?: Learning Behavioral Memories for Partially Observable Object Manipulation",
+      "authors": "Kuancheng Wang, Seungho Yeom, Jinglin Cao, Yuheng Zhi, Nikhil Shinde, Michael Yip",
+      "date": "2026-06-19",
+      "pdf": "https://arxiv.org/pdf/2606.21188v1",
+      "score": "8.0",
+      "evidence": "提出压缩动作记忆策略CAMP用于长时程操作任务",
+      "tldr": "长周期接触式操作任务中，单一视觉观察无法捕捉机器人完整动作上下文，导致标准策略缺乏记忆而失败。本文提出CAMP，将动作历史作为自我监督信号，训练记忆模块学习压缩的行为表示以提供上下文。在四个真实机器人和两个模拟基准上，CAMP显著超越现有方法，首次仅凭学习记忆成功解决部分可观察操作任务。该方法无需额外监督即可隐式跟踪任务进度并从失败中学习，具有重要应用价值。",
+      "tags": "query:agent-memory",
+      "abstract_en": "Long horizon, contact-rich manipulation is inherently partially observable. This is as a single visual observation rarely captures a robot's full action context, including prior attempts, interactions, or progress. Consequently, standard visuomotor policies or vision-language-action models are prone to struggle in such tasks due to a lack of memory. To address this, we introduce Compressed Action Memory Policy (CAMP) based on the insight that a robot's own action history serves as a highly informative, self-supervised signal, enabling the policy to learn a robust, compact history representation. In our approach, we train a memory module to maintain a compressed representation of past actions, forcing it to encode a latent behavioral memory of all the robot's past interactions that can then be used to better contextualize future actions. This allows our approach to implicitly track generalized task progress and learn from failed attempts without any additional supervision, or external oversight. We evaluate CAMP across four real-robot setups and two novel simulation benchmarks: Memory-T-Bench and Memory-Manip-Bench. By demonstrating substantial gains over state-of-the-art baselines, CAMP is, to our knowledge, the first policy to demonstrate substantial success on contact-rich partially observable manipulation tasks purely through learned memory.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "errors": []
+}
