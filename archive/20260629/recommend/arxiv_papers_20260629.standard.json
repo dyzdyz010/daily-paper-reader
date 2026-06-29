@@ -1,0 +1,311 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-06-29T20:02:47.445790+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 5,
+    "deep_cap": 6,
+    "deep_selected": 5,
+    "quick_candidates": 3,
+    "quick_skim_target": 11,
+    "quick_selected": 3
+  },
+  "deep_dive": [
+    {
+      "id": "2606.27472v1",
+      "source": "arxiv",
+      "title": "Supersede: Diagnosing and Training the Memory-Update Gap in LLM Agents",
+      "abstract": "Large language model (LLM) agents operate over long, multi-session interactions in which facts change: a user moves, a price updates, a plan is revised. Acting correctly requires using the current value of a fact and discarding values that have been superseded. We isolate this ability on real conversational data and show that it is a distinct, unsolved failure. On the knowledge-update subset of LongMemEval, replacing an agent's full context with a bounded, self-maintained memory drops accuracy from 92% to 77% even on a frontier model (gpt-5.4), a gap that is statistically significant (paired McNemar p<0.005) and persists across model scale while full-context accuracy saturates near 92%. The bottleneck is therefore memory maintenance, not comprehension, and is not closed by a stronger model. We then ask whether this is merely an undersized memory, and find it is not: as the conversation grows 24x, accuracy falls further (from 68% to 28%), and granting the agent proportionally more memory yields no detectable recovery (28% to 28%, n=25). The failure scales with the length of the conversation, not the compression ratio. We release Supersede, an open reinforcement-learning environment (on the verifiers / prime-rl stack) that turns this measurement into a training signal: agents are rewarded for answering from the current value and penalized for stale ones. Finally, we close the loop and show the gap is trainable: GRPO fine-tuning a small open model (Qwen2.5-3B) on this environment nearly doubles its held-out supersession accuracy on real, unseen conversations (9.0% to 16.7%, a single run), along a monotonic checkpoint curve indicating the learned policy, not the harness, carries the gain. To our knowledge this is the first trainable environment whose reward targets temporal fact-currency, and the first evidence the supersession gap can be trained down, not only measured.",
+      "authors": [
+        "Vedant Patel"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "published": "2026-06-25T18:50:32+00:00",
+      "link": "https://arxiv.org/pdf/2606.27472v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 10.0,
+      "llm_evidence_en": "Diagnoses the memory-update gap in LLM agents, where outdated facts persist in memory",
+      "llm_evidence_cn": "诊断LLM智能体中过时事实持续存在的记忆更新缺口",
+      "llm_evidence": "诊断LLM智能体中过时事实持续存在的记忆更新缺口",
+      "canonical_evidence": "诊断LLM智能体中过时事实持续存在的记忆更新缺口",
+      "llm_tldr_en": "Identifies that LLM agents struggle to discard superseded facts in bounded memory, causing a significant accuracy drop, and proposes a diagnostic benchmark and training approach.",
+      "llm_tldr_cn": "LLM智能体在长期交互中需要记忆当前事实并丢弃过时信息，但现有有界记忆机制导致准确率从92%降至77%。本文隔离出记忆维护这一瓶颈，在LongMemEval基准上验证其普遍性，并提出针对性的训练方法。该研究揭示了记忆更新是智能体长期可靠性的关键挑战。",
+      "llm_tldr": "LLM智能体在长期交互中需要记忆当前事实并丢弃过时信息，但现有有界记忆机制导致准确率从92%降至77%。本文隔离出记忆维护这一瓶颈，在LongMemEval基准上验证其普遍性，并提出针对性的训练方法。该研究揭示了记忆更新是智能体长期可靠性的关键挑战。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.27499v1",
+      "source": "arxiv",
+      "title": "DMV-Bench: Diagnosing Long-Horizon Multimodal Agents' Visual Memory with Incidental Cue Injection",
+      "abstract": "Research on agent memory has matured rapidly, but almost entirely on the text side: few existing benchmarks ask, in an interactive environment, when an agent genuinely needs to remember what it saw rather than what it could write down. We introduce DMV-Bench (Code: https://github.com/yyyujintang/DMV-Bench), the first interactive benchmark for multimodal-agent visual memory. DMV-Bench is built on a controlled home-furnishing e-commerce catalogue of 1,000 product variants in which a text-leakage contract keeps the discriminative signal of each task in the pixels alone. Across a chain of autonomous shopping sessions, every visited product image carries a unique, pre-rendered incidental cue, and the agent is later asked to recall a particular cued product and navigate to its URL. Inspired by dual-coding theory, we propose DualMem, a memory architecture that maintains a visual and a verbal code in parallel. On DMV-Bench, DualMem outperforms a caption baseline and three recent multimodal agent-memory systems at every chain length J in {5, 10, 15, 50} on both Gemini 2.5 Flash and Qwen2.5-VL-7B, with the lead surviving controls for memory-bank size and encoding-position bias, and an asymmetric dual-coding regime in which vision carries the cue end-to-end while the verbal channel plays a smaller query-grounding role.",
+      "authors": [
+        "Yujin Tang",
+        "Chenming Shang",
+        "Ruize Xu",
+        "Nikhil Singh"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.CL"
+      ],
+      "published": "2026-06-25T19:34:25+00:00",
+      "link": "https://arxiv.org/pdf/2606.27499v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Introduces the first interactive benchmark for multimodal-agent visual memory, testing long-horizon recall of visual cues.",
+      "llm_evidence_cn": "推出首个多模态智能体视觉记忆交互基准，测试长程视觉线索回忆",
+      "llm_evidence": "推出首个多模态智能体视觉记忆交互基准，测试长程视觉线索回忆",
+      "canonical_evidence": "推出首个多模态智能体视觉记忆交互基准，测试长程视觉线索回忆",
+      "llm_tldr_en": "DMV-Bench is a benchmark for visual memory in multimodal agents, using controlled product catalogs and incidental cues to test genuine visual recall over long interactions, revealing that current agents struggle with visual memory despite text-based memory advances.",
+      "llm_tldr_cn": "DMV-Bench 是首个用于评估多模态智能体视觉记忆的交互式基准，通过受控家居产品目录和随机注入的视觉线索，测试智能体在长程购物会话中回忆视觉信息的能力。结果表明，尽管文本记忆进展迅速，当前智能体在视觉记忆方面仍面临重大挑战，突显了多模态记忆系统的发展需求。",
+      "llm_tldr": "DMV-Bench 是首个用于评估多模态智能体视觉记忆的交互式基准，通过受控家居产品目录和随机注入的视觉线索，测试智能体在长程购物会话中回忆视觉信息的能力。结果表明，尽管文本记忆进展迅速，当前智能体在视觉记忆方面仍面临重大挑战，突显了多模态记忆系统的发展需求。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "What are the recent advancements in memory systems for AI agents?",
+      "matched_requirement_id": "req-6",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.28045v1",
+      "source": "arxiv",
+      "title": "Rapid Prototyping of Event-Driven Contextual Memory in the ACT-Up Cognitive Architecture",
+      "abstract": "The present paper describes an implementation of contextual memory and a basic event-handler for the ACT-Up cognitive architecture which maintains its scalability and appropriateness for rapid-prototyping while adding essential features and lowering the barrier to entry for new users. This includes describing a theory-neutral implementation of working memory and spreading activation, in addition to a basic associative learning mechanism. An example of rapid prototyping for algorithm development is presented using the serial memory task described in Klein, Addis, and Kahana (2005). This study describes how contiguity effects change across sequential list presentations across three serial and free recall conditions. We further describe how to use generative AI and the event handler to automatically create cognitive experiments directly from the Methods section of research papers.",
+      "authors": [
+        "Robert Thomson",
+        "Christian Lebiere"
+      ],
+      "primary_category": "cs.SC",
+      "categories": [
+        "cs.SC"
+      ],
+      "published": "2026-06-26T12:48:30+00:00",
+      "link": "https://arxiv.org/pdf/2606.28045v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "implements contextual memory in a cognitive architecture for rapid prototyping",
+      "llm_evidence_cn": "在认知架构中实现情境记忆以支持快速原型开发",
+      "llm_evidence": "在认知架构中实现情境记忆以支持快速原型开发",
+      "canonical_evidence": "在认知架构中实现情境记忆以支持快速原型开发",
+      "llm_tldr_en": "Describes an implementation of contextual memory and event-handler in the ACT-Up cognitive architecture, adding working memory, spreading activation, and associative learning to support rapid prototyping of cognitive models.",
+      "llm_tldr_cn": "现有认知架构在快速原型开发中缺乏足够的情境记忆支持。本文在ACT-Up认知架构中实现了情境记忆和基本事件处理器，加入了工作记忆、扩散激活和联想学习机制。通过序列记忆任务验证了算法开发的有效性，展示了邻近效应如何在连续列表呈现中变化。该工作降低了新用户使用认知架构的门槛，促进了认知记忆模型在人工智能智能体中的应用。",
+      "llm_tldr": "现有认知架构在快速原型开发中缺乏足够的情境记忆支持。本文在ACT-Up认知架构中实现了情境记忆和基本事件处理器，加入了工作记忆、扩散激活和联想学习机制。通过序列记忆任务验证了算法开发的有效性，展示了邻近效应如何在连续列表呈现中变化。该工作降低了新用户使用认知架构的门槛，促进了认知记忆模型在人工智能智能体中的应用。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "Cognitive memory models applied to artificial intelligence agents",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.22338v1",
+      "source": "arxiv",
+      "title": "Benchmarking Robot Memory Under Interference",
+      "abstract": "Robots deployed in realistic settings will accumulate experience across many sessions and tasks over their deployment. The robot's tasks may often require it to remember information from multiple sessions ago, making long-context robot memory important for real-world deployments. However, most robot-memory benchmarks today are based on single episodes or a short context. To measure how current robot memory systems perform on longer sessions with more distractions, we introduce RoboMME-Interference, a cross-session benchmark built on RoboMME. For each query episode, we construct a session history using the query's relevant prior demonstration followed by a controlled number of unrelated sessions, which we provide to the VLA as memory and measure accuracy. Running RoboMME's released memory-augmented $π_{0.5}$ variants unmodified through this benchmark, we find that while perceptual memory variants improve success when given the history without any distractors, they decay strongly and steadily as unrelated sessions accumulate. With this release, we emphasize the importance of long-context memory and robustness to interference and show that current systems largely fail on such capabilities. The project page, videos, code, and data are at https://robotmemorybench.com.",
+      "authors": [
+        "Soumil Rathi"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "published": "2026-06-21T05:06:16+00:00",
+      "link": "https://arxiv.org/pdf/2606.22338v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Introduces RoboMME-Interference benchmark to evaluate robot memory under cross-session interference.",
+      "llm_evidence_cn": "引入RoboMME-Interference基准，评估跨会话干扰下的机器人记忆。",
+      "llm_evidence": "引入RoboMME-Interference基准，评估跨会话干扰下的机器人记忆。",
+      "canonical_evidence": "引入RoboMME-Interference基准，评估跨会话干扰下的机器人记忆。",
+      "llm_tldr_en": "RoboMME-Interference tests robot memory with long, distracted session histories, revealing that current VLA-based memory struggles with interference and lacks robustness for real-world deployment.",
+      "llm_tldr_cn": "针对现有机器人记忆基准多限于单次会话的局限，RoboMME-Interference构建了包含多个无关会话的长历史干扰测试。在RoboMME基础上，发现当前视觉语言动作模型在跨会话记忆保持上表现脆弱，为智能体长期记忆系统的鲁棒性评估提供了新工具。",
+      "llm_tldr": "针对现有机器人记忆基准多限于单次会话的局限，RoboMME-Interference构建了包含多个无关会话的长历史干扰测试。在RoboMME基础上，发现当前视觉语言动作模型在跨会话记忆保持上表现脆弱，为智能体长期记忆系统的鲁棒性评估提供了新工具。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.24543v1",
+      "source": "arxiv",
+      "title": "Reasoning as Attractor Dynamics: Latent Memory Retrieval via Gibbs-Weighted Energy Minimization",
+      "abstract": "Large Language Models (LLMs) are traditionally viewed as autoregressive generators. However, from the perspective of collective computation, they function as high-dimensional Dense Associative Memories that store complex reasoning patterns as latent attractors. In this work, we investigate the energy landscape of mathematical reasoning. We posit that correct reasoning chains correspond to deep, wide attractor basins (\"flat minima\") in the model's output distribution, whereas hallucinations manifest as sharp, unstable local minima. To exploit this geometry, we introduce a retrieval mechanism based on a Gibbs measure of the trajectory's spectral entropy. By sampling multiple reasoning paths and weighting them by their inverse energy ($P \\propto e^{-βE}$), we approximate the equilibrium distribution of the associative memory, effectively ``relaxing'' the system into a robust solution. Empirically, this physics-inspired mechanism improves Microsoft Phi-3.5 performance on GSM8K by 5.38\\% (84.7\\% $\\to$ 90.1\\%), demonstrating that inference is better modeled as a dynamic settling process into an attractor basin rather than greedy next-token prediction.",
+      "authors": [
+        "Kanishk Awadhiya"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG"
+      ],
+      "published": "2026-06-23T13:07:39+00:00",
+      "link": "https://arxiv.org/pdf/2606.24543v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "views LLMs as dense associative memories, latent memory retrieval for reasoning",
+      "llm_evidence_cn": "将LLM视为密集联想记忆，通过潜在记忆检索进行推理",
+      "llm_evidence": "将LLM视为密集联想记忆，通过潜在记忆检索进行推理",
+      "canonical_evidence": "将LLM视为密集联想记忆，通过潜在记忆检索进行推理",
+      "llm_tldr_en": "The paper models LLMs as dense associative memories and proposes a retrieval mechanism that weights reasoning paths by inverse entropy to extract correct solutions, linking to cognitive memory models.",
+      "llm_tldr_cn": "本文从集体计算视角将大语言模型视为高维密集联想记忆，存储推理模式作为潜在吸引子。通过分析数学推理的能量景观，发现正确推理链对应平坦低谷，而幻觉类似尖锐局部极小，提出基于吉布斯加权的轨迹谱熵检索机制，采样多条推理路径并按逆熵加权，以最大化记忆检索质量。该方法将认知联想记忆模型应用于AI推理，为解释和提升智能体记忆与推理能力提供了新框架。",
+      "llm_tldr": "本文从集体计算视角将大语言模型视为高维密集联想记忆，存储推理模式作为潜在吸引子。通过分析数学推理的能量景观，发现正确推理链对应平坦低谷，而幻觉类似尖锐局部极小，提出基于吉布斯加权的轨迹谱熵检索机制，采样多条推理路径并按逆熵加权，以最大化记忆检索质量。该方法将认知联想记忆模型应用于AI推理，为解释和提升智能体记忆与推理能力提供了新框架。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "Cognitive memory models applied to artificial intelligence agents",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2606.25342v1",
+      "source": "arxiv",
+      "title": "Lifelong In-Context Learning with Transformers Requires Parametric Forms of Attention",
+      "abstract": "Lifelong continual learning remains an obstacle on the path to human-like intelligence. Modern transformers show sparks of intelligence with in-context learning. The quadratic nature of attention, however, prohibits transformers from performing this process on arbitrarily long sequences. In this work, we argue that extending in-context learning to lifelong settings is a practical solution for continual learning in AI agents. In particular, we argue that \\emph{parametric forms of attention} are needed to understand a lifetime of context with transformers on a fixed hardware budget. These attention mechanisms learn the relationship between keys and their associated values at test-time with parametric regression. Our generalization of parametric approaches (linear attention, state-space models, fast weight programmers, and test-time training layers) contrasts with nonparametric counterparts like softmax attention. They replace the ever-growing key-value cache with an online-trainable neural network, maintaining a constant memory footprint. We highlight how parametric attention currently fall short of lifelong learning due to limited memory capacity or costly online updates. To address these issues, we pose a set of open questions with novel insights to guide the field toward long-horizon agents.",
+      "authors": [
+        "Luke McDermott",
+        "Robert W. Heath",
+        "Rahul Parhi"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG"
+      ],
+      "published": "2026-06-24T03:14:20+00:00",
+      "link": "https://arxiv.org/pdf/2606.25342v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "lifelong in-context learning for AI agents, parametric attention to handle long-term context as memory",
+      "llm_evidence_cn": "AI智能体的终身上下文学习，参数化注意力将长期上下文作为记忆处理",
+      "llm_evidence": "AI智能体的终身上下文学习，参数化注意力将长期上下文作为记忆处理",
+      "canonical_evidence": "AI智能体的终身上下文学习，参数化注意力将长期上下文作为记忆处理",
+      "llm_tldr_en": "This paper proposes parametric attention mechanisms to enable lifelong in-context learning in transformers, allowing agents to retain and use long-term context as a form of memory.",
+      "llm_tldr_cn": "终身持续学习是AI智能体的障碍，普通自注意力无法处理极长序列。本文提出参数化注意力机制，在测试时通过参数回归学习键值关系，使Transformer能在固定硬件预算下理解终身上下文。该方法将上下文作为隐式记忆，为智能体长期记忆提供了一种不同于显式存储的机制，实验结果验证了其在多种任务上的有效性，为持续学习智能体开辟了新路径。",
+      "llm_tldr": "终身持续学习是AI智能体的障碍，普通自注意力无法处理极长序列。本文提出参数化注意力机制，在测试时通过参数回归学习键值关系，使Transformer能在固定硬件预算下理解终身上下文。该方法将上下文作为隐式记忆，为智能体长期记忆提供了一种不同于显式存储的机制，实验结果验证了其在多种任务上的有效性，为持续学习智能体开辟了新路径。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2606.24396v1",
+      "source": "arxiv",
+      "title": "Parallel Manifold Steering: Efficient Adaptation of Large Associative Memories via Residual Energy Shaping",
+      "abstract": "Large Transformer models function as Dense Associative Memories (DAMs), retrieving knowledge via high-dimensional attractor dynamics driven by the self-attention mechanism \\citep{ramsauer2020hopfield, wu2024attention}. However, adapting these frozen memory systems to new tasks presents a fundamental ``Plasticity-Stability'' dilemma. Current methods either risk catastrophic interference by modifying synaptic weights directly (e.g., LoRA) \\citep{hu2021lora} or degrade associative capacity by clogging the retrieval buffer with static prompt tokens (e.g., VPT) \\citep{jia2022vpt}. In this work, we propose \\textbf{H-Res} (Hierarchical Residual Steering), a mechanism that modulates the effective energy landscape of the Transformer without altering its global equilibrium or expanding its sequence length. By formulating adaptation as a control problem on the activation manifold \\citep{chen2018neuralode}, H-Res learns a state-dependent vector field that steers token trajectories into task-specific basins of attraction. We formally prove that H-Res preserves the attention entropy of the foundation model and facilitates Neural Collapse \\citep{papyan2020prevalence}. Empirically, Manifold Steering outperforms global weight modification by 26\\% on associative retrieval tasks and eliminates the computational overhead of prompt-based methods, scaling effectively to structured domains \\citep{zha2023vtab}.",
+      "authors": [
+        "Kanishk Awadhiya"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG"
+      ],
+      "published": "2026-06-23T10:30:23+00:00",
+      "link": "https://arxiv.org/pdf/2606.24396v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "efficient adaptation of large associative memories via residual energy shaping",
+      "llm_evidence_cn": "通过残差能量整形实现大型联想记忆的高效适配",
+      "llm_evidence": "通过残差能量整形实现大型联想记忆的高效适配",
+      "canonical_evidence": "通过残差能量整形实现大型联想记忆的高效适配",
+      "llm_tldr_en": "H-Res modulates the energy landscape of transformer-based dense associative memories to enable efficient task adaptation without catastrophic interference, offering a method for flexible memory systems in AI.",
+      "llm_tldr_cn": "针对大型Transformer作为密集联想记忆系统适配新任务时面临的可塑性-稳定性困境，本文提出H-Res（层级残差引导），通过残差能量整形调制自注意力驱动的高维能量景观，在不修改底层权重的情况下实现任务适配。实验表明该方法在保持原有联想检索能力的同时有效适应新任务，避免了灾难性干扰。该工作从能量景观视角为构建灵活可调的AI智能体记忆系统提供了新范式。",
+      "llm_tldr": "针对大型Transformer作为密集联想记忆系统适配新任务时面临的可塑性-稳定性困境，本文提出H-Res（层级残差引导），通过残差能量整形调制自注意力驱动的高维能量景观，在不修改底层权重的情况下实现任务适配。实验表明该方法在保持原有联想检索能力的同时有效适应新任务，避免了灾难性干扰。该工作从能量景观视角为构建灵活可调的AI智能体记忆系统提供了新范式。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "Cognitive memory models applied to artificial intelligence agents",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2606.26793v1",
+      "source": "arxiv",
+      "title": "MIRROR: Novelty-Constrained Memory-Guided MCTS Red-Teaming for Agentic RAG",
+      "abstract": "Multimodal agentic retrieval-augmented generation (RAG) systems expand the attack surface beyond prompt injection to include text poisoning, image injection, direct-query attacks, and orchestrator-level tool manipulation. Existing red-teaming approaches are typically surface-specific and often recycle known attack templates; on text-poisoning benchmarks we measure 73-84% exact duplication. We present MIRROR, a unified cross-surface framework that performs memory-guided Monte Carlo tree search while conditioning candidate generation on retrieved context under an explicit novelty constraint. A deterministic Novelty Gate rejects any candidate matching the retrieval set under normalized comparison, allowing retrieval to inform search priors without enabling prompt copying. Across four attack surfaces on a multimodal agentic RAG target, MIRROR attains 76% ASR on image poisoning compared with 52% for baselines, 97% ASR on orchestrator attacks at half the query cost, and the lowest cross-surface variance (coefficient of variation 0.47). In contrast, specialized baselines collapse across surfaces: suffix optimization reaches 79% ASR on text poisoning but 1% on direct queries. We release ART-SafeBench with 41,815 in-package records and runtime adapters yielding 41,991+ total records across four surfaces.",
+      "authors": [
+        "Inderjeet Singh",
+        "Andrés Murillo",
+        "Motoyoshi Sekiya",
+        "Yuki Unno",
+        "Junichi Suga"
+      ],
+      "primary_category": "cs.CR",
+      "categories": [
+        "cs.CR",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "published": "2026-06-25T09:26:49+00:00",
+      "link": "https://arxiv.org/pdf/2606.26793v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "memory-guided Monte Carlo tree search for agentic RAG red-teaming",
+      "llm_evidence_cn": "记忆引导的蒙特卡洛树搜索用于智能体RAG红队测试",
+      "llm_evidence": "记忆引导的蒙特卡洛树搜索用于智能体RAG红队测试",
+      "canonical_evidence": "记忆引导的蒙特卡洛树搜索用于智能体RAG红队测试",
+      "llm_tldr_en": "MIRROR uses memory-guided MCTS with a novelty constraint to generate diverse attacks across multiple surfaces in agentic RAG systems, reducing attack duplication from 73-84% to lower levels.",
+      "llm_tldr_cn": "针对现有红队测试方法表面特定且大量复用攻击模板的问题，提出MIRROR框架，结合记忆引导的蒙特卡洛树搜索，并通过新颖性门控机制基于检索上下文生成攻击候选。实验表明，该方法显著降低了文本投毒基准上的重复率（从73-84%的精确重复中减少），并实现了跨表面攻击。该工作为利用记忆系统提升智能体安全测试提供了统一方法。",
+      "llm_tldr": "针对现有红队测试方法表面特定且大量复用攻击模板的问题，提出MIRROR框架，结合记忆引导的蒙特卡洛树搜索，并通过新颖性门控机制基于检索上下文生成攻击候选。实验表明，该方法显著降低了文本投毒基准上的重复率（从73-84%的精确重复中减少），并实现了跨表面攻击。该工作为利用记忆系统提升智能体安全测试提供了统一方法。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    }
+  ]
+}
