@@ -6,46 +6,64 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-29
-- 运行时间：2026-06-29 20:07:52 UTC
+- 最新运行日期：2026-06-30
+- 运行时间：2026-06-30 20:11:01 UTC
 - 运行状态：成功
-- 本次总论文数：8
-- 精读区：5
+- 本次总论文数：14
+- 精读区：11
 - 速读区：3
 
 ### 今日简报（AI）
-1) 今日聚焦大模型智能体记忆与自主更新的核心瓶颈，精读两篇高价值论文，横评多智能体记忆漏洞与强化方案。
-2) 最值得看：《Supersede》揭秘LLM智能体如何因不懂“何时丢弃旧记忆”而失败，并提出记忆更新缺口诊断与训练体系；《DMV-Bench》则用长程视觉记忆测试，揭示多模态智能体在偶然线索注入下的记忆脆弱性。
-3) 建议普通读者关注这两项工作的启示：构建更可靠AI助手的关键，在于教会它像人一样决定“记住什么、忘记什么”——这比单纯堆算力更紧迫。
-- 详情：[/202606/29/README](/202606/29/README)
+今天精读 14 篇 Agent 论文，最高分两篇聚焦记忆管理，《SWE-MeM》与《HyphaeDB》分别从代码智能体和知识拓扑切入。  
+最值得关注的方向是自适应记忆与活体知识库，它们让 Agent 在长程任务中自行管理上下文、持续演进。  
+想跟上的读者可以先从《Self-Evolving World Models》入手，用世界模型驱动规划，再结合经验图谱逐步构建自我改进循环。
+- 详情：[/202606/30/README](/202606/30/README)
 
 ### 精读区论文标签
-1. [Supersede: Diagnosing and Training the Memory-Update Gap in LLM Agents](/202606/29/2606.27472v1-supersede-diagnosing-and-training-the-memory-update-gap-in-llm-agents)  
+1. [SWE-MeM: Learning Adaptive Memory Management for Long-Horizon Coding Agents](/202606/30/2606.28434v1-swe-mem-learning-adaptive-memory-management-for-long-horizon-coding-agents)  
    标签：评分：10.0/10、query:agent-memory
-   evidence：诊断LLM智能体中过时事实持续存在的记忆更新缺口
-2. [DMV-Bench: Diagnosing Long-Horizon Multimodal Agents' Visual Memory with Incidental Cue Injection](/202606/29/2606.27499v1-dmv-bench-diagnosing-long-horizon-multimodal-agents-visual-memory-with-incidental-cue-injection)  
+   evidence：提出编程智能体的自适应记忆压缩训练框架，优化记忆管理时机与方式。
+2. [HyphaeDB: A Living Knowledge Topology for Agent-First Memory](/202606/30/2606.28781v1-hyphaedb-a-living-knowledge-topology-for-agent-first-memory)  
+   标签：评分：10.0/10、query:agent-memory
+   evidence：HyphaeDB：利用HNSW拓扑进行知识传播的智能体原生记忆基础设施
+3. [Mandol: An Agglomerative Agent Memory System for Long-Term Conversations](/202606/30/2606.29778v1-mandol-an-agglomerative-agent-memory-system-for-long-term-conversations)  
+   标签：评分：10.0/10、query:agent-memory
+   evidence：提出用于长期对话智能体的统一记忆架构
+4. [MemLeak: Diagnosing Information Leaks in Multimodal Agent Memory](/202606/30/2606.29788v1-memleak-diagnosing-information-leaks-in-multimodal-agent-memory)  
+   标签：评分：10.0/10、query:agent-memory
+   evidence：研究多模态智能体记忆系统中的信息泄露问题，并提出评估基准。
+5. [Neural Procedural Memory: Empowering LLM Agents with Implicit Activation Steering](/202606/30/2606.29824v1-neural-procedural-memory-empowering-llm-agents-with-implicit-activation-steering)  
+   标签：评分：10.0/10、query:agent-memory
+   evidence：神经程序记忆：通过隐式激活引导实现持久的代理记忆
+6. [Always-OnAgents:A Survey of Persistent Memory, State, and Governance in LLMAgents](/202606/30/2606.30306v1-always-onagentsa-survey-of-persistent-memory-state-and-governance-in-llmagents)  
+   标签：评分：10.0/10、query:agent-memory
+   evidence：综述LLM代理的持久记忆、状态与治理
+7. [Selective Memory Retention for Long-Horizon LLM Agents](/202606/30/2606.29178v1-selective-memory-retention-for-long-horizon-llm-agents)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：推出首个多模态智能体视觉记忆交互基准，测试长程视觉线索回忆
-3. [Rapid Prototyping of Event-Driven Contextual Memory in the ACT-Up Cognitive Architecture](/202606/29/2606.28045v1-rapid-prototyping-of-event-driven-contextual-memory-in-the-act-up-cognitive-architecture)  
+   evidence：提出TraceRetain框架用于LLM智能体的有界外置记忆与淘汰策略
+8. [Analytic Concept-Centric Memory for Agentic Embodied Manipulation](/202606/30/2606.29774v1-analytic-concept-centric-memory-for-agentic-embodied-manipulation)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：在认知架构中实现情境记忆以支持快速原型开发
-4. [Benchmarking Robot Memory Under Interference](/202606/29/2606.22338v1-benchmarking-robot-memory-under-interference)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：引入RoboMME-Interference基准，评估跨会话干扰下的机器人记忆。
-5. [Reasoning as Attractor Dynamics: Latent Memory Retrieval via Gibbs-Weighted Energy Minimization](/202606/29/2606.24543v1-reasoning-as-attractor-dynamics-latent-memory-retrieval-via-gibbs-weighted-energy-minimization)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：将LLM视为密集联想记忆，通过潜在记忆检索进行推理
+   evidence：以分析性概念为中心的具身智能体记忆框架，围绕物体与状态结构化经验
+9. [MemDelta: Controlled Baselines and Hidden Confounds in Agent Memory Evaluation](/202606/30/2606.29914v1-memdelta-controlled-baselines-and-hidden-confounds-in-agent-memory-evaluation)  
+   标签：评分：9.0/10、query:agent-memory
+   evidence：提供受控评估协议揭示智能体记忆基准中的混淆因素，对衡量记忆系统真实进展至关重要。
+10. [DuoMem: Towards Capable On-Device Memory Agents via Dual-Space Distillation](/202606/30/2606.29961v1-duomem-towards-capable-on-device-memory-agents-via-dual-space-distillation)  
+   标签：评分：9.0/10、query:agent-memory
+   evidence：通过双空间蒸馏将记忆增强智能体能力压缩到小模型
+11. [ManimAgent: Self-Evolving Multimodal Agents for Visual Education](/202606/30/2606.30296v1-manimagent-self-evolving-multimodal-agents-for-visual-education)  
+   标签：评分：9.0/10、query:agent-memory
+   evidence：利用双通道情景记忆库跨任务传递反思经验。
 
 ### 速读区论文标签
-1. [Lifelong In-Context Learning with Transformers Requires Parametric Forms of Attention](/202606/29/2606.25342v1-lifelong-in-context-learning-with-transformers-requires-parametric-forms-of-attention)  
+1. [LLM Agents Are Latent Context Managers: Eliciting Self-Managed Context via a Proprioceptive Dashboard](/202606/30/2606.30005v1-llm-agents-are-latent-context-managers-eliciting-self-managed-context-via-a-proprioceptive-dashboard)  
+   标签：评分：8.0/10、query:agent-memory
+   evidence：通过本体感知仪表板让LLM代理自主管理上下文记忆
+2. [Self-Evolving World Models for LLM Agent Planning](/202606/30/2606.30639v1-self-evolving-world-models-for-llm-agent-planning)  
+   标签：评分：8.0/10、query:agent-memory
+   evidence：融合情景记忆与语义记忆模块，为智能体提供预判与规划能力。
+3. [Experience Graphs: The Data Foundation for Self-Improving Agents](/202606/30/2606.29823v1-experience-graphs-the-data-foundation-for-self-improving-agents)  
    标签：评分：7.0/10、query:agent-memory
-   evidence：AI智能体的终身上下文学习，参数化注意力将长期上下文作为记忆处理
-2. [MIRROR: Novelty-Constrained Memory-Guided MCTS Red-Teaming for Agentic RAG](/202606/29/2606.26793v1-mirror-novelty-constrained-memory-guided-mcts-red-teaming-for-agentic-rag)  
-   标签：评分：7.0/10、query:agent-memory
-   evidence：记忆引导的蒙特卡洛树搜索用于智能体RAG红队测试
-3. [Parallel Manifold Steering: Efficient Adaptation of Large Associative Memories via Residual Energy Shaping](/202606/29/2606.24396v1-parallel-manifold-steering-efficient-adaptation-of-large-associative-memories-via-residual-energy-shaping)  
-   标签：评分：6.0/10、query:agent-memory
-   evidence：通过残差能量整形实现大型联想记忆的高效适配
+   evidence：提出结构化‘经验图’作为自我改进智能体的记忆，存储探索历史
 
 
 <div class="dpr-home-promo-card">
