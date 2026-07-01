@@ -1,0 +1,373 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-07-01T19:36:08.089542+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 7,
+    "deep_cap": 6,
+    "deep_selected": 7,
+    "quick_candidates": 2,
+    "quick_skim_target": 11,
+    "quick_selected": 2
+  },
+  "deep_dive": [
+    {
+      "id": "2606.29916v1",
+      "source": "arxiv",
+      "title": "EVAF: A Test-Retest Protocol for Selective Parametric Consolidation",
+      "abstract": "Long-running language agents need mechanisms for deciding which experiences should persist after the working context is gone. Retrieval systems can reinsert past text, but they do not by themselves show that an experience has been selectively consolidated into the model's own behavior. We introduce EVAF, an Echo-Valence Attractor Field mechanism for gated LoRA consolidation, and a test-retest protocol for measuring selective parametric consolidation under controlled interference. Across GPT-2 and TinyLlama, EVAF preferentially consolidates high-valence, high-surprise experiences while preserving retrieval-accessible factual memory through a complementary routed memory path. Test-retest measurements show stronger post-interference behavioral persistence than frozen, retrieval-only, and ungated continual-update baselines, while keeping parameter drift and cross-persona contamination low. The results support a separation between memory access and memory depth: retrieving a fact and internalizing an experience are distinct computational operations.",
+      "authors": [
+        "Haoliang Han"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "published": "2026-06-29T07:53:50+00:00",
+      "link": "https://arxiv.org/pdf/2606.29916v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 10.0,
+      "llm_evidence_en": "selective parametric consolidation for long-running language agents",
+      "llm_evidence_cn": "面向长期运行语言代理的选择性参数巩固",
+      "llm_evidence": "面向长期运行语言代理的选择性参数巩固",
+      "canonical_evidence": "面向长期运行语言代理的选择性参数巩固",
+      "llm_tldr_en": "Introduces EVAF, a gated LoRA consolidation mechanism with test-retest protocol for selective memory consolidation in agents, showing preferential persistence of high-valence, high-surprise experiences.",
+      "llm_tldr_cn": "针对长期代理需决定哪些经历应持久化的问题，提出EVAF回声-效价吸引子场机制和门控LoRA巩固方法，结合测试-重测协议评估干扰下的选择性参数巩固，证明高情绪效价和高意外经历优先巩固，同时通过互补路由路径保持可检索事实记忆，为代理长期记忆形成提供新方案。",
+      "llm_tldr": "针对长期代理需决定哪些经历应持久化的问题，提出EVAF回声-效价吸引子场机制和门控LoRA巩固方法，结合测试-重测协议评估干扰下的选择性参数巩固，证明高情绪效价和高意外经历优先巩固，同时通过互补路由路径保持可检索事实记忆，为代理长期记忆形成提供新方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.31612v1",
+      "source": "arxiv",
+      "title": "What Memory Do GUI Agents Really Need? From Passive Records to Active Task-Driving States",
+      "abstract": "Mobile GUI agents increasingly face long-horizon tasks that require reading, updating, and reusing task-relevant data across pages and applications. Existing memory methods treat memory largely as passive storage, where past observations are accumulated and retrieved when needed. Yet retrieving a value does not reveal its current role in the workflow. The agent must still infer from accumulated records whether the value should be used now, has already been used, or must wait for a later dependency. This implicit reconstruction becomes unreliable in long trajectories with similar fields, repeated values, distractors, and outdated states, causing repeated or missed operations. We propose Active Task Driving Memory (ATMem), which shifts GUI-agent memory from passive storage to an actively maintained execution state. ATMem maintains task-relevant information as a continually updated execution state that links each value to its role and current status, enabling action selection based on the current workflow state. We therefore introduce \\textbf{STR-GRPO}, an online reinforcement learning method that learns to use ATMem selectively according to its contribution to task completion. STR-GRPO contrasts memory-on and memory-off rollouts to estimate when memory use improves execution, while memory-cost-aware reward discourages costly memory usage that does not improve execution. To evaluate whether agents can complete all in-scope work while avoiding out-of-scope actions over long-horizon execution, we build a challenging mobile benchmark. From a list of near identical entries, agents must act on every entry that satisfies the instruction and reject entries that violate its constraints.",
+      "authors": [
+        "Chen Liu",
+        "Ling Chen",
+        "Hanzhang Zhou",
+        "Xu Zhang",
+        "Quyu Kong",
+        "Panrong Tong",
+        "Wenhao Wang",
+        "Xin Yu",
+        "Steven Hoi",
+        "Yue Wang"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV"
+      ],
+      "published": "2026-06-30T13:01:19+00:00",
+      "link": "https://arxiv.org/pdf/2606.31612v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 10.0,
+      "llm_evidence_en": "proposes Active Task Driving Memory (ATMem) that maintains task-relevant states instead of passive records for GUI agents",
+      "llm_evidence_cn": "提出主动任务驱动记忆（ATMem），为GUI智能体维护任务相关状态而非被动记录",
+      "llm_evidence": "提出主动任务驱动记忆（ATMem），为GUI智能体维护任务相关状态而非被动记录",
+      "canonical_evidence": "提出主动任务驱动记忆（ATMem），为GUI智能体维护任务相关状态而非被动记录",
+      "llm_tldr_en": "Shifts GUI agent memory from passive storage of past observations to active task-driving states that track each value's role, reducing errors in long-horizon tasks with many similar fields.",
+      "llm_tldr_cn": "现有移动GUI智能体的记忆方法被动记录观察，无法识别数据的当前任务角色，导致长轨迹中重复或遗漏操作。本文提出主动任务驱动记忆（ATMem），将记忆表示为任务状态，主动驱动操作。实验表明ATMem减少了重复和错误，提高了长时任务可靠性。该方法为GUI智能体记忆设计提供了新范式。",
+      "llm_tldr": "现有移动GUI智能体的记忆方法被动记录观察，无法识别数据的当前任务角色，导致长轨迹中重复或遗漏操作。本文提出主动任务驱动记忆（ATMem），将记忆表示为任务状态，主动驱动操作。实验表明ATMem减少了重复和错误，提高了长时任务可靠性。该方法为GUI智能体记忆设计提供了新范式。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.31121v1",
+      "source": "arxiv",
+      "title": "The Past Is Prologue: A Plug-in Controller for Selective Updates in Sequentially Evolving LLM Memory",
+      "abstract": "Sequentially evolving LLM memory enables agents to reuse past experience, but existing systems usually deploy each locally generated memory update without checking whether it improves future behavior. As a result, updates that help the current task may overwrite useful knowledge, introduce over-specific rules, or bias the final memory toward recent examples. We propose Janus, a plug-in memory controller that decides whether to accept a candidate memory update or retain the previous memory. To make this decision efficient, Janus uses a Memory Momentum Trigger to identify suspicious deviations in the memory-update trajectory, and compares old and new memories on a compact hybrid evaluation set of coverage, boundary, and fresh tasks instead of replaying the full history. Janus is method-agnostic and wraps existing updaters without changing their update rules. Across six datasets, two backbone LLMs, and two memory updaters, Janus improves average accuracy by +2.7 to +4.6 points over the corresponding base updaters.",
+      "authors": [
+        "Zihan Chen",
+        "Songwei Dong",
+        "Chengshuai Shi",
+        "Peng Wang",
+        "Song Wang",
+        "Cong Shen",
+        "Jundong Li"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-30T04:33:18+00:00",
+      "link": "https://arxiv.org/pdf/2606.31121v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "plug-in controller for selective memory updates in agent memory",
+      "llm_evidence_cn": "用于代理记忆中选择性更新的即插即用控制器",
+      "llm_evidence": "用于代理记忆中选择性更新的即插即用控制器",
+      "canonical_evidence": "用于代理记忆中选择性更新的即插即用控制器",
+      "llm_tldr_en": "Proposes Janus, a plug-in memory controller that decides whether to accept or reject memory updates using a Memory Momentum Trigger and compact evaluation set.",
+      "llm_tldr_cn": "针对序列演化的LLM记忆更新中可能覆盖有用知识或引入偏见的问题，提出Janus即插即用记忆控制器，通过记忆动量触发器检测更新轨迹异常，并利用覆盖、边界、新鲜度混合评估集比较新旧记忆，有效提升代理记忆的更新质量。",
+      "llm_tldr": "针对序列演化的LLM记忆更新中可能覆盖有用知识或引入偏见的问题，提出Janus即插即用记忆控制器，通过记忆动量触发器检测更新轨迹异常，并利用覆盖、边界、新鲜度混合评估集比较新旧记忆，有效提升代理记忆的更新质量。",
+      "llm_tags": [
+        "query:agent-memory:composite"
+      ],
+      "matched_query_tag": "query:agent-memory:composite",
+      "matched_query_text": "Papers central to AI智能体记忆体系, especially work that connects or combines: artificial intelligence and memory systems; intelligent agents with memory; memory architecture for AI agents; agent memory system design; long-term memory in AI agents; What are the recent advancements in memory systems for AI agents?; Architecture and design of memory for intelligent agents; Cognitive memory models applied to artificial intelligence agents.",
+      "matched_requirement_id": "req-composite-agent-memory",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.31191v1",
+      "source": "arxiv",
+      "title": "ISM:Self-Improving Strategy Memory for Continual Mathematical Reasoning",
+      "abstract": "We propose Intelligent Schema Memory (ISM), a self-evolving memory-augmented system that improves mathematical reasoning for a frozen LLM under continual learning with hard episodic resets. ISM maintains a compact, self-refined bank of strategy schemas learned from both successful and failed episodes, with symbolic tools that check intermediate steps and certify answers.Without updating model parameters, ISM outperforms passive, retrieval, and reflection baselines on MATH-Hard and OlympiadBench, using 64% and 86% fewer schemas respectively than the strongest passive baseline. These results show that small, actively maintained, and verified strategy memories can support reliable continual mathematical reasoning under strict episodic isolation.",
+      "authors": [
+        "Prakhar Dixit",
+        "Tim Oates"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG"
+      ],
+      "published": "2026-06-30T06:21:08+00:00",
+      "link": "https://arxiv.org/pdf/2606.31191v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "self-improving strategy memory for continual reasoning in frozen LLM",
+      "llm_evidence_cn": "自改进策略记忆支持冻结LLM的持续推理",
+      "llm_evidence": "自改进策略记忆支持冻结LLM的持续推理",
+      "canonical_evidence": "自改进策略记忆支持冻结LLM的持续推理",
+      "llm_tldr_en": "ISM is a self-evolving memory system that enables frozen LLMs to continually improve mathematical reasoning by maintaining a compact, verified strategy schema bank, outperforming baselines with fewer schemas.",
+      "llm_tldr_cn": "针对冻结大语言模型在持续学习中的数学推理能力提升问题,提出自进化记忆系统ISM,通过维护精炼的策略模式库实现可靠推理,实验显示在数学难题上超越被动和反思基线,且模式用量更少,证明了小型主动维护的验证记忆对持续推理的有效性。",
+      "llm_tldr": "针对冻结大语言模型在持续学习中的数学推理能力提升问题,提出自进化记忆系统ISM,通过维护精炼的策略模式库实现可靠推理,实验显示在数学难题上超越被动和反思基线,且模式用量更少,证明了小型主动维护的验证记忆对持续推理的有效性。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.31564v1",
+      "source": "arxiv",
+      "title": "ACE: Pluggable Adaptive Context Elasticizer across Agents",
+      "abstract": "The increasing complexity of agentic tasks has led to rapidly growing trajectory lengths, which poses significant challenges for large language model (LLM) based agents with fixed context windows. Existing context management techniques, such as truncation and summarization, suffer from inherent inflexibility and irreversibility: once information is discarded or compressed, it cannot be recovered even when it becomes critically relevant in later decision steps. To address these limitations, we propose the Adaptive Context Elasticizer (ACE), a plug-and-play module that elastically orchestrates historical step information into the agent's context at each decision step. ACE maintains a lossless message maintenance layer that stores both raw messages and compressed abstractions for each historical step, while a context orchestration layer adaptively assigns each step an elastic type as raw, abstract, or drop, at every decision step based on the current task state. This reversible design ensures that the main LLM always receives a compact yet information-rich context. We adapt ACE to four diverse agent frameworks, including ReAct, DeepAgent, WebThinker, and MiroFlow, without training or architectural modifications. Experiments show that ACE consistently outperforms truncation and summarization baselines, and brings consistent performance gains across all four agent frameworks.",
+      "authors": [
+        "Ning Liao",
+        "Zihao Long",
+        "Xiaoxing Wang",
+        "Xue Yang",
+        "Yaoming Wang",
+        "Ziyuan Zhuang",
+        "Xunliang Cai",
+        "Rongxiang Weng",
+        "Junchi Yan"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-30T12:20:45+00:00",
+      "link": "https://arxiv.org/pdf/2606.31564v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "provides a pluggable module that elastically manages historical context, serving as a memory management layer for agents",
+      "llm_evidence_cn": "提供可插拔模块弹性管理历史上下文，充当智能体的记忆管理层",
+      "llm_evidence": "提供可插拔模块弹性管理历史上下文，充当智能体的记忆管理层",
+      "canonical_evidence": "提供可插拔模块弹性管理历史上下文，充当智能体的记忆管理层",
+      "llm_tldr_en": "Introduces ACE, a module that keeps a lossless message history and adaptively inserts needed context, overcoming irreversible truncation in agent context management.",
+      "llm_tldr_cn": "现有智能体上下文管理通过截断或摘要丢弃信息，不可逆且可能丢失关键数据。提出自适应上下文弹性化模块（ACE），维护原始消息和压缩摘要的双层存储，在每一步按需将历史信息弹性插入上下文。该方法在保持无损记忆的同时，有效缓解了上下文窗口限制，为长时智能体运行提供了高效记忆管理。",
+      "llm_tldr": "现有智能体上下文管理通过截断或摘要丢弃信息，不可逆且可能丢失关键数据。提出自适应上下文弹性化模块（ACE），维护原始消息和压缩摘要的双层存储，在每一步按需将历史信息弹性插入上下文。该方法在保持无损记忆的同时，有效缓解了上下文窗口限制，为长时智能体运行提供了高效记忆管理。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.31650v1",
+      "source": "arxiv",
+      "title": "ECHO: Prune to act, trace to learn with selective turn memory in agentic RL",
+      "abstract": "Long-horizon language agents must repeatedly interact with tools, accumulate evidence, and make decisions under bounded context windows. Existing context-management methods make such rollouts feasible by truncating distant history, folding past turns into summaries, or selecting compact memory states. However, these breakthroughs introduce two coupled limitations. First, as the number of turns grows, historical observations are progressively removed or collapsed into compressed states, making it harder for the policy to reuse fine-grained evidence. Second, once the original turns are no longer source-addressable, outcome-based RL loses an explicit path for aligning policy updates with the evidence that supported a successful final answer. To this end, we propose ECHO, a selective turn-memory framework that jointly addresses history collapse and traceable learning through source-indexed reconstruction. Specifically, ECHO compresses each completed environment turn into a compact memory record, reconstructs bounded policy contexts by selecting from these records, and reuses the selected source indices to route positive outcome credit to the evidence and selection actions that support successful answers. On BrowseComp-Plus, ECHO reaches 43.4% held-out accuracy, outperforming GRPO (28.9%) and the rolling-summary baseline SUPO (36.1%), while using fewer turns and lower trajectory volume than SUPO (Figure 1). Additionally, the trained policy improves zero-shot generalization across multi-objective QA, code generation, and deep information-seeking benchmarks on both dense and MoE backbones.",
+      "authors": [
+        "Zijun Xie",
+        "Binbin Zheng",
+        "Enlei Gong",
+        "Jihua Liu",
+        "Yuyang You",
+        "Lingfeng Liu",
+        "Jiayao Tang",
+        "Guanqun Zhao",
+        "Aoqi Hu",
+        "Zeyu Chen"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "published": "2026-06-30T13:29:58+00:00",
+      "link": "https://arxiv.org/pdf/2606.31650v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "ECHO proposes selective turn memory for agentic RL, preserving fine-grained evidence for policy optimization.",
+      "llm_evidence_cn": "ECHO为智能体强化学习提出选择性轮次记忆，保留细粒度证据以优化策略。",
+      "llm_evidence": "ECHO为智能体强化学习提出选择性轮次记忆，保留细粒度证据以优化策略。",
+      "canonical_evidence": "ECHO为智能体强化学习提出选择性轮次记忆，保留细粒度证据以优化策略。",
+      "llm_tldr_en": "ECHO introduces a selective turn memory approach for agentic RL that prunes history for action but traces original turns for learning, addressing evidence loss in long-horizon tasks.",
+      "llm_tldr_cn": "针对长程语言智能体在有限上下文下因历史压缩导致细粒度证据丢失的问题，ECHO提出选择性轮次记忆方法：执行时剪枝历史以生成动作，学习时回溯原始轮次以更新策略。该方法使基于结果的强化学习能够对齐支持最终答案的证据，有望提升长程决策中策略优化的有效性。",
+      "llm_tldr": "针对长程语言智能体在有限上下文下因历史压缩导致细粒度证据丢失的问题，ECHO提出选择性轮次记忆方法：执行时剪枝历史以生成动作，学习时回溯原始轮次以更新策略。该方法使基于结果的强化学习能够对齐支持最终答案的证据，有望提升长程决策中策略优化的有效性。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2606.31819v1",
+      "source": "arxiv",
+      "title": "Creating Intelligence: A Computational Foundation for AGI",
+      "abstract": "This work introduces a new computational theory of mind grounded in set theory and hyperdimensional computing. Whereas traditional neural networks rely on continuous weights and matrix multiplication, this framework works with sparse binary data. It represents information as discrete sets, directly modeling biological neural population codes. I demonstrate that associative memory emerges naturally from network topologies featuring a combinatorially expanded hidden layer. Learning is driven by topological plasticity rather than scalar weight adjustments. This architecture unifies auto-associative and hetero-associative learning under a single core algorithm: information retrieval via subset pattern matching and exact nearest-neighbor search. Operating with constant-time complexity, these mechanisms bridge perceptual data (sparse distributed representations) and symbols (sparse holographic representations) without continuous bottlenecks. Mapping this framework to neuroanatomy, I propose that both the cerebellum and the neocortex implement variants of this algorithm, making subset pattern matching the fundamental engine of cognition. Because it relies on discrete logic rather than matrix arithmetic, this algorithm translates directly into in-memory hardware. This opens a new route toward synthetic intelligence with human-level energy efficiency.",
+      "authors": [
+        "Peter Overmann"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-30T15:30:40+00:00",
+      "link": "https://arxiv.org/pdf/2606.31819v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "associative memory emerges naturally from network topologies, unifying auto- and hetero-associative learning",
+      "llm_evidence_cn": "联想记忆从网络拓扑中自然涌现，统一自联想和异联想学习",
+      "llm_evidence": "联想记忆从网络拓扑中自然涌现，统一自联想和异联想学习",
+      "canonical_evidence": "联想记忆从网络拓扑中自然涌现，统一自联想和异联想学习",
+      "llm_tldr_en": "Proposes a computational theory of mind based on set theory and hyperdimensional computing, where associative memory emerges from combinatorially expanded hidden layers, offering a foundation for AGI.",
+      "llm_tldr_cn": "提出基于集合论和超维度计算的思维计算理论,通过组合扩展隐藏层实现联想记忆的自然涌现,将自联想与异联想学习统一为单一算法,为通用人工智能提供计算基础。",
+      "llm_tldr": "提出基于集合论和超维度计算的思维计算理论,通过组合扩展隐藏层实现联想记忆的自然涌现,将自联想与异联想学习统一为单一算法,为通用人工智能提供计算基础。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "Cognitive memory models applied to artificial intelligence agents",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2606.29030v1",
+      "source": "arxiv",
+      "title": "Memory as an Attack Surface in LLM Agents: A Study on Multiple-Choice Question Answering",
+      "abstract": "AI agents extend conventional large language model (LLM) applications by integrating language understanding with task execution, external tool use, and memory mechanisms. While memory allows agents to retain prior interactions and provide more personalized and context-aware responses, it also introduces a new vulnerability: information stored in memory can influence future outputs even when the current query is clean. In this paper, we investigate memory manipulation in LLM-based agents for multiple-choice question answering. We first design and implement an LLM-based AI agent with an external memory component that stores and retrieves task-relevant information. We then introduce basic memory manipulation scenarios in which misleading or corrupted memories are inserted into the agent before it answers multiple-choice questions. Using a controlled experimental setup, we compare the agent's performance before and after memory manipulation and measure changes in answer accuracy, attack success rate, and selection of manipulated options. Our results show that even simple memory manipulations can noticeably affect the agent's final answers, causing it to select incorrect options despite receiving clean and well-formed questions.",
+      "authors": [
+        "Shahnewaz Karim Sakib",
+        "Anindya Bijoy Das"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.ET"
+      ],
+      "published": "2026-06-27T17:57:25+00:00",
+      "link": "https://arxiv.org/pdf/2606.29030v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "studies memory manipulation attack in LLM agents",
+      "llm_evidence_cn": "研究LLM智能体中的记忆操纵攻击",
+      "llm_evidence": "研究LLM智能体中的记忆操纵攻击",
+      "canonical_evidence": "研究LLM智能体中的记忆操纵攻击",
+      "llm_tldr_en": "Investigates memory manipulation vulnerabilities in LLM agents for multiple-choice QA, showing that poisoned memory can bias future outputs even with clean queries.",
+      "llm_tldr_cn": "智能体记忆在提供个性化与上下文感知的同时，也会带来安全隐患。本文研究LLM智能体外存记忆在多选问答中的操纵攻击，通过设计外部记忆组件并注入误导信息，证明记忆内容可污染未来正确输出。实验展示了记忆攻击的有效性，提示在部署记忆增强智能体时需考虑安全防护。",
+      "llm_tldr": "智能体记忆在提供个性化与上下文感知的同时，也会带来安全隐患。本文研究LLM智能体外存记忆在多选问答中的操纵攻击，通过设计外部记忆组件并注入误导信息，证明记忆内容可污染未来正确输出。实验展示了记忆攻击的有效性，提示在部署记忆增强智能体时需考虑安全防护。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "intelligent agents with memory",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2606.30185v1",
+      "source": "arxiv",
+      "title": "Dynamo: Dynamic Skill-Tool Evolution for Vision-Language Agents",
+      "abstract": "Improving vision-language models (VLMs) on visual reasoning typically requires retraining or hand-designed prompts and tools. We present Dynamo, a training-free framework that adapts a frozen VLM without any weight updates. On a small labeled training subset, the agent inspects its own correct and incorrect attempts and evolves two complementary capabilities: reusable reasoning skills for cognitive bottlenecks, and executable visual tools for perceptual ones. Each generated tool is paired with a skill that specifies when to invoke it, and both capability types accumulate in a persistent library. Across four visual reasoning benchmarks and five VLM backbones, Dynamo improves direct inference on all 20 model--benchmark settings (avg. +5.6 acc). When the tool set is given in advance, the framework learns when to call each tool, and per-step tool choice improves on every tested backbone. Against task-specific RL (VTool-R1, DeepEyes), Dynamo closes 65--99% of the RL gap at a fraction of the compute, and combines additively with RL when available.",
+      "authors": [
+        "Yutao Sun",
+        "Yanting Miao",
+        "Hao-Xuan Ma",
+        "Mengyu Zhou",
+        "Mingshuai Chen",
+        "Tiancheng Zhao",
+        "Dexin Wang",
+        "Lei Lv",
+        "Li Xu",
+        "Xiaoxi Jiang",
+        "Guanjun Jiang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-06-29T11:59:01+00:00",
+      "link": "https://arxiv.org/pdf/2606.30185v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "agents accumulate reusable reasoning skills and visual tools in a persistent library, forming an experience memory",
+      "llm_evidence_cn": "智能体在持久库中积累可复用的推理技能和视觉工具，形成经验记忆",
+      "llm_evidence": "智能体在持久库中积累可复用的推理技能和视觉工具，形成经验记忆",
+      "canonical_evidence": "智能体在持久库中积累可复用的推理技能和视觉工具，形成经验记忆",
+      "llm_tldr_en": "Enables frozen VLMs to improve by self-evolving reusable reasoning skills and visual tools stored in a persistent library, achieving gains across benchmarks without retraining.",
+      "llm_tldr_cn": "针对视觉-语言模型需重训练以适应新任务的限制，提出Dynamo框架：在少量标注数据上，智能体分析自身成败，演化出可复用的推理技能和视觉工具并存入持久库。在20个模型-基准设置中平均提升5.6%准确率。该方法提供了一种无训练的智能体能力演化方式，其中持久库充当记忆。",
+      "llm_tldr": "针对视觉-语言模型需重训练以适应新任务的限制，提出Dynamo框架：在少量标注数据上，智能体分析自身成败，演化出可复用的推理技能和视觉工具并存入持久库。在20个模型-基准设置中平均提升5.6%准确率。该方法提供了一种无训练的智能体能力演化方式，其中持久库充当记忆。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "intelligent agents with memory",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    }
+  ]
+}
