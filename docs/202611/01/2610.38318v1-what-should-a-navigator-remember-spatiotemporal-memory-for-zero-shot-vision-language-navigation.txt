@@ -1,0 +1,577 @@
+Title: What Should a Navigator Remember? Spatiotemporal Memory for Zero-Shot Vision-Language Navigation
+
+URL Source: https://arxiv.org/pdf/2610.38318v1
+
+Published Time: Fri, 30 Oct 2026 01:07:18 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+Preprint 
+
+# WHAT SHOULD A NAVIGATOR REMEMBER ? SPA -
+
+# TIOTEMPORAL MEMORY FOR ZERO -S HOT VISION -LANGUAGE NAVIGATION 
+
+Yuhang Peng 2, Zhikai Wang 2, Ziyi Wang 2, Jiaru Zhong 2
+
+Xiaoji Zheng 3, Jingzhi Huang 2, Yi Wang 2, Jiangtao Gong 1
+
+> 1
+
+Shanghai Jiao Tong University 2The Hong Kong Polytechnic University 
+
+> 3
+
+Tsinghua University 
+
+## ABSTRACT 
+
+Zero-shot vision-and-language navigation (VLN) requires an agent to use past observations without navigation-specific training. We study what information an 8B-scale navigation system should retain and how it should be organized for sub-sequent decisions. Our agent combines instruction progress, hierarchically com-pressed observation history anchored to poses, and accumulated geometry in com-plementary task, temporal, and spatial memories. An 8B observer summarizes observations, and an 8B reasoner uses the memories to select waypoint intents or request additional views, a geometric controller executes the selected targets. A semantic information perspective motivates the distinction between retaining ev-idence, making it accessible to the reasoner, and acquiring further observations. On R2R-CE val-unseen, the complete system achieves the highest among the eval-uated Qwen3-based zero-shot baselines. Removing temporal memory reduces SR and sharply increases average path length from 16.9 to 39.1 m, removing the spatial-map and planning component reduces SR as well. Real-world experiments on a Unitree Go2 show that our zero-shot method achieves higher success rates than the post-trained baseline in both corridor and office environments, suggesting better transfer to the evaluated real-world settings. As a complementary evalua-tion, LAW2 uses paired instruction interventions to examine behavioral responses, instruction following ability beyond endpoint success. These results support pre-serving task progress, observation history, and geometry in structured memory for zero-shot navigation with smaller open models. 
+
+## 1 INTRODUCTION 
+
+Vision-and-Language Navigation (VLN) requires an embodied agent to follow a natural-language instruction through a previously unseen environment, providing a foundation for higher-level tasks such as object manipulation and human–robot interaction. Post-training methods (Guo et al., 2026; Wei et al., 2026; Wang et al., 2026) fine-tune vision-language models on navigation trajectories and achieve strong success rates on R2R-CE (Krantz et al., 2020). Zero-shot methods (Chen et al., 2025; Shi et al., 2025; Yuan et al., 2025; Li et al., 2026a) instead reuse pretrained models without navigation-specific training. Despite their different training requirements and inference resources, both approaches must integrate visual observations, instruction progress, and execution history to make reliable navigation decisions. A central question is how navigation history should be represented for smaller open models. In our reproduced HSGM configuration (Li et al., 2026a), replacing GPT-5 with Qwen3-VL-8B reduces SR from 0.463 to 0.049 on R2R-CE val-unseen (Table 1). This comparison motivates examining the demands placed on the navigation backbone. We focus on memory representation: the reasoner must connect current observations with instruction progress and earlier evidence, often across many actions. Our design preserves three complementary kinds of information: what the instruction requires and which subgoal is active, what the agent has observed and executed, and what geometry it has ex-1arXiv:2610.38318v1 [cs.RO] 28 Oct 2026 Preprint plored. We organize these as task memory, temporal memory with hierarchical summaries anchored to poses, and spatial memory containing an occupancy map and a committed target. The semantic communication perspective of Lastras et al. (2026) motivates retaining evidence use-ful for task-relevant judgments and organizing it for a computationally bounded receiver. In nav-igation, these judgments include whether a subgoal is complete and where to move next. We use this perspective as a design rationale. An 8B observer constructs observational summaries, while a Qwen3-VL-8B reasoner combines them with the instruction and spatial memory. Waypoint intents connect these decisions to geometric control, and a PREVIEW action allows the agent to acquire additional views. We evaluate this memory design through navigation results, component ablations, and deployment on a Unitree Go2 to experiment real world performance. We also introduce LAW2 as a complemen-tary diagnostic benchmark: paired direction reversals, route-information removal, and paraphrases reveal how behavior responds to instruction changes with the same meaning. Our contributions are as follows. • We propose a spatiotemporal memory representation for zero-shot VLN that combines in-struction progress, pose-anchored observation history, and accumulated geometry. • We evaluate the representation in a navigation system with an 8B observer and an 8B rea-soner. Component ablations characterize the effects of temporal memory, spatial memory and active previewing with planning, an integration with CA-Nav and real-world deploy-ment provide additional evidence of utility. • We introduce LAW2 to complement navigation metrics with paired tests of directional responsiveness, dependence on route information, and sensitivity to paraphrasing. 
+
+## 2 RELATED WORK 
+
+2.1 VISION -AND -L ANGUAGE NAVIGATION 
+
+R2R (Anderson et al., 2018) studies navigation from natural-language instructions on a discrete graph, while R2R-CE (Krantz et al., 2020) extends the task to continuous environments with low-level actions. REVERIE (Qi et al., 2020) additionally requires identifying an object referred to by the instruction. These settings require agents to connect language with visual observations and spatial decisions. Spatial representations are a central part of VLN systems. ETPNav (An et al., 2024) uses online topological mapping and obstacle-aware planning, while BEVBERT (An et al., 2022) combines global topological and local metric representations. Post-training approaches (Guo et al., 2026; Wei et al., 2026; Wang et al., 2026) adapt pretrained models using navigation data. Our work studies how observation history and geometry can support navigation when the observer and reasoner are used without navigation-specific training. 2.2 AGENTIC NAVIGATION AND MEMORY 
+
+Agentic VLN systems combine language or vision-language models with perception, planning, and execution modules (Xin et al., 2026; Huang et al., 2026a;b; Li et al., 2026b). FreeAskWorld (Peng et al., 2026) extends evaluation to dynamic environments and proactive tasks which needs robot to search more information when lack of task-relevant information. These settings motivate retaining information across successive decisions. Existing systems use different representations and interfaces for navigation. CA-Nav (Chen et al., 2025) uses a value map to score locations by their relevance to the instruction, and BSC-Nav (Ruan et al., 2026) explores brain-inspired spatial memory. We evaluate our approach alongside zero-shot systems including SmartWay, Open-Nav, and HSGM (Shi et al., 2025; Yuan et al., 2025; Li et al., 2026a). Our focus is the organization of complementary evidence: task progress, compressed obser-vation history tied to poses, and accumulated geometry. The experiments assess this representation within a complete navigation system. 2Preprint 2.3 SPATIAL AND TEMPORAL MEMORY FOR NAVIGATION 
+
+Memory representations for VLN organize both observation history and spatial structure. HAMT (Chen et al., 2021) hierarchically encodes panoramic observations and their temporal re-lationships for multimodal action prediction. GridMM (Wang et al., 2023) projects historical obser-vations into a unified spatial grid and aggregates visual evidence according to instruction relevance. These approaches establish the importance of structured history and spatially organized evidence. Our work examines how such information can be represented explicitly for pretrained observers and reasoners used without navigation-specific training. Recent VLM-based navigation systems further explore explicit memory representations. Map-Nav (Zhang et al., 2025) uses annotated semantic maps in place of historical frames, while HSGM (Li et al., 2026a) organizes geometric, semantic, and decision information to support subtask reasoning and waypoint planning. HAM-VLN (Liu et al., 2026) maintains a grounded world graph with decision-coupled semantic and reflective records, combining a recent-history window with subgoal-conditioned retrieval. These methods demonstrate that map construction, task progress, and selective history access are already important elements of navigation memory. Our design emphasizes the complementary roles of temporal records and accumulated geometry for an 8B-scale reasoner. mt    
+
+> task (query Q t)
+> mt
+> temp (message)
+> G, t = 0
+> ηt→ commit q t
+> gk,𝒢
+
+Observations        
+
+> Instruction G
+> "Go up the stairs, turn left
+> and stop at the bakery"
+> RGB It
+> Depth D t, Pose P t
+> depth depth
+> ot= (o t
+> lang , I t, D t, P t)
+> belief h t= (m t
+> task , m t
+> temp , m t
+> sp )
+> ht= f update (h t−1 , a t−1 , o t)
+
+Task Memory         
+
+> subgoals 𝒢 (f init : decompose G)
+> g1g2g3…
+> active index k t
+> Active subgoal g k
+> "turn left at the top
+> of the stairs"
+> ct: CONTINUE evidence frames
+> kt← k t+ c t
+
+Temporal Memory   
+
+> time t
+> Ltlong -term
+> compressed
+> summary
+> (5 chunks → 1
+> long term)
+> chunk
+> Bj−1
+> 8 frames
+> chunk
+> Bj−0
+> 8 frames
+> Ctchunk
+> summaries
+> Evidence: measured motion
+> (Δpos, Δyaw, Δh) per frame
+> Vt
+
+Spatial Memory     
+
+> 1
+> 2
+> 3
+> free / occupied / unknown
+> trajectory τ t
+> committed target qt
+> candidates 𝒲 t
+> qtreleased when reached / passed /
+> stagnant / budget out
+
+Reasoning (MLLM)   
+
+> query Q t: is g kdone? which
+> candidate leads toward it?
+> completion c t
+> propose → verify
+> (isolated check +
+> motion admission)
+> COMPLETE / CONTINUE
+> intent η t
+> candidate w ∈ 𝒲 t
+> PREVIEW
+> Evidence sufficient → deduce Insufficient → gather (PREVIEW)
+
+Controller κ(M t, P t, q t)          
+
+> at∈𝒜 prim
+> STOP FORWARD LEFT RIGHT
+> one intent q tspans several primitives, STOP when ct= 1 at k t
+> = N (after final approach)
+> It
+> Dt, P t
+> ct→ advance k t
+> φ(m t
+> sp )
+> Mt, P t, q t
+> Observer (MLLM)
+
+at → environment → o t+1 
+
+PREVIEW: rotate in place, capture n views  
+
+> Intent Signal
+> Reasoning Update
+
+Figure 1: Spatiotemporal memory for zero-shot VLN. Task memory tracks instruction progress, temporal memory retains pose-anchored observations and summaries, and spatial memory accu-mulates geometry and the committed target. The reasoner uses these representations to select a waypoint or request additional views through PREVIEW , geometric control executes the waypoint and subsequent observations update memory. 
+
+## 3 METHODOLOGY 
+
+3.1 PROBLEM FORMULATION 
+
+We consider vision-and-language navigation in a partially observable environment. An agent re-ceives a natural-language instruction G at the beginning of an episode and subsequently acquires observations while executing actions. We model the interaction as a POMDP Kaelbling et al. (1998), whose state st includes the environment layout and the agent’s physical configuration. The agent does not observe the complete state; instead, it receives observations vt = ( It, D t, P t), comprising an RGB image, depth, and a measured or estimated pose. 3Preprint The environment evolves according to 
+
+st+1 ∼ T (· | st, a t), vt+1 ∼ O(· | st+1 , a t), (1) where T and O are the transition and observation models. The executed action belongs to 
+
+Aprim = {FORWARD , LEFT , RIGHT , STOP }. (2) The agent maintains an internal memory that integrates the instruction with its interaction history: 
+
+h0 = finit (G, v 0),ht = fupdate (ht−1, a t−1, v t), t ≥ 1,at ∼ π(· | ht).
+
+(3) Here, ht is an internal memory representation, not necessarily an exact Bayesian belief state, and π
+
+denotes the complete decision-and-control policy. The instruction is supplied once, but its retained representation remains available throughout navigation. Let QG denote the task requirements associated with G. Successful execution requires the resulting trajectory to satisfy QG. Standard benchmark SR evaluates the narrower condition of stopping within a prescribed distance of the goal and does not by itself establish compliance with all route instructions. We therefore evaluate navigation performance together with instruction responsiveness. Appendix C develops the general receiver-based perspective underlying this formulation, distin-guishing available information, realized computation, and task achievement through environment interaction. 3.2 DESIGN RATIONALE 
+
+Our memory design is motivated by the semantic information perspective of Lastras et al. (2026), which studies communication that enables a receiver to derive required conclusions using its exist-ing knowledge. For navigation, this motivates retaining evidence that supports task-relevant judg-ments rather than reproducing the entire observation stream. We adopt this perspective as a design rationale, without transferring its communication bounds directly to memory cost or navigation per-formance. We distinguish evidence availability from its effective use. A navigation decision may fail because the necessary evidence has not been observed, because it was discarded during memory compres-sion, or because the reasoner cannot reliably interpret and combine the retained information. These possibilities motivate complementary mechanisms: acquiring additional observations, retaining rel-evant history, and organizing that history into accessible representations. The agent is not assumed to identify these failure sources perfectly. We instantiate this rationale through task, temporal, and spatial memory. Task memory retains the instruction and its execution stage; temporal memory organizes past observations and measured mo-tion; spatial memory accumulates geometric evidence for navigation. Hierarchical summarization and pose anchoring organize historical information for the reasoner, while a preview mechanism allows the agent to request additional views. These mechanisms support memory-conditioned deci-sions without guaranteeing evidence sufficiency or correct reasoning. Appendix C.1 formalizes the distinction between semantic sufficiency and realized computation. The following sections describe our memory representation and the policy that uses it to select and execute navigation actions. 3.3 SPATIOTEMPORAL MEMORY 
+
+We instantiate the internal memory in Eq. (3) with three complementary components: 
+
+ht =  mtask  
+
+> t
+
+, m temp  
+
+> t
+
+, m sp 
+
+> t
+
+ , (4) which retain the task context, temporal observations, and accumulated spatial evidence, respectively. This representation organizes information from the interaction history without explicitly maintaining a posterior distribution over environment states. The memory update uses RGB observations It,aligned depth Dt, and camera poses Pt, with known camera intrinsics K.4Preprint 3.3.1 TASK MEMORY 
+
+Task memory stores the instruction, its ordered decomposition into subgoals, and the active subgoal index: 
+
+mtask  
+
+> t
+
+= ( G, G, k t) , G = ( g1, . . . , g N ). (5) The active index kt advances when the reasoning module determines that the current subgoal has been completed. This representation preserves route order and conditions navigation on the current stage of the instruction. 3.3.2 TEMPORAL MEMORY 
+
+Temporal memory represents the observed trajectory at multiple resolutions: 
+
+mtemp  
+
+> t
+
+= ( Wt, C t, L t, E t) , (6) where Wt contains recent observations, Ct stores pending chunk-level summaries, Lt contains com-pressed long-term summaries, and Et records measured execution history. Recent observations are associated with frame indices, the camera pose Pt, and motion evidence, including translation, rota-tion, and elevation change. The short-term window retains the last eight real observations. Every eight new observations form a chunk, whose visual content is summarized. Two frames are retained across chunk boundaries to preserve contextual continuity. Every five pending chunk summaries are compressed into a new long-term block and appended to the existing memory. Consequently, recent experience remains visually detailed, while earlier experience is represented through compact descriptions of observed layouts, landmarks, and their relationships. Temporal summaries are generated without access to the navigation instruction, separating observa-tional descriptions from task-conditioned judgments. A subsequent reasoning stage combines these summaries with the instruction and execution feedback. The temporal history is retained through-out subgoal transitions, while the completion assessment uses evidence associated with the active subgoal. 3.3.3 SPATIAL MEMORY 
+
+Spatial memory maintains a geometric map, the observed agent trajectory, and a committed naviga-tion target. 
+
+msp  
+
+> t
+
+= ( Mt, τ t, q t) . (7) Here, Mt is a ground-plane occupancy map, τt is the trajectory accumulated from observed poses, and qt is the active world-coordinate target, or ∅ when no target is committed. Depth observations are back-projected into world coordinates using the camera calibration: 
+
+xwt,u = Pt BackProject( u, D t(u), K ) , (8) where BackProject returns a homogeneous camera-coordinate point for pixel u. The ground-plane projections of these points update accumulated free-space and obstacle evidence: 
+
+Mt = Fuse( Mt−1, D t, P t, K ) . (9) Each cell is classified as free, occupied, or unknown. The resulting map supports obstacle-aware path planning and frontier exploration. The two memories are coupled through pose anchoring. Each temporal entry records the pose at which it was captured, and each summary records the trajectory segment it covers. Temporal memory retains observed landmarks and their semantic relationships, complementing the geometric map. 3.4 MEMORY -C ONDITIONED NAVIGATION POLICY 
+
+Under the POMDP formulation, the agent selects actions from its internal memory rather than the complete environment state. Section 3.1 defines this memory-conditioned policy, and Eq. (4) speci-fies our representation. We implement the policy through high-level intent selection and geometric control, separating the choice of a navigation target from the primitive actions used to reach it: 
+
+at = κ(Mt, P t, q t), qt ∼ πθ (· | ht). (10) 5Preprint The intent policy πθ is implemented by a reasoning module 
+
+(ct, η t) = Jθ
+
+ mtask  
+
+> t
+
+, m temp  
+
+> t
+
+, m sp 
+
+> t
+
+ , (11) whose two outputs address task progress and spatial intent. The completion flag ct ∈ { 0, 1} indicates whether the active subgoal gkt has been achieved, and STOP is issued when ct = 1 at kt = N . The intent ηt ∈ W t ∪ { PREVIEW } either selects a target waypoint or requests a panoramic preview. The current egocentric observation and retained memory may not provide enough evidence to select a waypoint toward the active subgoal, for example when a referenced landmark lies outside the field of view. The reasoning module can therefore select PREVIEW , which rotates the agent in place to acquire additional views Vt = {v(i) 
+
+> t
+
+}ni=1 . These observations enter temporal memory and expand the waypoint candidate set to the surrounding area. Previewing provides an opportunity to acquire missing evidence, but does not guarantee that the evidence resolves the current query or is correctly interpreted and retained. Under an idealized ad-ditive evidence update, additional facts can reduce the set of hypotheses consistent with the existing premises; Appendix C.1 formalizes this relation in Eq. (27). Our implemented memory update is not assumed to satisfy lossless evidence accumulation. When a waypoint is predicted in image coordinates, Eq. (8) is used to obtain its world-coordinate location for storage as the committed target in spatial memory. The target persists across steps until it is released by the memory update below, so a single intent spans multiple primitive steps. The controller κ plans an obstacle-aware path to qt on the occupancy map Mt and emits the next primitive action at ∈ A prim .After executing at−1, the agent receives vt and updates its memory as ht = fupdate (ht−1, a t−1, v t).The update decomposes over the three memory components, 
+
+fupdate =  f task , f temp , f sp  , (12) each of which consumes a different part of the input. For task memory, the instruction G and subgoals G are fixed after initialization, where finit decom-poses G into G and sets k0 = 1 . Only the stage index changes, kt = min( kt−1 + ct−1, N ), where 
+
+ct−1 is the completion flag computed by Jθ from ht−1. Hence f task depends on ht−1 alone. For temporal memory, let δt denote the translation, rotation, and elevation change computed from 
+
+Pt−1 and Pt. The recent window and execution history are updated as 
+
+Wt = Last 8(Wt−1 ∪ { (It, δ t, P t)}) , Et = Et−1 ∪ { (at−1, δ t)}. (13) When eight new observations have accumulated since the last chunk, they form a chunk Bj , which also includes the last two frames of Bj−1 for continuity, and its summary is appended together with the trajectory segment it covers, C′ 
+
+> t
+
+= Ct−1 ∪ { (Sum( Bj ), τ [sj ,e j ])}, where [sj , e j ] is the step range of Bj ; otherwise C′ 
+
+> t
+
+= Ct−1. Pending summaries are compressed into long-term memory once five have accumulated: 
+
+(Ct, L t) = 
+
+(∅, L t−1 ∪ { Comp( C′
+
+> t
+
+)}) , |C′
+
+> t
+
+| = 5 ,
+
+(C′
+
+> t
+
+, L t−1) , otherwise . (14) The summaries are designed to retain observations relevant to later decisions while reducing the amount of history presented to the reasoning module. For spatial memory, the map and trajectory integrate the new depth and pose, and the committed target is released once it is no longer valid: 
+
+Mt = Fuse( Mt−1, D t, P t, K ), τt = τt−1 ∪ { Pt}, (15) 
+
+qt =
+
+∅, Done( qt−1),qt−1, otherwise , (16) where Done( ·) holds when the target is reached, passed, or invalidated by stagnation (detected from 
+
+Et) or by exceeding its execution budget. Each step thus proceeds in three stages: fupdate integrates the new observation into memory; if 
+
+qt = ∅, the intent policy commits a new target, and κ emits the next primitive action toward it. Following the design rationale in Section 3.2, the agent uses memory-based reasoning to select targets and can request additional observations to support its decisions. This perception–reasoning– action loop repeats until STOP is issued. 6Preprint 3.5 ACTION ABSTRACTION 
+
+We compare a primitive action space with an intent action space , both conditioned on the same observation vt and memory representation ht. The two differ only in action abstraction: primitive actions specify low-level motion commands, whereas intent actions specify spatial targets that a geometric controller executes. In the primitive action space, the policy selects at ∼ πθ (· | ht) from Aprim =
+
+{FORWARD , LEFT , RIGHT , STOP }, where FORWARD translates by a fixed distance and 
+
+LEFT /RIGHT rotate by a fixed angle. Although this action space is small, reaching a spatial tar-get requires a long sequence of such decisions, and the number of possible sequences grows as 
+
+|A prim |T over T steps. In the intent action space, the policy instead selects a waypoint qt ∼ πθ (· | ht) from Aintent =
+
+Wt ∪ { STOP }, where Wt ⊆ R2 is either a set of K generated candidates or, for direct prediction, the local ground plane (image-space predictions are projected using depth and camera calibration). A geometric controller then produces the primitive actions at = κ(Mt, P t, q t), where Mt is the accumulated map and Pt the agent pose. The key difference lies in the effective decision horizon. Per decision, |A intent | = K + 1 can exceed 
+
+|A prim | = 4 . However, if a segment of T primitive steps is covered by N intents, with the i-th intent executing ℓi steps, then 
+
+Hintent 
+
+Hprim 
+
+= NT = 1¯ℓ < 1, ¯ℓ = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ℓi > 1. (17) When an intent spans multiple primitive steps on average, intent prediction reduces the number of target-selection decisions required for a trajectory. Consistent with this analysis, our method performs substantially better with waypoint prediction and selection than with primitive-action prediction. Table 3 reports a larger input-token load per decision for HSGM than for our method. This observation motivates reducing the context burden on smaller models, but does not isolate context length as the cause of the performance gap. Memory representation, model capability, action interfaces, and execution settings may also affect navigation performance. 
+
+## 4 EVALUATION PROTOCOL 
+
+We evaluate navigation on R2R-CE (Krantz et al., 2020) using success rate (SR), success weighted by path length (SPL), navigation error (NE), oracle success rate (OSR), and normalized dynamic time warping (nDTW) (Ilharco et al., 2019). We also report relative success rate, RSR = SR /OSR ,when OSR is positive and both metrics use the same cohort with complete oracle-success coverage. RSR measures successful stopping conditional on reaching the goal region; it does not separately identify perception, progress-estimation, or stopping errors. LAW2 complements these metrics with paired instruction interventions. Each transformed instruc-tion is compared with its original counterpart under the same scene, start pose, and execution set-tings: • FLIP reverses the initial turn command in 82 episodes to measure responsiveness to the supplied direction. • GOAL-ONLY retains the final annotated sub-instruction in 174 episodes to measure de-pendence on route information. Success remains defined by the original target location. • PARAPHRASE generates four intended meaning-preserving variants for each of 200 in-structions: same register, terse, colloquial, and landmark re-description. Appendix B specifies cohort selection, transformations, validation, and scoring. 7Preprint 
+
+Figure 2: Qualitative results on R2R (top) and in real-world experiments (bottom). 
+
+## 5 EXPERIMENTS 
+
+5.1 SIMULATION EXPERIMENT 
+
+Our method uses JoyAI-VL-Interaction-8B (Yao et al., 2026) as the observer, which summarizes visual observations into temporal memory, and Qwen3-VL-8B (Bai et al., 2025) as the reasoner. We compare against both post-training and zero-shot baselines. The zero-shot baselines differ in how they use the LLM; for example, CA-Nav uses it only for subgoal decomposition. For the Qwen3-based comparisons, we retain each baseline’s implementation and use the backbone configurations listed in Table 1. These comparisons share an 8B-scale language backbone but differ in auxiliary models, observation configurations, and action interfaces. All experiments run on a server with 8 NVIDIA A100 GPUs. 5.2 REAL -W ORLD EXPERIMENT 
+
+We deploy our method and AwareVLN on a Unitree Go2 quadruped robot in corridor and office en-vironments. Both models run on the same A100 server, which communicates with the Go2 remotely. The robot streams its onboard observations to the server and executes the returned actions. We re-construct each environment with FAST-LIVO2 (Zheng et al., 2024) and localize the robot within the reconstructed map, which provides the pose ˆPt during navigation and the reference positions used for evaluation. 5.3 MAIN RESULTS 
+
+Table 1 shows that our complete system achieves SR of 0.263 and SPL of 0.196, the highest among the evaluated Qwen3-based zero-shot baselines. Post-trained models achieve higher SR and SPL in simulation. Our RSR of 0.802 indicates that a larger fraction of episodes reaching the goal region end successfully than for the other evaluated Qwen3-based zero-shot methods. This comparison concerns complete systems with different perception modules and action interfaces. Adding temporal memory to CA-Nav increases SPL from 0.097 to 0.126 and nDTW from 0.162 to 0.225, while SR sligtly changes from 0.243 to 0.247. Average path length decreases from 27.82 to 23.50 m. These results provide additional evidence that retained observation history can improve path efficiency, although the change in endpoint success is small. 8Preprint In the two real-world environments, our system obtains higher SR and lower NE than AwareVLN(Table 4). This result demonstrate a better generalization ability that our method have. Figure 2 is the qualitative results which illustrates simulation and real-world trajectories and task relevant elements visualization. 5.4 ABLATION STUDY 
+
+Table 2 reports the ablation results. We evaluate the proposed memory designs by replacing each component with a minimal baseline. For w/o Temporal , the reasoner receives a sliding window of the eight most recent raw images, without historical observation reports and hierarchical summaries. For w/o Spatial , the agent retains only its pose trajectory and the currently committed target. Way-point candidates are generated from the current observatio, and the agent moves directly toward the selected target without an accumulated occupancy map. The w/o S&T variant combines both replacements. Task memory is retained in all variants, and preview remains enabled in the memory ablations. Removing temporal memory reduces SR from 0.263 to 0.190, SPL from 0.196 to 0.112, and nDTW from 0.379 to 0.201. Average path length increases from 16.9 to 39.1 m and steps from 131 to 292, even though OSR rises from 0.328 to 0.475. The agent therefore reaches the goal region more frequently during longer trajectories but converts fewer visits into successful termination. This pattern is consistent with historical evidence supporting task progress and stopping decisions. Removing the spatial component reduces SR to 0.205 and SPL to 0.142. Removing both spatial and temporal components yields SR of 0.185 and nDTW of 0.202. Task memory is retained in every variant, so these comparisons assess temporal and spatial components within the task-conditioned architecture. Removing PREVIEW reduces SR from 0.263 to 0.190 while leaving nDTW nearly unchanged (0.379 versus 0.378). Token consumption also decreases. This tradeoff supports the utility of acquiring additional views within our system. Separately, the intent-action variant achieves higher SR and SPL than the primitive-action variant (0.263/0.196 versus 0.125/0.085), supporting the use of waypoint selection and geometric control to execute memory-conditioned decisions. 5.5 INSTRUCTION -I NTERVENTION ANALYSIS 
+
+In FLIP, our initial-turn follow rate changes from 0.829 to 0.707, compared with 0.915 to 0.439 for AwareVLN and 0.646 to 0.268 for CA-Nav (Table 5). Our system has the highest mean follow rate across the paired conditions. These results show differences in responsiveness to a changed direction command on the selected episodes. In GOAL-ONLY, our SR decreases from 0.293 to 0.181, while nDTW increases from 0.354 to 0.390 and path length decreases from 19.37 to 11.25 m (Table 6). AwareVLN shows decreases in both SR and nDTW, whereas CA-Nav shows lower SR with a small increase in nDTW. Thus, route-information removal affects endpoint success and original-route fidelity differently, and the zero-shot method tends to act like a human to explore with higher nDTW. Under PARAPHRASE, our SR ranges from 0.240 to 0.280 around the original value of 0.270, while nDTW decreases from 0.387 to 0.350–0.365 across all four variants (Table 7). Endpoint success is therefore relatively stable in the reported point estimates, whereas route fidelity changes. For AwareVLN, A4 reduces SR from 0.590 to 0.500 and nDTW from 0.621 to 0.566, indicating sensitivity to landmark re-description. 
+
+## 6 CONCLUSION 
+
+We studied what information a zero-shot navigator should retain when using 8B-scale models. Our design combines instruction progress, pose-anchored observation history, and accumulated geome-try in complementary memories. The complete system achieves the highest SR and SPL among the evaluated Qwen3-based zero-shot baselines, and the ablations show the utility of temporal history and spatial mapping with planning. Temporal-memory integration with CA-Nav and deployment on a Unitree Go2 for real world experiment provide further evidence of practical utility. LAW2 supple-9Preprint Table 1: Results on R2R-CE val-unseen. Bold: best within the post-training group, and best among Qwen3(-VL)-8B-based methods in the zero-shot group.                                                                                                                                                                             
+
+> Method Navigation Backbone Obs. SR ↑SPL ↑nDTW ↑OSR ↑NE ↓PL Steps RSR ↑
+> Post-training
+> Aware VLN cGuo et al. (2026) AwareVLN Mono 0.647 0.563 0.656 0.744 4.10 12.79 107 0.869 Aware VLN cGuo et al. (2026) AwareVLN (4-bit) Mono 0.652 0.569 0.660 0.760 3.89 12.69 110 0.858 InternNav cWei et al. (2026) InternVLA Mono 0.585 0.538 –0.659 4.70 –99 0.888 LightNav cWang et al. (2026) LightNav Mono 0.680 0.625 0.633 0.722 3.99 –84 0.942
+> Zero-shot
+> CA-Nav b,c Chen et al. (2025) Stack aMono 0.243 0.097 0.162 0.479 7.71 27.82 215 0.507 CA-Nav + Temporal Memory b,c Chen et al. (2025) Stack aMono 0.247 0.126 0.225 0.423 7.57 23.50 184 0.584 GC-VLN b,c Yin et al. (2025) DeepSeek-R1 Mono 0.141 0.066 –0.289 8.31 42.10 366 0.488 SmartWay cShi et al. (2025) Q3VL-8B Pano 0.178 0.134 0.380 0.361 7.39 15.81 12 0.493 SmartWay Shi et al. (2025) GPT-4o Pano 0.290 0.225 –0.510 7.01 13.09 –0.569 Open-Nav cYuan et al. (2025) Qwen3-8B-FP8 Pano 0.107 0.093 0.430 0.148 7.87 7.60 60.723 Open-Nav Yuan et al. (2025) Llama-3.1-70B-Instruct Pano 0.160 0.129 0.450 0.230 7.25 8.07 –0.696 Open-Nav Yuan et al. (2025) GPT-4 Pano 0.190 0.161 0.458 0.230 6.70 7.68 –0.826 HSGM cLi et al. (2026a) Q3VL-8B 3-view 0.049 0.048 0.272 0.120 8.79 6.27 34 0.408 HSGM cLi et al. (2026a) GPT-5 3-view 0.463 0.324 0.463 0.569 5.47 15.36 43 0.814 Ours (Primitive Actions) Q3VL-8B + JoyAI Mono 0.125 0.085 0.320 0.225 8.05 15.76 213 0.556 Ours (Intent Actions) Q3VL-8B + JoyAI Mono 0.263 0.196 0.379 0.328 7.56 16.98 131 0.802
+
+Q3VL-8B: Qwen3-VL-8B-Instruct. –: unavailable. Mono: single egocentric view; Pano: 12-view 360 ◦ panorama; 3-view: front, left, right. Reproductions keep the original view configuration. aGroundingDINO + RepViT-SAM + BLIP2-ITM + BLIP-VQA + Q3VL-8B. bLLM used only for subgoal decomposition, not step-by-step navigation. cReproduced by us; other rows are from the original papers, with RSR computed from reported SR and OSR. 
+
+ments endpoint metrics by exposing changes in directional responsiveness and route fidelity under instruction interventions. Future work will explore alternative memory mechanisms, including native memory and test-time training, alongside improved methods for extracting and compressing task-relevant information. AI USE STATEMENT 
+
+Generative AI tools were used to construct and review the PARAPHRASE portion of LAW2. A language model generated four variants of each of 200 source instructions, and model-based review assessed semantic equivalence and flagged changes in directions and referents. Appendix B.5 de-scribes generation, validation, and review. We also used generative AI tools to improve manuscript readability. The authors reviewed the AI-assisted content and take responsibility for the manuscript and reported results. REPRODUCIBILITY STATEMENT 
+
+The paper specifies the memory representation, action interfaces, component ablations, and instruction-intervention protocols. Appendix B provides cohort-selection rules and scoring details. We will release the implementation and accompanying configuration and benchmark records after acceptance. 
+
+## REFERENCES 
+
+Dong An, Yuankai Qi, Yangguang Li, Yan Huang, Liang Wang, Tieniu Tan, and Jing Shao. Bevbert: Multimodal map pre-training for language-guided navigation. arXiv preprint arXiv:2212.04385 ,2022. Dong An, Hanqing Wang, Wenguan Wang, Zun Wang, Yan Huang, Keji He, and Liang Wang. Etp-nav: Evolving topological planning for vision-language navigation in continuous environments. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. Peter Anderson, Qi Wu, Damien Teney, Jake Bruce, Mark Johnson, Niko S¨ underhauf, Ian Reid, Stephen Gould, and Anton Van Den Hengel. Vision-and-language navigation: Interpreting visually-grounded navigation instructions in real environments. In Proceedings of the IEEE con-ference on computer vision and pattern recognition , pp. 3674–3683, 2018. 10 Preprint Isaac Asimov. I, robot , volume 1. Spectra, 2004. Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, et al. Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 , 2025. Kehan Chen, Dong An, Yan Huang, Rongtao Xu, Yifei Su, Yonggen Ling, Ian Reid, and Liang Wang. Constraint-aware zero-shot vision-language navigation in continuous environments. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. Shizhe Chen, Pierre-Louis Guhur, Cordelia Schmid, and Ivan Laptev. History aware multimodal transformer for vision-and-language navigation. Advances in neural information processing sys-tems , 34:5834–5847, 2021. Wenxuan Guo, Xiuwei Xu, Yichen Liu, Xiangyu Li, Hang Yin, Huangxing Chen, Wenzhao Zheng, Jianjiang Feng, Jie Zhou, and Jiwen Lu. Awarevln: Reasoning with self-awareness for vision-language navigation. arXiv preprint arXiv:2605.22816 , 2026. Yicong Hong, Cristian Rodriguez, Qi Wu, and Stephen Gould. Sub-instruction aware vision-and-language navigation. In Proceedings of the 2020 conference on empirical methods in natural language processing (EMNLP) , pp. 3360–3376, 2020. Jingzhi Huang, Junkai Huang, Wenxuan Song, Haoyang Yang, Hailong Huang, Haoang Li, and Yi Wang. Sedualvln: A spatially-enhanced dual-system for vision-language navigation. arXiv preprint arXiv:2605.17249 , 2026a. Jingzhi Huang, Junkai Huang, Haoyang Yang, Haoang Li, and Yi Wang. Aerr-nav: Adap-tive exploration-recovery-reminiscing strategy for zero-shot object navigation. arXiv preprint arXiv:2603.17712 , 2026b. Gabriel Ilharco, Vihan Jain, Alexander Ku, Eugene Ie, and Jason Baldridge. General eval-uation for instruction conditioned navigation using dynamic time warping. arXiv preprint arXiv:1907.05446 , 2019. Leslie Pack Kaelbling, Michael L Littman, and Anthony R Cassandra. Planning and acting in partially observable stochastic domains. Artificial intelligence , 101(1-2):99–134, 1998. Jacob Krantz, Erik Wijmans, Arjun Majundar, Dhruv Batra, and Stefan Lee. Beyond the nav-graph: Vision and language navigation in continuous environments. In European Conference on Computer Vision (ECCV) , 2020. Luis A Lastras, Jonathan Lenchner, Barry M Trager, Wojciech Szpankowski, Mark S Squillante, Chai Wah Wu, Ronald Fagin, and Alexander Gray. Fundamental limits incorporating logical reasoning into shannon’s information theory. Proceedings of the National Academy of Sciences ,123(35):e2525600123, 2026. Kailing Li, Tianwen Qian, Lijin Yang, Yuqian Fu, Jingyu Gong, Xiaoling Wang, and Liang He. Bridging the 2d-3d gap: A hierarchical semantic-geometric map for vision language navigation. 
+
+arXiv preprint arXiv:2606.00095 , 2026a. Yijian Li, Changze Li, Hantian Shi, Jiaying Luo, Jiyuan Cai, Ming Yang, and Tong Qin. Agen-ticnav: Zero-shot vision-and-language navigation as a tool-calling harness. arXiv preprint arXiv:2606.10577 , 2026b. An Liu, Bingxi Liu, Hongyu Ding, Yixuan Jiang, Yaran Chen, Fulin Tang, Cong Leng, Hong Zhang, and Jian Cheng. Ham-vln: Harnessing hierarchical agentic memory for zero-shot vision-and-language navigation. arXiv preprint arXiv:2607.29600 , 2026. Yuhang Peng, Yizhou Pan, Xinning He, Jihaoyu Yang, Xinyu Yin, Han Wang, Xiaoji Zheng, Chao Gao, and Jiangtao Gong. Freeaskworld: An interactive and closed-loop simulator for human-centric embodied ai. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 40, pp. 926–934, 2026. 11 Preprint Yuankai Qi, Qi Wu, Peter Anderson, Xin Wang, William Yang Wang, Chunhua Shen, and Anton van den Hengel. Reverie: Remote embodied visual referring expression in real indoor environ-ments. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pp. 9982–9991, 2020. Shouwei Ruan, Liyuan Wang, Caixin Kang, Qihui Zhu, Songming Liu, Xingxing Wei, and Hang Su. Brain-inspired spatial intelligence for embodied agents. Nature Communications , 2026. Xiangyu Shi, Zerui Li, Wenqi Lyu, Jiatong Xia, Feras Dayoub, Yanyuan Qiao, and Qi Wu. Smart-way: Enhanced waypoint prediction and backtracking for zero-shot vision-and-language naviga-tion. In 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pp. 16923–16930. IEEE, 2025. Shaoan Wang, Aocheng Luo, Fei Huang, Jingyi Xu, Xiaoyang Wang, Yueyu Wang, Qianli Ma, Fan Yang, Ran Mei, Jia Wei, et al. Lightnav-0: Eliciting vlm spatial intelligence for generalist embodied navigation. arXiv preprint arXiv:2608.30935 , 2026. Zihan Wang, Xiangyang Li, Jiahao Yang, Yeqi Liu, and Shuqiang Jiang. Gridmm: Grid memory map for vision-and-language navigation. In 2023 IEEE/CVF International Conference on Computer Vision (ICCV) , pp. 15579–15590. IEEE, 2023. Meng Wei, Chenyang Wan, Peng Peng, Xiqian Yu, Yuqiang Yang, Delin Feng, Wenzhe Cai, Chen-ming Zhu, Tai Wang, Jiangmiao Pang, et al. Ground slow, move fast: A dual-system foundation model for generalizable vision-language navigation. In International Conference on Learning Representations , volume 2026, pp. 12380–12396, 2026. Zihao Xin, Wentong Li, Yixuan Jiang, Ziyuan Huang, Bin Wang, Piji Li, Jianke Zhu, Jie Qin, and Shengjun Huang. Agentvln: Towards agentic vision-and-language navigation. arXiv preprint arXiv:2603.17670 , 2026. Dingyu Yao, Junhao Zhou, Chenxu Yang, Chuanyu Qin, Haowen Hou, Zheming Liang, Congcong Wang, Yuhang Cao, Shenglong Ye, Shuai Xie, et al. Joyai-vl-interaction: Real-time vision-language interaction intelligence. arXiv preprint arXiv:2606.14777 , 2026. Hang Yin, Haoyu Wei, Xiuwei Xu, Wenxuan Guo, Jie Zhou, and Jiwen Lu. Gc-vln: In-struction as graph constraints for training-free vision-and-language navigation. arXiv preprint arXiv:2509.10454 , 2025. Mingfeng Yuan, Letian Wang, and Steven L Waslander. Opennav: Open-world navigation with multimodal large language models. In 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pp. 18948–18955. IEEE, 2025. Lingfeng Zhang, Xiaoshuai Hao, Qinwen Xu, Qiang Zhang, Xinyao Zhang, Pengwei Wang, Jing Zhang, Zhongyuan Wang, Shanghang Zhang, and Renjing Xu. Mapnav: A novel memory rep-resentation via annotated semantic maps for vlm-based vision-and-language navigation. In Pro-ceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 13032–13056, 2025. Chunran Zheng, Wei Xu, Zuhao Zou, Tong Hua, Chongjian Yuan, Dongjiao He, Bingyang Zhou, Zheng Liu, Jiarong Lin, Fangcheng Zhu, et al. Fast-livo2: Fast, direct lidar–inertial–visual odom-etry. IEEE Transactions on Robotics , 41:326–346, 2024. 
+
+## A ADDITIONAL EXPERIMENT RESULTS 
+
+There are some additional experiment results including ablation study, token assumption experiment, and LAW2 benchmark experiments. 12 Preprint Table 2: Ablation study evaluation of model variants across navigation performance, path efficiency, step budget, and average token consumption per episode. 
+
+Model Variant Full w/o Spatial w/o Temporal w/o S&T w/o Preview 
+
+Navigation Performance 
+
+SR ↑ 0.263 0.205 0.190 0.185 0.190 SPL ↑ 0.196 0.142 0.112 0.139 0.151 OSR ↑ 0.328 0.345 0.475 0.492 0.295 NE ↓ 7.56 8.48 9.31 8.46 8.05 
+
+Path & Trajectory Efficiency 
+
+Path ↓ 16.9 18.6 39.1 31.7 16.7 
+
+Steps ↓ 131 173 292 300 130 
+
+nDTW ↑ 0.379 0.316 0.201 0.202 0.378 SDTW ↑ 0.168 0.131 0.095 0.117 0.141 Reach 500 Steps ↓ 162 171 657 693 108 
+
+Budget & Speed 
+
+SR@100 Step ↑ 0.185 0.115 0.100 0.090 0.145 SR@150 Step ↑ 0.210 0.140 0.110 0.150 0.180 Med. Steps ↓ 68 85 96 120 67 
+
+Token Consumption per Episode 
+
+8B In ↓ 640k 819k 1084k 1134k 523k 
+
+8B Out ↓ 10.9k 13.9k 27.1k 27.9k 9.4k 
+
+JoyAI In ↓ 224k 282k 114k 119k 200k JoyAI Out ↓ 5.4k 8.2k 10.1k 10.7k 1.6k 
+
+Table 3: Comparison of VLM call frequency and token consumption between HSGM and Ours, reported per call/step and per episode. 
+
+VLM Calls Per Call / Step Per Episode Method / Episode Input Output Input Output Total 
+
+HSGM 11.7 ≈23.0k 285 ≈270k ≈3.3k ≈273.3k Ours 131 ≈6.0k ≈114 864k 16.3k 880.3k 
+
+– Qwen3-VL-8B 131 ≈4.9k ≈83 640k 10.9k 651.9k 
+
+– JoyAI 131 ≈1.7k ≈41 224k 5.4k 229.4k Table 4: Real-world evaluation in the corridor and the office. Simple Instruction : follow a short instruction and stop. Complex Instruction : a multi-step instruction that requires a turn or passing a doorway before reaching the target. NE (m) is the navigation error; SR is the success rate within 
+
+2.0 m. 
+
+## Corridor Office Simple Instruction Complex Instruction Simple Instruction Complex Instruction Method NE ↓ SR ↑ NE ↓ SR ↑ NE ↓ SR ↑ NE ↓ SR ↑
+
+## AwareVLN 2.85 0.3 3.20 0.1 3.10 0.2 3.46 0.0 
+
+## Ours 0.68 0.8 0.84 0.8 0.91 0.6 1.07 0.4 
+
+13 Preprint Table 5: Initial-turn obedience on 82 selected episodes of R2R Val Unseen. ORIG uses the original instructions, while FLIP reverses only the selected direction word. Both conditions use the same v1-3 start orientation. Follow, Opposite, and Straight are fractions of all evaluated episodes; Straight includes straight or insufficient departures. MeanFollow and WordEffect aggregate the paired condi-tions. SR measures success at the original goal and is auxiliary. Aggregate values are approximately computed from the rounded rates shown. 
+
+Method Dataset Follow ↑ Opposite ↓ Straight SR ↑ MeanFollow ↑ WordEffect ↑
+
+Ours ORIG 0.829 0.134 0.037 0.286 0.7680 0.2955 
+
+FLIP 0.707 0.220 0.073 0.143 AwareVLN ORIG 0.915 0.073 0.012 0.646 0.6770 0.1830 FLIP 0.439 0.549 0.012 0.463 CA-Nav ORIG 0.646 0.268 0.085 0.256 0.4570 -0.0063 FLIP 0.268 0.671 0.061 0.171 
+
+Table 6: GOAL-ONLY experiment on 174 episodes of R2R Val Unseen, retaining only the final annotated sub-instruction. SR is evaluated against the unchanged target location, nDTW uses the original reference trajectory. 
+
+Method ORIG GOAL-ONLY SR ↑ nDTW ↑ PL (m) SR ↑ nDTW ↑ PL (m) Ours 0.293 0.354 19.37 0.181 0.390 11.25 AwareVLN 0.624 0.653 13.21 0.353 0.481 11.89 CA-Nav 0.241 0.162 28.34 0.184 0.168 25.75 
+
+Table 7: PARAPHRASE experiment on 200 episodes of R2R Val Unseen. A1: same register; A2: terse; A3: colloquial; A4: landmark re-description. NE is in meters. CA-Nav uses Qwen for instruction parsing. 
+
+Method Instruction SR ↑ OSR ↑ RSR ↑ SPL ↑ NE ↓ nDTW ↑
+
+Ours ORIG 0.270 0.350 0.771 0.155 8.15 0.387 A1 0.260 0.340 0.765 0.149 7.98 0.357 A2 0.240 0.330 0.727 0.123 8.19 0.365 A3 0.260 0.340 0.765 0.136 8.06 0.350 A4 0.280 0.360 0.778 0.145 8.67 0.351 AwareVLN ORIG 0.590 0.760 0.776 0.499 4.11 0.621 A1 0.630 0.720 0.875 0.509 4.60 0.611 A2 0.610 0.720 0.847 0.517 4.79 0.641 A3 0.620 0.720 0.861 0.511 4.72 0.626 A4 0.500 0.640 0.781 0.483 4.96 0.566 CA-Nav ORIG 0.260 0.500 0.520 0.127 6.60 0.156 A1 0.250 0.510 0.490 0.113 6.95 0.141 A2 0.280 0.530 0.528 0.123 6.83 0.131 A3 0.210 0.520 0.404 0.088 7.36 0.130 A4 0.210 0.490 0.429 0.074 7.58 0.086 
+
+## B THE LAW2 B ENCHMARK 
+
+B.1 MOTIVATION AND EVALUATION DESIGN 
+
+LAW2, named after Asimov’s second law (Asimov, 2004), evaluates instruction controllability through paired instruction interventions. 14 Preprint 
+
+Figure 3: Qualitative results for the reconstructed office scene: (a) reconstructed point cloud; (b) image rendered using 3D Gaussian Splatting; and (c) original image.               
+
+> Transformation Episodes Instruction change FLIP 82 Reverse the initial turn direction GOAL-ONLY 174 Retain the final annotated segment PARAPHRASE A1 200 Same-register rewriting PARAPHRASE A2 200 Terse imperatives PARAPHRASE A3 200 Colloquial rewriting PARAPHRASE A4 200 Landmark re-description
+
+Table 8: law2 cohorts. The four paraphrase styles share 200 source episodes and yield 800 rewrites; every condition has a matched ORIG control. Each transformed instruction is compared with its matched ORIG instruction. Scene, start pose, goal, reference trajectory, model configuration, and execution settings are fixed within each pair. FLIP tests directional responsiveness, GOAL-ONLY tests dependence on route information, and PARAPHRASE tests robustness to intended meaning-preserving rewrites. Expected effects differ: direction should change under FLIP, route fidelity may change under GOAL-ONLY, and behavior should remain stable under equivalent paraphrases. B.2 SOURCE EPISODES AND INSTRUCTION ALIGNMENT 
+
+We use R2R-CE val-unseen (Krantz et al., 2020) and FGR2R’s human-annotated sub-instructions and viewpoint alignments (Hong et al., 2020). GOAL-ONLY and PARAPHRASE draw from a fixed 200-episode manifest: 50 each for doorway, walking, stairs, and abstract stopping conditions (sampling seed 20260831). This is a stratified subset. FLIP candidates are selected separately from all 1,839 episodes. Instructions are matched to FGR2R by trajectory identifier and normalized text. Annotation tokens are aligned to original character spans to preserve wording, punctuation, and capitalization during extraction. Consecutive annotation segments ending at the same viewpoint are merged into navigation bound-aries, yielding 589 segments across the 200 episodes. PARAPHRASE rewrites these merged seg-ments; GOAL-ONLY extracts the final raw segment. 15 Preprint B.3 FLIP: I NITIAL -T URN OBEDIENCE 
+
+B.3.1 CANDIDATE SELECTION 
+
+Testing the initial turn avoids conditioning evaluation on arrival at an intermediate intervention lo-cation. An episode is eligible when: 1. Its first aligned instruction segment contains exactly one occurrence of left or right .2. That occurrence expresses a movement command, such as “turn left” or “take a right”, rather than a landmark relation such as “the door on the left”. 3. The reference trajectory supports a turn in the commanded direction, with a magnitude between 45 ◦ and 135 ◦.4. A probe in the opposite direction passes a local navigability check. Within the first 5 m of horizontal path, we measure signed displacement angles relative to the initial heading at positions at least 0.5 m from the start. The angle with greatest absolute magnitude must match the original direction word and lie within 45 ◦–135 ◦.We reflect this direction about the initial heading and place a probe 2 m away. Its navigation-mesh snap distance must be at most 0.75 m and vertical discrepancy below 0.5 m. This checks local feasibility, not a complete alternative route to the goal. The filter yields 94 candidates (53 left, 41 right). We shuffle each group with seed 0 and retain 41 per direction: 82 episodes across 11 scenes. B.3.2 INSTRUCTION TRANSFORMATION RULES 
+
+Only the selected direction word is reversed; all other text is retained. Both conditions use the v1-3 start orientation. Exports from v1-2 records replace the start rotation accordingly. The paired control is flip orig ; an ordinary ORIG run with a different orientation is invalid. B.3.3 SCORING OBEDIENCE 
+
+Agent departures use the same geometry. Angles of at least 30 ◦ are scored as follow or opposite 
+
+relative to the supplied word; straight or insufficient departures remain in the denominator as non-turning outcomes. Let F ri and Ori indicate that episode i follows or opposes the supplied direction, respectively, in condition r ∈ { orig , flip }. Both indicators are zero for non-turning outcomes. We compute 
+
+MeanFollow = 12N
+
+> N
+
+X
+
+> i=1
+
+
+
+F orig  
+
+> i
+
++ F flip 
+
+> i
+
+
+
+, (18) 
+
+WordEffect = 14N
+
+> N
+
+X
+
+> i=1
+
+
+
+F orig  
+
+> i
+
++ F flip  
+
+> i
+
+− Oorig  
+
+> i
+
+− Oflip 
+
+> i
+
+
+
+. (19) WordEffect measures the net excess of following over opposing to the supplied direction, scaled to 
+
+[−0.5, 0.5] . Taking the same physical turning direction in both conditions contributes zero; follow-ing both commands contributes 0.5, and opposing both contributes −0.5. Non-turning outcomes contribute zero. Follow rates are also reported by condition and supplied direction. Original-goal SR is auxiliary: the reversed command changes the requested route, so goal success alone does not measure obedience. 16 Preprint B.4 GOAL-ONLY: D EPENDENCE ON ROUTE INFORMATION 
+
+B.4.1 COHORT SELECTION 
+
+From the 200-episode manifest, we exclude 24 episodes with one merged segment and two with exactly two merged segments ending in a bare stopping command, leaving 174 episodes. Selection is independent of agent performance. B.4.2 STRICT FINAL -SEGMENT EXTRACTION 
+
+For the final raw FGR2R segment with character span [ai, b i) in instruction xi, we extract 
+
+xgoal  
+
+> i
+
+= strip  xi[ai : bi]. (20) Only surrounding whitespace is removed, no text is restored, rewritten, or supplemented. Of the 174 retained segments. B.4.3 EVALUATION 
+
+We compare each transformed instruction with its original matched instruction on the same 174 episodes, keeping the target location and reference trajectory unchanged. SR measures successful stopping near the original target, and nDTW measures fidelity to the original route. Removing in-termediate instructions may increase or decrease nDTW; these changes do not establish compliance with a uniquely specified alternative route. B.5 PARAPHRASE: R OBUSTNESS TO EXPRESSION 
+
+B.5.1 GENERATION 
+
+For each source instruction, the generator receives the original text, the ordered boundary-aligned segments. It returns one rewrite per segment for each of four styles: • A1, same register: reword the instruction while retaining its general style. • A2, terse: use concise imperative expressions. • A3, colloquial: use conversational phrasing, including discourse markers and hedging. • A4, landmark re-description: use alternative expressions for the same intended physical referents while preserving distinguishing attributes and spatial relations. Rewrites are required to preserve segment order, viewpoint alignment, and route boundaries. Each style is compared with its matched ORIG instruction. These are generation constraints, whose satisfaction is assessed by the validation and review procedures below. B.5.2 AUTOMATIC VALIDATION 
+
+Structural validation rejects outputs with missing styles, incorrect segment counts, empty segments, altered per-segment left/right sequences, or instruction lists that are entirely unchanged. For A1–A3, a final segment that names a landmark must retain at least one matching content word, using a string-similarity threshold of 0.8. Segments consisting solely of a stopping command are exempt. Additional checks flag newly introduced content words, A4 segments that retain all original content words, A2 rewrites longer than their source instructions, and A3 rewrites shorter than their source instructions. These flags trigger review rather than rejection: lexical overlap alone does not establish semantic equivalence. All 800 rewrites passed the hard validation checks. Mean instruction lengths were 130.7 characters for ORIG and 138.6, 105.8, 186.2, and 159.4 characters for A1–A4, respectively. 17 Preprint B.5.3 REVIEW AND LIMITATIONS 
+
+Generation and semantic review used Claude Opus 5.5. Using the same model for both stages limits the independence of the assessment. The semantic review assessed all 800 rewrites together with 90 hidden control pairs, shuffled across six batches. Style labels and control identities were withheld. Each pair was classified as same , weaker , or different , with separate flags for changes in direction and referent. The controls comprised 30 identical pairs, 30 cross-episode pairs, and 30 direction-reversed pairs; all received the expected judgments. The initial review classified all A1–A3 rewrites and 199 of the 200 A4 rewrites as semantically equivalent. The remaining A4 rewrite replaced “white flowers” with “pale blooms” and was subsequently corrected. 
+
+## C A S EMANTIC INFORMATION PERSPECTIVE ON EMBODIED AI 
+
+We describe how a receiver combines a communicated task message with its existing information, selects actions, and acquires further observations through environment interaction. The formula-tion separates information available for reasoning, realized computation, and satisfaction of a task specification. C.1 AVAILABLE INFORMATION AND RECEIVER COMPUTATION 
+
+Lastras et al. (2026) study communication that enables a receiver to prove logical conclusions using its existing knowledge. Inspired by this receiver-centered perspective, we consider an initial mes-sage G that communicates task requirements and may contain descriptive information. We model the receiver’s computation explicitly and use a POMDP to describe its subsequent environment in-teraction. This formulation does not establish new communication bounds or assume that logical communication limits directly characterize task performance. C.1.1 RECEIVER MODEL 
+
+We describe a receiver R through four elements: its internal configuration θ, current internal in-formation state ht, information-processing mechanism M, and output-selection settings λt. These specify relatively stable parameters, retained information available for the current computation, com-putational operations, and rules for selecting an output. This is a functional decomposition; it does not prescribe a particular architecture or memory organization. Let hinit denote the receiver’s initial information state and ot the observation received at step t. The initial message and subsequent interaction observations enter the receiver through 
+
+h0 = U init 
+
+> θ, M
+
+(hinit , G, o 0),ht = Uθ, M(ht−1, a t−1, o t), t ≥ 1. (21) The message G specifies what is requested and may provide descriptive claims. Observations pro-vide information through interaction with the environment. The state ht is the receiver’s internal state available for the current computation. The update Uθ, M computes the current internal infor-mation state ht from the previous state ht−1, the preceding action at−1, and the current observation 
+
+ot.Computation on the internal information state and output selection are represented as 
+
+zt = Fθ, M(ht),at ∼ Dλt (· | zt). (22) Here, Fθ, M performs computation on ht and produces the processed state zt. We assume that zt con-tains the information required by Dλt . The functional notation describes deterministic processing, stochastic internal processing can instead be represented by conditional probability kernels. 18 Preprint C.1.2 SEMANTIC SUFFICIENCY AND REALIZED COMPUTATION 
+
+Consider a fixed logical language and interpretation over a finite set Z of hypotheses about the environment and execution history. For a statement F , define 
+
+Ker( F ) = {ζ ∈ Z : ζ |= F }. (23) The kernel contains the hypotheses compatible with F , and conjunction corresponds to intersection of kernels. Let 
+
+Kt = Φ θ, M(ht) (24) denote an idealized logical representation of the premises available to the receiver, including retained evidence and background knowledge invoked in reasoning. This is an analytical abstraction, not a guarantee that those premises are true. Descriptive claims from G may contribute premises if retained and accepted as reliable; requested outcomes are not treated as facts that already hold. For a task-relevant proposition Qt, semantic sufficiency is expressed as 
+
+∅̸ = Ker( Kt) ⊆ Ker( Qt). (25) Every hypothesis compatible with the premises then satisfies Qt. The nonempty condition excludes inconsistent premises; correctness in the actual environment also requires the premises to hold there. Semantic sufficiency does not guarantee that the receiver computes the conclusion or selects an ap-propriate action. Equation (22) describes realized computation, whose outputs need not be valid deductions. The same semantic content may also be easier or harder to use depending on its repre-sentation and the receiver’s computational capabilities. C.1.3 RETAINED INFORMATION AND NEW EVIDENCE 
+
+Under a fixed interpretation, making an existing semantic consequence explicit preserves the kernel: 
+
+Ker( Kt ∧ Qt) = Ker( Kt), Kt |= Qt. (26) Additional observations may instead supply evidence that excludes previously compatible hypothe-ses. For additional interpreted evidence Enew  
+
+> t
+
+, an idealized additive update satisfies 
+
+∅̸ = Ker( Kt ∧ Enew  
+
+> t
+
+) ⊆ Ker( Kt), (27) provided the combined premises remain consistent. The inclusion need not be strict, and additional evidence need not resolve the current query. Actual information-state updates may be lossy or revise earlier assumptions, so monotonic kernel reduction is not imposed on the receiver. These relations distinguish retaining evidence, organizing it for computation, and acquiring further evidence. They do not prescribe how the receiver stores information or guarantee that it can identify which limitation is responsible for an unsuccessful decision. C.2 INTERACTION AND TASK ACHIEVEMENT 
+
+For interaction with a partially observed environment, let st ∈ S be a Markov environment state, 
+
+at ∈ A an executed action, and ot ∈ O an observation. The receiver’s internal state ht is represented separately. A POMDP specifies state transitions, observations, and a reward criterion Kaelbling et al. (1998); we use a finite-horizon task-satisfaction objective below. Given an initial-state distribution μ0 and initial-observation model O0, initialization follows 
+
+s0 ∼ μ0, o0 ∼ O0(· | s0). (28) Subsequent interaction follows 
+
+st+1 ∼ P (· | st, a t), ot+1 ∼ O(· | st+1 , a t). (29) Actions can change the physical environment, affect what is observed, or do both. Multi-step rea-soning alone does not imply this interaction structure. 19 Preprint After receiving ot+1 , the receiver updates its information state according to Eq. (21): 
+
+ht+1 = Uθ, M(ht, a t, o t+1 ). (30) For fixed initialization, mechanisms, and a specified rule for λt, these operations induce a policy 
+
+πR. The receiver acts through its available information, without direct access to the complete envi-ronment state. Its internal state need not be an exact Bayesian belief state, and optimal inference or action selection is not assumed. Let QG specify the requirements used to evaluate execution for message G. For horizon H, let 
+
+τ = ( s0, a 0, s 1, . . . , a H−1, s H ), (31) with early termination represented by an absorbing terminal state. Task-achievement probability is 
+
+JQG (R) = ER [1{τ |= QG}] = Pr  
+
+> R
+
+(τ |= QG), (32) Here, JQG (R) is the receiver’s task-achievement probability, τ |= QG means that the executed action set satisfies the task requirements, and 1 is one for satisfaction and zero otherwise. The expectation and probability are over trajectories induced by receiver computation and environment interaction, including randomness in initialization, transitions, observations, and action selection. The environment models, initialization distribution, horizon, and message are held fixed. This cor-responds to zero intermediate rewards and a terminal task-satisfaction reward. The local proposition Qt concerns a judgment during interaction, whereas QG specifies what the executed action set must achieve. A receiver’s conclusion or declaration of completion does not itself establish task satisfaction. The formulation therefore connects communicated information and receiver computation to outcomes produced through environment interaction. 20
