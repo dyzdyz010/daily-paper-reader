@@ -1,0 +1,1168 @@
+Title: MemOnce: A Scalable Memory Architecture for Large Language Models
+
+URL Source: https://arxiv.org/pdf/2611.27973v1
+
+Published Time: Mon, 23 Nov 2026 03:24:43 GMT
+
+Number of Pages: 28
+
+Markdown Content:
+# MemOnce: A Scalable Memory Architecture for Large Language Models 
+
+Chang Nie 1, Chaoyou Fu 1, Songlin Liu 2, Yiqing Hu 2, Caifeng Shan 11Nanjing University, 2University of Science and Technology of China Deploying large language models (LLMs) in long-horizon and continual interactions requires maintain-ing reusable memory states for future inference, posing challenges for existing architectures. Standard Transformers accumulate layer-wise, token-level KV caches, incurring linear GPU memory growth and quadratic computational complexity as the context expands. In contrast, linear-time architectures com-press history into fixed-size states, but struggle to retain fine-grained details. We introduce MemOnce ,a foundation architecture that learns scalable memory states for language models. MemOnce is based on two core designs: (a) Memory encoder-decoder : it caches only a small subset of final-layer hidden states as compact memory representations and dynamically decodes them back into KV caches for attention layers; (b) Memory sparse attention : for each continual input, MemOnce adaptively retrieves relevant memory representations, with the sparse indices computed only once across layers. Coupling these two designs enables efficient on-the-fly memory loading and KV cache decoding, drastically reducing the GPU memory footprint and achieving linear-time complexity. We conduct extensive experiments to show that MemOnce outperforms Transformers and other architectures across varying model sizes, context lengths, and training paradigms (pretraining and post-training adaptation). In particular, adapting Qwen3.5-4B with MemOnce reduces memory state cache by 1313 × and prefill latency by 6.9 × at 1M context, and improves throughput by 3.5 × and overall memory performance by +5.77% . Finally, MemOnce generalizes zero-shot to downstream representation tasks, achieving competitive results against specialized models. 
+
+z Date: November 23, 2026 
+
+# Main Contact: changnie@smail.nju.edu.cn, bradyfu24@gmail.com 
+
+Github: https://clare-nie.github.io/MemOnce 4K 32K 128K 512K 1M     
+
+> Context Length
+> 025 50 75 100 125 150
+> Memory State Cache
+> Transformer (Standard) Linear (GDN) Hybrid (Qwen3.5) KV Sharing (YOCO) MemOnce (Ours)
+> 144.0 G 66.0 M 32.0 G 5.0 G 25.0 M ×4.5 lower ×1313 lower 40 100 300 1000 2000
+
+Prefill Time (s) @1M 
+
+> 25 30 35 40 45 50 55 60
+> Overall Performance (%)
+> 54.30 (8.4 tok/s) 29.28 (18.0 tok/s) 39.15 (29.1 tok/s) 27.80 (28.0 tok/s) 41.39 (21.5 tok/s) 60.07 (29.3 tok/s)
+> Baseline (Qwen3.5-4B) -mem (Delta-rule)
+> EvoEmb (FIFO) Metis (GDN) M+ (Sparse) MemOnce (Ours)
+
+Figure 1 Comparison between MemOnce and advanced architectures. (Left) Memory state cache vs. context length. MemOnce activates minimal memory states during continual inference, reducing the cache footprint by orders of magnitude compared to attention-based baselines. (Right) Overall performance vs. prefill latency and decoding throughput. Compared to existing native memory models, MemOnce significantly advances the Pareto frontier, marking the first native memory approach to surpass the full-context baseline. Performance is averaged across five memory benchmarks, while prefill time and throughput are measured at a 1M context length. 
+
+1arXiv:2611.27973v1 [cs.CL] 20 Nov 2026 1 Introduction 
+
+Memory serves as the foundation for experiential and continual intelligence (Hassabis et al., 2017; Sumers et al., 2023; Hu et al., 2025). As large language models (LLMs) transition from single-turn processing toward continual interactions and long-horizon agent tasks, maintaining reusable memory states is essential to eliminate redundant context recomputation and ensure low-latency response generation (Xi et al., 2025; Chhikara et al., 2025; Zheng et al., 2026). However, existing architectures face a fundamental trade-off between retention fidelity and inference scalability. Transformers (Vaswani et al., 2017) with global attention retain layer-wise, token-level key-value (KV) caches, incurring linear GPU memory growth and quadratic computational complexity as the context expands. In contrast, recurrent and linear models (e.g., Mamba (Gu and Dao, 2023), RWKV (Peng et al., 2023), and GDN (Yang et al., 2025)) compress history into fixed-size states to enable constant-memory, linear-time inference; yet their bounded state capacity can induce information decay, hindering the preservation of fine-grained details over long horizons (Jelassi et al., 2024). Extensive efforts have sought to reconcile this trade-off, broadly falling into three categories: (1) Architectural and attention optimizations : hybrid models (e.g., Kimi K3 (Kimi Team et al., 2026) and MiMo-V2.6 (Qiao et al., 2026)) interleave attention and linear layers, cross-layer sharing approaches (Sun et al., 2024b; Xu et al., 2026a) reuse intermediate KV caches, and sparse attention mechanisms (e.g., DeepSeek-V4.1-Flash (Xu et al., 2026a) and Qwen3.8-Next (Qiu et al., 2026)) restrict attention to top-k relevant tokens. However, during continual inference, they still need to maintain or access global caches that grow linearly with context length. (2) Native memory models : parametric memory designs (e.g., Titans (Behrouz et al., 2025), M+ (Wang et al., 2025a), and Metis (Zhang et al., 2026)) compress historical context into compact memory representations via specialized training or post-training adaptation. Yet, they often suffer from performance degradation, layer-wise retrieval overhead, or catastrophic forgetting. (3) External memory systems : agentic memory frameworks (e.g., Mem0 (Chhikara et al., 2025), A-MEM (Xu et al., 2026b), and PersonaVLM (Nie et al., 2026b)) organize historical context into explicit databases that can be managed, updated, and queried. Nevertheless, constructing and maintaining these discrete stores is costly (Nie et al., 2026c) and difficult to optimize end-to-end (Wang et al., 2025b). Despite these efforts, a central question remains open: How can we build a foundational memory architecture (or adapt an existing one) to simultaneously achieve accurate recall, linear-time inference, and bounded GPU memory cache overhead for continual inference? In this paper, we propose MemOnce , an expressive yet scalable architecture that learns reusable memory states for language models. The core idea of MemOnce is to maintain a single compact global cache and retrieve relevant memory only once during continual inference to decode layer-wise KV caches, thereby enabling memory on-demand loading and decoding. Specifically, we first develop a memory encoder-decoder that caches a small subset (e.g., 1/8) of final-layer hidden states as compact memory representations, dynamically decoding them via lightweight MLPs into KV caches for attention layers. This design achieves cache recurrence and an Lr × compression across both depth and time dimensions. Second, we introduce memory sparse attention , which adaptively selects the top-K task-relevant states for each input and shares the sparse routing indices across all attention layers and decoding steps. By coupling these two designs, MemOnce achieves strong expressiveness, linear-time complexity, and a constant active memory state (see Figure 1). We conduct extensive experiments across diverse tasks, model sizes, and context scales to demonstrate the superiority of MemOnce. Specifically, we highlight three key results: (1) MemOnce as a foundation architecture :We train MemOnce and other foundation architectures from scratch across model sizes ranging from 150M to 1B parameters. MemOnce consistently achieves lower or comparable perplexity on validation data and performs well on downstream benchmarks compared to evaluated baselines (e.g., Transformer, GDN, and YOCO (Vaswani et al., 2017; Yang et al., 2025; Sun et al., 2024b)). (2) MemOnce as a native memory model :We adapt Qwen3.5 via post-training and evaluate it on five memory benchmarks spanning 4K to 1M tokens. As shown in Figure 1, MemOnce is the first native memory model to surpass the full-context baseline (+5.77% at the 4B scale) (Qwen Team, 2026), and outperforms prior memory methods (by +18.68% over M+ (Wang et al., 2025a) and +32.27% over Metis (Zhang et al., 2026)). At 1M context, it reduces memory state cache by 1313 × and prefill latency by 6.9 ×, and improves throughput by 3.5 ×. Moreover, MemOnce avoids catastrophic forgetting on general benchmarks by keeping its parameters frozen during inference and inherently ignoring irrelevant decoded caches. (3) MemOnce as a representation model : We show that 2MemOnce’s learned memory representations transfer naturally to downstream retrieval and reranking tasks, outperforming specialized models without task-specific fine-tuning. These findings underscore the potential of MemOnce as a next-generation general-purpose architecture. In summary, our main contributions are as follows: • We propose MemOnce , a foundation architecture that achieves strong expressiveness, linear-time complexity, and constant active memory for continual inference. • We couple two designs, memory encoder-decoder and memory sparse attention, to cache and retrieve memory representations only once for on-demand memory loading and KV cache decoding. • We establish through comprehensive experiments that MemOnce advances the performance–complexity Pareto frontier, marking the first native memory model to surpass the full-context baseline and generalizing zero-shot to downstream representation tasks. 
+
+## 2 Preliminaries 
+
+Problem Setup. Consider an L-layer autoregressive language model πθ with hidden dimension D processing an input stream x1, x 2, . . . , x t (e.g., token/chunk sequences in language modeling or interaction turns in continual tasks (Zheng et al., 2026)). At step t, the model receives the current input xt alongside accumulated historical context x1: t−1 of total token length N (N ≥ t − 1), and generates the target output yt. In each layer l ∈ { 1, . . . , L }, let Hl = [ hl
+
+> 1
+
+, h l
+
+> 2
+
+, . . . , h lt−1]⊤ ∈ RN ×D denote the accumulated hidden states produced for 
+
+x1: t−1 (where each hli corresponds to a token or segment, totaling N tokens), with H0 representing the token embeddings and HL denoting the output of the final attention layer. 
+
+Unified Perspective: Memory State Learning. We define Memory State Learning as the problem of constructing reusable, active memory states Mt for the current input xt during continual inference, so as to avoid recomputing the raw history x1: t−1 and ensure low-latency response generation. Formally, we reformulate the context-conditioned generation of existing methods into generation conditioned on the active memory state Mt:
+
+πθ (yt | xt, x 1: t−1) = πθ (yt | xt, M t),
+
+where Mt
+
+.
+
+= fθ (xt, x 1: t−1). (1) Here, fθ (xt, x 1: t−1) denotes the memory state mapping that distills the historical context x1: t−1 and activates relevant states Mt with respect to the current input xt. Under Eq. (1), existing methods correspond to distinct instantiations of fθ :• Multi-Layer Token KV Caches (Transformers): Standard Transformers (Vaswani et al., 2017) define a query-agnostic fθ by activating all token-level key-value caches across all L layers: 
+
+M KV  
+
+> t
+
+=
+
+n Kl, V loLl=1 
+
+∈ RL×N ×2D ,Kl = Hl−1W lK , V l = Hl−1W lV .
+
+(2) While retaining fine-grained details, M KV  
+
+> t
+
+grows linearly with both depth L and context length N ,incurring an O(LN D ) memory footprint. Even for sparse attention (Xu et al., 2026a; Qiu et al., 2026) or retrieval-based memory models (Wang et al., 2025a) that condition fθ on xt to select top-k context per layer, they still maintain multi-layer caches and compute routing indices across layers. • Online Associative States (Linear Models): Linear and recurrent models (Gu and Dao, 2023; Yang et al., 2025; Kimi Team, 2025) implement fθ by compressing history into a fixed-size state SlN at each layer for all subsequent inputs. Specifically, representative associative linear models (e.g., GDN (Yang et al., 2025)) maintain a state matrix Sli ∈ Rd×d updated via the online delta rule to encode key-value associations: 
+
+M Linear  
+
+> t
+
+= SlN 
+
+> Ll=1
+
+∈ RL×d×d,Sli = αliSli−1 + βli
+
+ vli − αliSli−1kli
+
+kli
+
+> ⊤
+
+,
+
+(3) 3Continual Inputs 
+
+... 
+
+> FFN Linear Block (e.g., GDN)
+> ×
+
+Memory Sparse Attention 
+
+> ×
+> FFN
+> ×
+
+13
+
+Hybrid Backbone 
+
+> LM head
+
+KV Cache 
+
+L
+
+... 
+
+... +1   
+
+> 12
+
+... N
+
+... Memory Rep. 
+
+Memory Encoder-Decoder 
+
+...  
+
+> Short-term Long-term Figure 2 Overview of the MemOnce architecture. (Left)
+
+The Hybrid Backbone stacks linear blocks with memory sparse attention across L stages. (Right) The Memory Encoder-Decoder caches a trailing subset ( 1/r ) of final-layer states into a persistent memory bank, partitioned into a local short-term window and a sparse long-term pool. For each incoming input, relevant memory states are retrieved only once and dynamically decoded into KV caches for attention layers. This enables a constant active memory state for continual inference, alongside an Lr × cache compression across both depth and time dimensions. 
+
+where αli and βli denote the erase and write gates. Although M Linear  
+
+> t
+
+achieves O(Ld 2) constant memory complexity (independent of N ) and linear-time inference, it suffers from severe capacity bottlenecks (Jelassi et al., 2024). • Cross-Layer Shared States (YOCO): Architectures with cross-layer KV sharing, such as YOCO (Sun et al., 2024b) and Causal Encoder-Decoder (CED) (Xu et al., 2026a), cache hidden states at an intermediate layer (e.g., L/ 2 in YOCO) to decode KV caches for subsequent layers: 
+
+M YOCO  
+
+> t
+
+= HL/ 2 ∈ RN ×D . (4) This design eliminates the depth factor L, but M YOCO  
+
+> t
+
+still grows linearly with context length. For the above architectures, fθ is implicitly learned during the optimization of πθ and executed at test time. Moreover, for native memory models (Wang et al., 2025a; Zhang et al., 2026), fθ reconstructed via post-training adaptation can also be subsumed under the aforementioned categories. However, constructing an effective and scalable Mt remains an open challenge (see Appendix G for further theoretical analysis). 
+
+## 3 MemOnce 
+
+We introduce MemOnce , a foundation architecture that learns scalable memory states Mt in Eq. (1) for efficient continual inference. Formally, MemOnce constructs and utilizes the active memory state Mt through three functions: 
+
+Gt = gθ (x1: t−1), Mt = iθ (xt, G t), Ct = uθ (Mt), (5) where gθ , iθ , and uθ denote the memory writing, indexing, and reading operations, respectively. We instantiate Eq. (5) through two core designs: (1) the memory encoder-decoder (gθ and uθ ), which caches partial final-layer 4states into a persistent memory bank Gt and decodes the active memory state Mt into multi-layer KV caches 
+
+Ct on demand; and (2) memory sparse attention , which retrieves the relevant memory state Mt via iθ only once and restricts historical attention exclusively to the decoded KV caches Ct.MemOnce is applicable to various attention-based models. In practice, as shown in Figure 2, MemOnce adopts an L-stage hybrid backbone by default, where each stage interleaves three linear blocks (e.g., GDN (Yang et al., 2025)) with one Memory Sparse Attention block. 
+
+3.1 Memory Encoder-Decoder 
+
+To eliminate the O(LN D ) storage bottleneck of multi-layer token caches, the memory encoder-decoder compresses historical context across both layer depth L and sequence length N , and reconstructs layer-specific KV caches on demand. 
+
+Cache Memory Only Once ( gθ). Inspired by prior cross-layer caching designs (Sun et al., 2024b; Xu et al., 2026a), MemOnce maintains a single global cache generated from final-layer hidden states, encoding historical context into compact memory representations at test time. Specifically, given historical inputs x1: t−1
+
+of total length N , each segment xi of length ni (Pt−1 
+
+> i=1
+
+ni = N ) is processed to produce final-layer hidden states hLi ∈ Rni×D . Within each xi, the interleaved linear blocks and causal attention continuously aggregate sequential context toward later positions, allowing the trailing token states in hLi to encapsulate the semantics of the entire segment. Leveraging this property, the memory encoder gθ retains only the last 1/r fraction of token states (denoted as hLi, −ni/r :) from each hLi with compression ratio r (e.g., r = 8 ), writing a total of 
+
+k = ⌊ Nr ⌋ compact memory representations into the global cache: 
+
+Gt = Concat 
+
+hLi, −ni/r :
+
+> t−1
+> i=1
+
+
+
+= [ m1, m 2, . . . , m k]⊤ ∈ Rk×D .
+
+(6) This step reduces the persistent memory by Lr ×, eliminating the layer multiplier L and compressing the sequence dimension by r. In practice, multiple segments are processed in parallel to accelerate prefilling. 
+
+Decode KV Caches on Demand ( uθ). Directly sharing identical KV states across layers restricts the representational capacity of attention blocks at different depths. Instead, given the retrieved active memory state Mt ∈ R|Mt|× D, the memory decoder uθ applies lightweight layer-specific MLP projections Kl 
+
+> Proj
+
+and 
+
+V l 
+
+> Proj
+
+to decode Mt into KV caches for all L attention layers on demand: 
+
+Kl = Kl
+
+> Proj
+
+(Mt), V l = V l
+
+> Proj
+
+(Mt), l ∈ { 1, . . . , L }. (7) By projecting final-layer semantic representations back to all attention blocks through layer-specific decoders, MemOnce establishes looped memory generation and utilization. As shown in Figure 3, across different compression ratios r (even at r = 8 ) and model scales, MemOnce achieves comparable or lower validation perplexity compared to the Transformer and strong baselines (Vaswani et al., 2017; Sun et al., 2024b; Yang et al., 2025). 
+
+3.2 Memory Sparse Attention 
+
+While the memory encoder-decoder substantially compresses the global cache by Lr ×, decoding the entire memory bank Gt across ultra-long horizons would still incur linear growth in cache memory and attention compute. We introduce memory sparse attention to break fixed capacity limits while maintaining constant active states and linear-time complexity. Its core idea is to retrieve relevant memory representations only once for each continual input and reuse them across layers with negligible loading overhead. 
+
+Retrieve Memory Only Once ( iθ). As illustrated in Figure 2, MemOnce partitions the persistent memory bank Gt = [ m1, . . . , m k]⊤ into a long-term memory pool Glong  
+
+> t
+
+= {m1, . . . , m s} and a short-term memory window Gshort  
+
+> t
+
+= {ms+1 , . . . , m k}. The short-term window retains the most recent k − s memory representations to preserve local continuity, whereas the long-term pool stores distant historical states that 5Figure 3 Training and scaling curves of MemOnce as a foundation architecture. (Left) Validation perplexity vs. training tokens under different compression ratios. Even at r = 8 , MemOnce remains competitive with the Transformer and strong baselines. (Right) Validation perplexity vs. model scale (0.15B to 1.0B), where MemOnce delivers the best scaling performance. 
+
+are accessed sparsely. Given the final-layer representation hLt of the continual input xt, the indexing function 
+
+iθ selects the top-K task-relevant memory states from Glong  
+
+> t
+
+only once: 
+
+M long  
+
+> t
+
+= Top-K mi∈Glong 
+
+> t
+
+
+
+Sim  ϕ(hLt ), ϕ (mi)
+
+, (8) where ϕ(·) extracts the last-token representation and projects it via an MLP layer followed by ℓ2-normalization, 
+
+Sim( ·, ·) computes cosine similarity, and Top-K( ·) selects the K most relevant memory representations to bound the active memory budget. The retrieved long-term representations are concatenated with the short-term window to form the active memory state Mt:
+
+Mt = iθ (xt, G t) = M long  
+
+> t
+
+∥ Gshort 
+
+> t
+
+ ∈ R|Mt|× D . (9) 
+
+Sparse Attention and On-Demand Loading. Once Mt is retrieved and decoded into layer-specific KV caches via Eq. (7), each attention block l ∈ { 1, . . . , L } prepends the decoded (Kl, V l) to the current input’s local key-value states (Klt , V lt ) for attention computation: 
+
+Olt = Attn 
+
+
+
+Qlt, [Kl∥Klt ], [V l∥V lt ]
+
+
+
+, (10) where Qlt, K lt , V lt denote the query, key, and value states of xt at stage l, and [·∥· ] denotes sequence concatenation. Unlike layer-wise memory retrievers (Wang et al., 2025a) and token-wise sparse attention mechanisms (Yuan et al., 2025; Xu et al., 2026a) that repeatedly compute routing indices, MemOnce performs Eq. (8) only once per query and reuses Mt across all L attention blocks and subsequent decoding steps. Because the active subset size |Mt| = C ≪ k is bounded by a constant budget, MemOnce restricts the active memory state cache to O(CD ) (i.e., O(1) with respect to context length N and depth L) while maintaining an expandable persistent bank Gt that can be offloaded to CPU memory or SSD storage. 1 In practice, memory retrieval and loading in MemOnce take only 64 .2 ms end-to-end, which is over 12 × faster than layer-wise retrieval in M+ and over 17 × faster than RAG pipelines (Ma et al., 2023) (see Table 10 in Appendix E). 
+
+3.3 Analysis and Optimization 
+
+Advantage Analysis. Compared with existing foundation architectures and native memory models, MemOnce offers three key advantages: (1) Strong Performance: By maintaining an expandable memory bank 
+
+Gt and retrieving final-layer representations back into multi-layer KV caches, MemOnce overcomes fixed-capacity bottlenecks and achieves accurate recall in long-context scenarios. (2) Bounded Active Memory State: 
+
+MemOnce reduces the persistent cache footprint by a factor of Lr and achieves constant active memory state during continual inference. (3) High Inference Efficiency: As illustrated in Figure 1 (right), MemOnce operates with linear-time complexity and achieves superior inference efficiency over existing memory architectures.     
+
+> 1In continual inference, only the active memory state Mt∈RC×Dis maintained in GPU cache as historical context cache.
+
+6Table 1 Memory state cache and prefilling time complexities. L:layer depth, N : context length, D: hidden dimension, and 
+
+C: an independent constant ( C ≪ N ).                
+
+> Model State Cache Prefilling Time
+> Transformer (Vaswani et al., 2017) O(LN D )O(LN 2D)
+> GDN (Yang et al., 2025) O(CLD )O(CLN D )
+> SWA (Beltagy et al., 2020) O(CLD )O(CLN D )
+> YOCO (Sun et al., 2024b) O(N D )O(LN 2D)
+> M+ (Wang et al., 2025a) O(CLD )O(CLN D )
+> MemOnce O(CD )O(CLN D )
+
+Complexity Comparison. Table 1 reports the memory state cache and prefilling time complexities of representative architectures. Standard Trans-formers and YOCO (Sun et al., 2024b) retain full-sequence caches ( O(LN D ) and O(N D )) and re-quire quadratic prefilling time of O(LN 2D). Lin-ear GDN (Yang et al., 2025), SWA (Beltagy et al., 2020), and M+ (Wang et al., 2025a) reduce prefill-ing time to O(CLN D ) but still maintain L-layer states of O(CLD ). Moreover, fixed states limit memory capacity and degrade long-range recall, whereas M+ incurs retrieval and loading overhead. In contrast, MemOnce achieves linear prefilling time and strictly bounds the memory state cache to O(CD ).
+
+Optimization. MemOnce supports end-to-end optimization under the standard next-token prediction paradigm for both pretraining and post-training adaptation. During pretraining, the backbone and memory encoder-decoder are jointly optimized, where historical segments are encoded in parallel into Gt and gradients flow directly through the active memory state Mt and the decoded KV caches. During post-training adaptation, we freeze the backbone and optimize only the lightweight projections in iθ and uθ , alongside low-rank adapters (LoRA) activated exclusively during memory encoding ( gθ). Because historical context is internalized as decoded KV caches and the backbone remains frozen during response generation, MemOnce equips pretrained LLMs with native long-range memory capabilities without compromising their general task performance. More details are provided in Appendix B. 
+
+## 4 Experiments 
+
+4.1 Experimental Setup 
+
+Evaluation and Benchmarks. We conduct extensive experiments to evaluate MemOnce across diverse tasks, model scales, and context lengths. Our evaluation is organized into four primary tracks: (1) Foundational Capability: We evaluate language modeling performance using perplexity (PPL) on WikiText (Merity et al., 2017) and LAMBADA (Paperno et al., 2016). We further report zero-shot accuracy across eight downstream tasks using the LM-Evaluation-Harness (Gao et al., 2021) to assess general knowledge and reasoning capabilities.  
+
+> (2) Long-Context Memory Capability:
+
+We evaluate continual and long-horizon memory recall across context lengths spanning 4K to 1M tokens on standard memory benchmarks, including MemBench (Tan et al., 2025), LoCoMo (Maharana et al., 2024), LongMemEval (Wu et al., 2025), and PersonaMem (Jiang et al., 2025).  
+
+> (3) General Capability Retention:
+
+To measure general capability retention under active memory load and verify robustness against catastrophic forgetting, we evaluate models on MMLU (Hendrycks et al., 2021), GSM8K (Cobbe et al., 2021), and GPQA (Rein et al., 2024). (4) Representation Tasks: Finally, we assess the zero-shot generalizability of MemOnce’s learned memory representations on downstream text retrieval and reranking benchmarks (Nie et al., 2026a). 
+
+Baselines. We compare MemOnce against three distinct categories of baselines corresponding to our evaluation tracks: (1) Foundational Architectures: We compare against the standard Transformer (Vaswani et al., 2017), cross-layer KV-sharing variants including YOCO (Sun et al., 2024b) and LastKV (Cai et al., 2026), linear and efficient attention architectures including Sliding Window Attention (SWA) (Beltagy et al., 2020), Gated DeltaNet (GDN) (Yang et al., 2025), and Multi-head Latent Attention (MLA) (Liu et al., 2024), as well as the memory architecture Memory Caching (Behrouz et al., 2026). 2 (2) Native Memory Models: For continual memory evaluation, we compare against advanced native memory methods, including M+ (Wang et al., 2025a), Metis (Zhang et al., 2026), δ-Mem (Lei et al., 2026), and EvoEmbedding (Nie et al., 2026a).  
+
+> (3) Retrieval and Reranking Models:
+
+For downstream representation tasks, we benchmark against specialized 
+
+> 2We exclude Titans (Behrouz et al., 2025) from our pretraining comparison as its official implementation is not publicly available, and our reproduction exhibited optimization instabilities.
+
+7Table 2 Performance of foundation architectures on language modeling and zero-shot common-sense reasoning tasks. All models are pretrained from scratch on FineWeb-Edu under fair configurations. Wiki. and LMB. denote perplexity ( ↓)on WikiText-103 and LAMBADA, respectively. Best results are in bold , and second-best are underlined.                                                                                                                                                           
+
+> Model Wiki. LMB. LMB. PIQA Hella. Wino. ARC-e ARC-c SciQ BoolQ Avg.
+> ppl ↓ppl ↓acc ↑acc ↑acc_n ↑acc ↑acc_n ↑acc_n ↑acc ↑acc ↑↑
+> Transformers & Attention Variants
+> Transformer (Vaswani et al., 2017) 20.90 33.24 35.2 65.7 40.4 51.5 52.4 28.2 83.2 58.2 51.85 SWA (Beltagy et al., 2020) 20.52 32.69 34.5 65.6 41.0 51.4 50.1 27.4 83.2 59.7 51.60 MLA (Liu et al., 2024) 23.07 33.37 34.2 67.0 39.7 50.7 50.6 27.7 83.2 61.9 51.87
+> Linear & Recurrent Architectures
+> DeltaNet (Yang et al., 2024) 23.75 33.71 30.8 65.6 37.9 51.0 49.1 26.8 80.7 60.3 50.28 GDN (Yang et al., 2025) 26.03 33.37 34.0 67.6 40.6 50.3 54.1 27.2 84.2 60.6 52.31
+> Efficient & Memory Architectures
+> Hybrid 19.56 32.61 35.1 66.5 42.0 51.7 51.4 27.1 83.4 58.7 51.99 YOCO (Sun et al., 2024b) 24.38 35.18 36.1 67.4 40.7 51.1 51.6 26.5 82.6 59.7 51.97 LastKV (Cai et al., 2026) 21.12 34.04 33.7 65.5 40.0 50.5 50.9 27.8 81.5 58.8 51.09 Memory Caching (Behrouz et al., 2026) 29.84 42.47 17.6 62.6 33.5 49.9 47.5 25.7 72.8 56.6 45.78
+> MemOnce r=8 (Ours) 21.08 32.45 34.0 67.8 41.9 51.8 52.3 27.7 81.7 61.6 52.35
+> MemOnce r=1 (Ours) 19.28 32.69 35.2 67.6 42.2 49.6 52.4 27.5 84.7 61.9 52.63
+
+embedding and reranking models, including BGE-M3 (Chen et al., 2024), as well as Qwen3-Embedding-4B and Qwen3-Reranker-4B (Zhang et al., 2025). 
+
+Implementation Details. For foundational capability evaluation, all architectures are trained from scratch on the FineWeb-Edu dataset (Lozhkov et al., 2024) under unified training configurations and token budgets. For long-context memory evaluation, we adopt Qwen3.5 (Qwen Team, 2026) as the base backbone for lightweight LoRA post-training adaptation, and employ DeepSeek-V4.1-Flash (Xu et al., 2026a) as a strict judge to report final response accuracy across all methods. Unless otherwise specified, MemOnce is configured with a compression ratio of r = 8 and retrieves the top-K = 64 memory chunks during sparse attention. All experiments are conducted on a single server equipped with 8 NVIDIA H100 GPUs. Full details are provided in Appendix D. 
+
+4.2 Main Results 
+
+(1) Foundational Capability. Joint recurrence and compression of context caches across depth and time enable MemOnce to cut the persistent cache footprint by Lr × while delivering strong foundational performance. 
+
+We report the results of pretraining different foundation architectures from scratch on FineWeb-Edu. As shown in Figure 3, MemOnce attains lower final validation perplexity than GDN, SWA, and YOCO, matches or surpasses the Transformer even at r = 8 , and achieves the best scaling performance from 0.15B to 1.0B parameters. In downstream evaluations (Table 2), MemOnce r=1 and MemOnce r=8 attain the highest and second-highest average zero-shot accuracies across all evaluated architectures, while respectively achieving the lowest language modeling perplexities on WikiText-103 and LAMBADA. Notably, compressing the temporal dimension by 8× (MemOnce r=8 vs. MemOnce r=1 ) incurs virtually no performance loss, demonstrating that the model can effectively condense segment-level context into the trailing tokens while preserving essential long-range information. Crucially, whereas linear models (DeltaNet and GDN) degrade in language modeling perplexity due to fixed-state capacity bottlenecks and prior cache-sharing methods (YOCO and LastKV) lag behind in reasoning accuracy due to direct cross-layer reuse without learned decoding, MemOnce excels across both dimensions, validating its expressiveness as a foundation architecture. 
+
+(2) Long-Context Memory Capability. MemOnce is the first native memory model to surpass full-context baselines across model and context scales without suffering from catastrophic forgetting. Table 3 reports evaluation results across five long-context memory benchmarks spanning 4K to 1M tokens. Across both 2B and 4B scales, MemOnce surpasses its full-context Qwen3.5 counterparts with average scores of 51 .17% 
+
+(+1 .84% ) and 60 .07% (+5 .77% ), respectively, as query-conditioned sparse retrieval filters out irrelevant historical context and mitigates the attention dilution inherent to ultra-long sequences. Moreover, MemOnce substantially outperforms both official and re-trained ( †) native memory baselines, including M+ ( 41 .39% ), 8Table 3 Performance on five memory benchmarks across varying context lengths. MemOnce is the first native memory model to surpass the full-context baseline. Best results are in bold and second-best are underlined. † denotes re-trained models for fair comparison.                                                                                                  
+
+> Model Size MemBench LoCoMo LongMemEval PersonaMem-128 PersonaMem-1M Mem. Avg.
+> (∼4K) ↑(∼21K) ↑(∼115K) ↑(∼128K) ↑(∼1M) ↑↑
+> Full Context Baselines
+> Qwen3.5-2B 2B 72.69 64.35 41.00 45.00 23.60 49.33 Qwen3.5-4B 4B 82.64 69.55 42.20 43.50 33.60 54.30
+> Native Memory Models
+> δ-Mem (Lei et al., 2026) 4B 46.72 16.88 11.20 40.00 31.60 29.28 EvoEmbedding (Nie et al., 2026a) 4B 67.08 25.97 16.40 47.30 39.00 39.15 Metis (Zhang et al., 2026) 4B 47.45 9.35 7.40 37.60 37.20 27.80 M+ (Wang et al., 2025a) 8B 66.93 46.43 27.40 38.40 27.80 41.39
+> δ-Mem †(Lei et al., 2026) 4B 55.53 15.00 13.00 34.00 32.20 29.95 EvoEmbedding †(Nie et al., 2026a) 4B 69.13 24.68 18.60 42.50 38.80 38.74 Metis †(Zhang et al., 2026) 4B 50.03 25.06 8.80 38.90 36.00 31.76
+> MemOnce (Ours) 2B 73.54 59.03 35.40 48.50 39.40 51.17 +1 .84
+> MemOnce (Ours) 4B 84.34 67.01 47.40 53.60 48.00 60.07 +5 .77
+
+Table 4 General reasoning performance under a 32K memory load across different memory paradigms. Best results are in bold 
+
+and second-best are underlined. Subscripts indicate changes relative to the Qwen3.5-4B base model.      
+
+> Model Mechanism MMLU GSM8K GPQA Gen. Avg.
+
+Qwen3.5-4B Full Context 72.81 92.00 32.83 65.88 Qwen3.5-4B full sft Model Weight 51.97 40.50 22.73 38.40 −27 .48 
+
+EvoEmbedding (Nie et al., 2026a) Soft Prompt 68.64 39.50 34.85 47.66 −18 .22 
+
+Metis (Zhang et al., 2026) Linear State 71.71 23.50 34.85 43.35 −22 .53 
+
+δ-Mem (Lei et al., 2026) Linear State 73.46 91.00 33.33 65.93 +0 .05  
+
+> MemOnce (Ours)
+
+KV Cache 72.59 91.00 34.34 65.98 +0 .10 
+
+Figure 4 Inference scalability across context lengths from 32K to 1M tokens. 
+
+EvoEmbedding ( 39 .15% ), Metis † (31 .76% ), and δ-Mem † (29 .95% ). Existing fixed-state memory methods suffer from severe representational bottlenecks when compressing long histories, losing fine-grained details required by multi-session benchmarks such as LoCoMo and LongMemEval. In contrast, our post-training adaptation maintains an expandable state pool and decodes retrieved representations into multi-layer KV caches, preserving the full expressiveness of attention without imposing the capacity limitations of linear models. Meanwhile, under a 32K memory load on general reasoning tasks (Table 4), methods based on soft-prompt injection (EvoEmbedding, −18 .22% ) and in-backbone linear states (Metis, −22 .53% ) perturb internal model activations and induce severe catastrophic forgetting, while δ-Mem preserves general accuracy (65 .93% ) at the cost of poor memory recall ( 29 .28% ). By keeping backbone weights frozen during generation and internalizing history strictly as decoded KV caches, MemOnce achieves the highest general reasoning average alongside superior memory recall. 9Table 5 Retrieval performance across diverse long-context and conversational benchmarks. We report Recall@10 (R@10) and NDCG@10 (N@10). Best results within each metric block are in bold and second-best are underlined.                                                                                     
+
+> Model Size Dim Metric ESG-Reports LoCoMo LongMemEval REALTALK QASPER PeerQA CovidQA MLDR Overall
+> BGE-M3 1.2B 1024 R@10 51.00 55.70 77.80 52.40 66.40 37.30 87.20 97.00 65.60 Qwen3-Embedding-4B 4B 2560 R@10 57.90 41.30 58.70 42.70 72.90 36.00 93.20 96.00 62.30
+> MemOnce (Ours) 4B 1024 R@10 72.55 52.54 86.18 44.14 76.47 35.38 88.39 98.00 69.21
+> BGE-M3 1.2B 1024 N@10 35.90 41.80 65.60 42.00 44.20 28.20 65.10 77.00 50.00 Qwen3-Embedding-4B 4B 2560 N@10 40.80 29.90 47.10 34.50 50.20 27.20 76.70 77.80 48.10
+> MemOnce (Ours) 4B 1024 N@10 55.82 38.68 72.75 31.78 53.64 25.05 64.68 82.09 53.06
+
+Table 6 Context reranking performance across agent memory systems on the LoCoMo benchmark. All methods use All-MiniLM-L6-v2 to retrieve 256 candidate segments and restrict the final generator context to Top-20. Best results within each system are in bold and second-best are underlined.                                               
+
+> System Method Single-hop Multi-hop Temporal Open Overall A-MEM
+> Original 42.91 13.71 32.29 56.48 43.57 + Reasoning 43.26 15.26 35.42 58.98 45.52 +2 .0
+> + Qwen3-Reranker-4B 61.70 22.12 43.75 76.46 60.39 +16 .8
+> + MemOnce (Ours) 66.31 33.96 46.88 70.75 60.78 +17 .2
+> LightMem
+> Original 41.13 23.36 41.67 46.85 40.58 + Reasoning 48.23 24.92 39.58 49.94 43.77 +3 .2
+> + Qwen3-Reranker-4B 55.32 29.28 44.79 61.12 52.40 +11 .8
+> + MemOnce (Ours) 67.02 27.10 41.67 61.12 53.90 +13 .3
+
+(3) Inference Efficiency and Scalability. MemOnce achieves linear-time prefilling, constant active GPU cache, and steady decoding throughput up to 1M tokens. Figure 4 evaluates prefilling time, GPU cache footprint, and decoding throughput across context lengths from 32K to 1M tokens (detailed in Table 14). Beyond the quadratic prefill cost of standard Transformers, existing memory baselines also suffer from severe execution bottlenecks: δ-Mem still relies on full-context attention computation during state construction in its official implementation, Metis employs coarse sequential blocks that limit GPU parallelism, EvoEmbedding requires two separate forward passes to generate memory states and retrieval keys, and M+ incurs heavy layer-wise retrieval and CPU–GPU communication overhead across all layers. By encoding historical chunks in parallel and retrieving memory only once, MemOnce scales linearly from 1.38s (32K) to 41.36s (1M), achieving a 
+
+6.9× speedup over Hybrid and 35 .8× over M+. Meanwhile, whereas the KV caches of Transformer and Hybrid grow linearly with sequence length and exceed 32 GB at 1M tokens, MemOnce offloads the historical pool and bounds the active GPU cache to a near-constant 25 MB footprint across all scales (Figure 4(b)). Consequently, while surging KV cache traffic severely degrades decoding throughput in Hybrid and Transformer baselines, MemOnce attends only to a constant-sized memory subset, sustaining the highest and near-invariant throughput across all context lengths. 
+
+(4) Representation Capability. The memory representations learned by MemOnce transfer naturally to downstream retrieval and context reranking tasks, outperforming specialized embedding and reranking models. 
+
+We evaluate MemOnce on eight long-context and conversational retrieval benchmarks against dedicated embedding models, BGE-M3 and Qwen3-Embedding-4B (Zhang et al., 2025) (Table 5). Unlike standalone embedding models trained solely on pairwise text similarity, MemOnce jointly optimizes its terminal index representations with end-to-end language modeling and contrastive evidence supervision, enabling the compact 1024-dimensional descriptors to capture multi-hop and temporal dependencies critical for answering downstream queries. Consequently, MemOnce achieves the best overall Recall@10 of 69 .21 and NDCG@10 of 53 .06 , ranking first on long-context benchmarks. Furthermore, when deployed as a plug-and-play reranker on LoCoMo to select the top-20 segments from 256 candidates retrieved by All-MiniLM-L6-v2 (Nie et al., 2026a) (Table 6), MemOnce boosts the overall performance of representative agent memory systems by +17 .2 on A-MEM (60 .78 ) and +13 .3 on LightMem ( 53 .90 ), consistently surpassing both the multi-turn reasoning-based retrieval strategy and the specialized Qwen3-Reranker-4B (Zhang et al., 2025). 
+
+Ablation Summary. In Appendix E, we further ablate the core components of MemOnce and observe that: (1) increasing the compression ratio from r = 1 to r = 8 and discarding cross-segment linear states incur 10 less than 0.3% accuracy loss, demonstrating that final-layer hidden states serve as a highly effective carrier for compressed memory without relying on recurrent linear states (Table 8); (2) retrieving K = 64 memory chunks strikes the optimal balance between recall coverage and contextual noise (Table 9); and (3) single-shot indexing reduces query-time retrieval latency by 12 .0× over M+ and 17 .0× over RAG-Rewrite (Table 10). Additional scaling and RAG comparisons are provided in Appendix F. 
+
+## 5 Discussion 
+
+5.1 Why Existing Memory Architectures Fail to Scale 
+
+Existing memory architectures (Wang et al., 2025a; Lei et al., 2026; Zhang et al., 2026) struggle to scale effectively due to three fundamental bottlenecks: performance degradation, system overhead, and limited generalizability. First, from a performance perspective, compressing full-context attention into bounded or fixed-size states inevitably induces information decay and fails to retain fine-grained details over long horizons. Second, from a cost perspective, long-term memory methods such as M+ (Wang et al., 2025a) overlook cache compression, as maintaining multi-layer KV caches and repeatedly fetching states across layers incur heavy storage overhead and communication latency. Third, from a generalizability perspective, prior memory architectures are typically tailored either to pretraining from scratch (Behrouz et al., 2025) or to post-training adaptation, lacking versatility across both paradigms. To tackle these challenges, MemOnce couples compact final-layer memory encoding with efficient memory retrieval and on-demand KV decoding, and is validated across both pretraining and post-training adaptation. Our experimental results demonstrate that learning scalable, reusable memory states provides a viable path toward next-generation foundation architectures. 
+
+5.2 Limitations and Future Work 
+
+Several limitations of MemOnce offer valuable directions for future research. First, constrained by available computing resources, our pre-training from scratch is conducted up to the 1B parameter scale; validating the foundational scaling behavior of MemOnce via full pre-training at larger scales (e.g., 7B or beyond) remains future work. Second, while MemOnce demonstrates strong memory capabilities, its performance in downstream agent tasks remains to be fully validated, particularly in complex scenarios such as long-horizon interactive coding and multi-step tool use. In future work, we plan to pre-train MemOnce at larger parameter scales and explore its potential across broader continual interactive scenarios. 
+
+## 6 Conclusion 
+
+In this paper, we present MemOnce , a foundational memory architecture that achieves accurate long-context recall, linear-time complexity, and constant active memory states for continual language modeling. By coupling the memory encoder-decoder and memory sparse attention designs, MemOnce caches and retrieves memory states only once while dynamically decoding them into multi-layer KV caches on demand. MemOnce seamlessly integrates into pretrained models to accelerate inference while establishing itself as the first native memory model to surpass full-context baselines. Extensive experiments across diverse training paradigms, model scales, and context lengths demonstrate its effectiveness and generality. 11 References 
+
+Ali Behrouz, Peilin Zhong, and Vahab S. Mirrokni. Titans: Learning to memorize at test time. arXiv preprint arXiv:2501.00663 , 2025. Ali Behrouz, Zeman Li, Yuan Deng, Peilin Zhong, Meisam Razaviyayn, and Vahab Mirrokni. Memory caching: Rnns with growing memory. arXiv preprint arXiv:2602.24281 , 2026. Iz Beltagy, Matthew E Peters, and Arman Cohan. Longformer: The long-document transformer. arXiv preprint arXiv:2004.05150 , 2020. Zefan Cai, Sai Bi, Lin Zhang, Yicong Hong, Chongjian Ge, Xun Huang, Jiuxiang Gu, Junjie Hu, and Hao Tan. Last layer key-value cache is all you need. In COLM Workshop , 2026. Jianlv Chen, Shitao Xiao, Peitian Zhang, Kun Luo, Defu Lian, and Zheng Liu. Bge m3-embedding: Multi-lingual, multi-functionality, multi-granularity text embeddings through self-knowledge distillation. arXiv:2402.03216 , 2024. Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. Mem0: Building production-ready ai agents with scalable long-term memory. arXiv preprint arXiv:2504.19413 , 2025. Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, Christopher Hesse, and John Schulman. Training verifiers to solve math word problems. arXiv preprint arXiv:2110.14168 , 2021. Jizhan Fang, Xinle Deng, Haoming Xu, Ziyan Jiang, Yuqi Tang, Ziwen Xu, Shumin Deng, Yunzhi Yao, Mengru Wang, Shuofei Qiao, et al. Lightmem: Lightweight and efficient memory-augmented generation. In ICLR , 2026. Leo Gao, Jonathan Tow, Stella Biderman, Sid Black, Anthony DiPofi, Charles Foster, Laurence Golding, Jeffrey Hsu, Kyle McDonell, Niklas Muennighoff, et al. A framework for few-shot language model evaluation. Zenodo , 2021. Yizhao Gao, Jianyu Wei, Qihao Zhang, Yu Cheng, Shimao Chen, Zhengju Tang, Zihan Jiang, Yifan Song, Hailin Zhang, Liang Zhao, Bo Yang, Gang Wang, Shijie Cao, and Fuli Luo. Hysparse: A hybrid sparse attention architecture with oracle token selection and kv cache sharing. arXiv preprint arXiv:2602.03560 , 2026. Albert Gu and Tri Dao. Mamba: Linear-time sequence modeling with selective state spaces. arXiv preprint arXiv:2312.00752 , 2023. Demis Hassabis, Dharshan Kumaran, Christopher Summerfield, and Matthew Botvinick. Neuroscience-inspired artificial intelligence. Neuron , 95(2):245–258, 2017. Dan Hendrycks, Collin Burns, Steven Basart, Andy Zou, Mantas Mazeika, Dawn Song, and Jacob Steinhardt. Measuring massive multitask language understanding. In ICLR , 2021. Yuyang Hu, Shichun Liu, Yanwei Yue, Guibin Zhang, Boyang Liu, Fangyi Zhu, Jiahang Lin, Honglin Guo, Shihan Dou, Zhiheng Xi, et al. Memory in the age of ai agents. arXiv:2512.13564 , 2025. Samy Jelassi, David Brandfonbrener, Sham M Kakade, and Eran Malach. Repeat after me: Transformers are better than state space models at copying. arXiv preprint arXiv:2402.01032 , 2024. Bowen Jiang, Zhuoqun Hao, Young-Min Cho, Bryan Li, Yuan Yuan, Sihao Chen, Lyle Ungar, Camillo J Taylor, and Dan Roth. Know me, respond to me: Benchmarking llms for dynamic user profiling and personalized responses at scale. In COLM , 2025. Kimi Team. Kimi linear: An expressive, efficient attention architecture. Technical report, Moonshot AI, 2025. Kimi Team, Tongtong Bai, Yifan Bai, Yiping Bao, Jianfeng Cai, Xinyuan Cai, Peizhou Cao, Yuxuan Cao, Ziwei Chai, Y Charles, et al. Kimi k3: Open frontier intelligence. arXiv preprint arXiv:2607.24653 , 2026. Jingdi Lei, Di Zhang, Junxian Li, Weida Wang, Kaixuan Fan, Xiang Liu, Qihan Liu, Xiaoteng Ma, Baian Chen, and Soujanya Poria. δ-mem: Efficient Online Memory for Large Language Models. arXiv preprint arXiv:2605.12357 ,2026. Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, Sebastian Riedel, and Douwe Kiela. Retrieval-augmented generation for knowledge-intensive NLP tasks. In NeurIPS , 2020. 
+
+12 Aixin Liu, Bei Feng, Bin Wang, Bingxuan Wang, Bo Liu, Chenggang Zhao, Chengqi Dengr, Chong Ruan, Damai Dai, Daya Guo, et al. Deepseek-v2: A strong, economical, and efficient mixture-of-experts language model. arXiv preprint arXiv:2405.04434 , 2024. Anton Lozhkov, Loubna Ben Allal, Leandro von Werra, and Thomas Wolf. Fineweb-edu: the finest collection of educational content. Hugging Face Repository , 2024. Xinbei Ma, Yeyun Gong, Pengcheng He, Hai Zhao, and Nan Duan. Query rewriting in retrieval-augmented large language models. In EMNLP , 2023. Adyasha Maharana, Dong-Ho Lee, Sergey Tulyakov, Mohit Bansal, Francesco Barbieri, and Yuwei Fang. Evaluating very long-term conversational memory of llm agents. In ACL , 2024. Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. In ICLR ,2017. Chang Nie, Chaoyou Fu, Junlan Feng, and Caifeng Shan. EvoEmbedding: Evolvable representations for long-context retrieval and agentic memory. arXiv preprint arXiv:2606.21649 , 2026a. Chang Nie, Chaoyou Fu, Yifan Zhang, Haihua Yang, and Caifeng Shan. Personavlm: Long-term personalized multimodal llms. In CVPR , 2026b. Chang Nie, Jiaju Wei, Junlan Feng, Chaoyou Fu, and Caifeng Shan. Light-omni: Reflex over reasoning in agentic video understanding with long-term memory. IEEE TMM , 2026c. Denis Paperno, Germán Kruszewski, Angeliki Lazaridou, Quan Ngoc Pham, Raffaella Bernardi, Sandro Pezzelle, Marco Baroni, Gemma Boleda, and Raquel Fernández. The LAMBADA dataset: Word prediction requiring a broad discourse context. In ACL , 2016. Bo Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Arcadinho, Stella Biderman, Huanqi Cao, Xin Cheng, Michael Chung, Leon Derczynski, et al. Rwkv: Reinventing rnns for the transformer era. In EMNLP , 2023. Zongming Qiao et al. Mimo-v2.6: Scaling reinforcement learning towards self-improvement. arXiv preprint arXiv:2610.11959 , 2026. Zihan Qiu, Zekun Wang, Xiao Li, Yanpeng Li, Yang Xu, Yixuan Wang, Huaqing Zhang, Rui Men, Bochao Mao, Chengruidong Zhang, et al. On the design of qwen3.8-next architecture: Evaluation, efficiency, and training stability. 
+
+arXiv preprint arXiv:2608.30320 , 2026. Qwen Team. Qwen3.5: Accelerating productivity with native multimodal agents, 2026. https://qwen.ai/blog?id= qwen3.5 .David Rein, Betty Li Hou, Asa Cooper Stickland, Jackson Petty, Richard Yuanzhe Pang, Julien Dirani, Julian Michael, and Samuel R. Bowman. GPQA: A graduate-level google-proof q&a benchmark. In COLM , 2024. Theodore R Sumers, Shunyu Yao, Karthik Narasimhan, and Thomas L Griffiths. Cognitive architectures for language agents. arXiv preprint arXiv:2309.02427 , 2023. Yu Sun, Xinhao Li, Karan Dalal, Jiarui Xu, Arjun Vikram, Genghan Zhang, Yann Dubois, Xinlei Chen, Xiaolong Wang, Sanmi Koyejo, et al. Learning to (learn at test time): RNNs with expressive hidden states. arXiv preprint arXiv:2407.04620 , 2024a. Yutao Sun, Li Dong, Yi Zhu, Shaohan Huang, Wenhui Wang, Shuming Ma, Quanlu Zhang, Jianyong Wang, and Furu Wei. You only cache once: Decoder-decoder architectures for language models. In NeurIPS , 2024b. Hongda Tan et al. Membench: Towards more comprehensive evaluation on the memory of llm-based agents. In 
+
+Findings of ACL , 2025. Hugo Touvron et al. Llama: Open and efficient foundation language models. arXiv preprint arXiv:2302.13971 , 2023. Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In NeurIPS , 2017. Yu Wang, Yifan Gao, Xiusi Chen, Haoming Jiang, Shiyang Li, Jingfeng Yang, Qingyu Yin, Zheng Li, Xian Li, Bing Crosby, et al. MemoryLLM: Towards self-updatable large language models. arXiv preprint arXiv:2402.04624 , 2024. Yu Wang, Dmitry Krotov, Yuanzhe Hu, Yifan Gao, Wangchunshu Zhou, Julian McAuley, Dan Gutfreund, Rogerio Feris, and Zexue He. M+: Extending memoryllm with scalable long-term memory. In ICML , 2025a. 
+
+13 Yu Wang, Ryuichi Takanobu, Zhiqi Liang, Yuzhen Mao, Yuanzhe Hu, Julian McAuley, and Xiaojian Wu. Mem-α:Learning memory construction via reinforcement learning. arXiv preprint arXiv:2509.25911 , 2025b. Di Wu, Hongwei Wang, Wenhao Yu, Yuwei Zhang, Kai-Wei Chang, and Dong Yu. Longmemeval: Benchmarking chat assistants on long-term interactive memory. In ICLR , 2025. Zhiheng Xi, Wenxiang Chen, Xin Guo, Wei He, Yiwen Ding, Boyang Hong, Ming Zhang, Junzhe Wang, Senjie Jin, Enyu Zhou, et al. The rise and potential of large language model based agents: A survey. Science China information sciences , 2025. LLM-Core Xiaomi. Mimo-v2-flash technical report. 2026. Anyi Xu, B Li, Bangcai Lin, Bing Xue, BingCheng Xian, Bingzheng Xu, Bochao Wu, Bowei Zhang, Boyi Deng, CC Yu, et al. Deepseek-v4.1-flash: Pushing the limits of kv cache compression. arXiv preprint arXiv:2609.19969 , 2026a. Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. A-mem: Agentic memory for llm agents. In NeurIPS , 2026b. Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, and Yoon Kim. Parallelizing linear transformers with the delta rule over sequence length. 2024. Songlin Yang, Jan Kautz, and Ali Hatamizadeh. Gated delta networks: Improving mamba2 with delta rule. In ICLR ,2025. Zhilin Yang, Peng Qi, Saizheng Zhang, William W. Bengio, Yoshua Cohen, Ruslan Salakhutdinov, and Christopher D. Manning. HotpotQA: A dataset for diverse, explainable multi-hop question answering. In EMNLP , 2018. Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Yuxing Wei, Lean Wang, Chong Ruan, et al. Native sparse attention: Hardware-aligned and natively trainable sparse attention. arXiv preprint arXiv:2502.11089 , 2025. Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang, Huan Lin, Baosong Yang, Pengjun Xie, An Yang, Dayiheng Liu, Junyang Lin, et al. Qwen3 embedding: Advancing text embedding and reranking through foundation models. 
+
+arXiv preprint arXiv:2506.05176 , 2025. Zeyu Zhang, Ziliang Guo, Yihang Sun, Xichong Zhang, Xixuan Hao, Zehao Lin, Yang Zhang, Xiaoyan Zhao, Tong Shen, Bo Tang, et al. Metis: Memory foundation model. arXiv preprint arXiv:2607.26760 , 2026. Junhao Zheng, Chengming Shi, Xidi Cai, Qiuke Li, Duzhen Zhang, Chenxing Li, Dong Yu, and Qianli Ma. Lifelong learning of large language model based agents: A roadmap. IEEE TPAMI , 2026. 
+
+14 Supplementary Material 
+
+## Contents 
+
+A Related Work 1
+
+A.1 Architectural and Attention Optimizations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1A.2 Native Memory Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2A.3 External Memory Systems . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2A.4 Comparison with Existing Methods . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2
+
+B Detailed Analysis and Implementation of MemOnce 3
+
+B.1 Test-Time Memorization and Retrieval . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3B.2 Implementation Workflow . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 3
+
+C Training Dataset Construction and Statistics 4
+
+C.1 MemOnce-1M . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4C.2 Data Composition . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4C.3 Statistical Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+
+D Experimental Details 6
+
+D.1 Training and Implementation Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6D.2 Memory Benchmarks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6D.3 Evaluation Protocol . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+
+E Ablation Study 8
+
+E.1 Compression Ratio . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8E.2 Linear State Persistence . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8E.3 Top-K Retrieval Budget . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8E.4 Retrieval Efficiency . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+
+F Additional Experimental Results and Analysis 9
+
+F.1 Scaling Behavior . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9F.2 Comparison with RAG . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10 F.3 Long-Context Memory . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10 F.4 Inference Efficiency Across Context Lengths . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10 F.5 Architectural Comparison . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11 F.6 Qualitative Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11 
+
+G Theoretical Analysis of Memory State Learning 13 
+
+G.1 Problem Formulation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13 G.2 Theoretical Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14 
+
+## A Related Work 
+
+A.1 Architectural and Attention Optimizations 
+
+To alleviate the quadratic compute and linear KV cache growth of standard Transformers (Vaswani et al., 2017), architectural reforms have progressed along three lines. First, from linear to hybrid architectures :linear and recurrent models such as Mamba (Gu and Dao, 2023), RWKV (Peng et al., 2023), and Gated DeltaNet (Yang et al., 2025) compress history into fixed-size states for constant-memory, linear-time inference, but struggle with fine-grained in-context recall (Jelassi et al., 2024). To balance computational efficiency with accurate recall of historical information, modern backbones increasingly adopt hybrid designs: Qwen3.5 (Qwen Team, 2026) and Kimi K3 (Kimi Team et al., 2026) interleave linear or gated delta layers with periodic global attention, while MiMo (Xiaomi, 2026) interleaves sliding-window attention with full attention. Second, from global to sparse attention : intra-layer sparse mechanisms, such as Native Sparse Attention (NSA) (Yuan 1et al., 2025; Xu et al., 2026a) and block-sparse routing (Qiu et al., 2026), dynamically prune attention matrices via hardware-aligned compressed, selected, and sliding-window branches. Third, cross-layer KV cache reuse : architectures like YOCO (Sun et al., 2024b) and HySparse (Gao et al., 2026) cache KV states at an intermediate anchor layer and feed them forward to subsequent layers, whereas LastKV (Cai et al., 2026) directly reuses raw final-layer KV states across earlier layers. Despite these gains, hybrid and sparse models still retain multi-layer KV caches, with sparse mechanisms further incurring repeated routing overhead across layers and decoding steps, while cross-layer sharing methods still retain full-length token states without sequence compression. 
+
+A.2 Native Memory Models 
+
+Native memory models internalize historical context into compact parametric or latent states. One category compresses history into fixed-capacity representations: Titans (Behrouz et al., 2025) updates a deep neural memory at test time via surprise-driven gradients with momentum and weight decay; δ-Mem (Lei et al., 2026) updates low-dimensional state matrices online via delta-rule learning; Metis (Zhang et al., 2026) embeds persis-tent, gradient-free memory states directly into the backbone in a single forward pass; and EvoEmbedding (Nie et al., 2026a) maintains a window-based latent memory queue for long-context representation learning. To overcome fixed capacity limits, a second category dynamically expands the state pool: M+ (Wang et al., 2025a) extends MemoryLLM (Wang et al., 2024) with a long-term latent pool and layer-wise co-trained retrievers; and Memory Caching (Behrouz et al., 2026) caches recurrent states at segment boundaries for gated residual aggregation. Nevertheless, these methods either suffer from fixed-capacity bottlenecks or incur retrieval overhead, and their prevalent reliance on post-training adaptation often induces catastrophic forgetting. 
+
+A.3 External Memory Systems 
+
+External memory systems decouple persistent memory storage and management from the model backbone, representing historical experiences in explicit stores and handling memory construction, updating, and retrieval through dedicated pipelines (Hu et al., 2025). Mem0 (Chhikara et al., 2025) dynamically extracts and consolidates salient conversational facts for subsequent retrieval, while A-MEM (Xu et al., 2026b) employs agent-driven note construction and dynamic linking to organize memories into an evolving knowledge network. For multimodal personalization, PersonaVLM (Nie et al., 2026b) integrates proactive multimodal memory accumulation and multi-turn memory-grounded reasoning with dynamic personality profiling for response alignment. To improve memory construction efficiency, LightMem (Fang et al., 2026) introduces lightweight sensory-level compression, topic-aware segmentation and summarization, and offline “sleep-time” consolidation. For streaming video understanding, Light-Omni (Nie et al., 2026c) employs a dual-state architecture, combining a non-parametric global state distilled from episodic memory with a parametric latent state that enables reflexive action control and semantically aligned retrieval without iterative reasoning. Despite these advances, long-term memories are still largely maintained in external stores or auxiliary memory structures, with memory construction, consolidation, and retrieval handled through separate procedures. This separation can introduce additional storage and orchestration overhead while making it less straightforward to jointly optimize memory formation, maintenance, and utilization with the backbone, particularly under end-to-end objectives such as reinforcement learning (Wang et al., 2025b). 
+
+A.4 Comparison with Existing Methods 
+
+MemOnce addresses the limitations across all three paradigms. Compared with architectural and cross-layer KV optimizations, MemOnce caches only a small subset of final-layer hidden states and performs sparse retrieval only once per query, eliminating both layer-wise storage and routing overhead. Compared with native and external memory systems, MemOnce enables efficient end-to-end optimization and long-term memory capabilities for both pretraining and post-training adaptation. Furthermore, decoding compact memory states into KV caches effectively preserves long-range context without catastrophic forgetting. 2B Detailed Analysis and Implementation of MemOnce 
+
+B.1 Test-Time Memorization and Retrieval 
+
+Parallel Encoding and Two-Tier Storage ( Gt). To accelerate memory construction during prefill, MemOnce processes historical inputs x1: t−1 in parallel chunks of length ni (e.g., ni = 128 in pretraining and 
+
+ni = 512 in post-training adaptation) under a compression ratio of r = 8 . For each chunk xi, MemOnce retains its trailing ni/r final-layer token states mi = hLi, −ni/r : ∈ R(ni/r )×D to form the persistent memory bank Gt = [ m1; . . . ; mB ] ∈ Rk×D across B chunks ( k = ⌊N/r ⌋). Because MemOnce resets linear-block recurrent states across chunk boundaries (validated in Table 8), caches only final-layer states, and requires only short-term memory without long-term retrieval during encoding, historical inputs x1: t−1 can be encoded in parallel batches without sequential dependencies. As defined in Section 3.2, Gt is organized into a two-tier storage hierarchy: (1) the short-term memory window Gshort  
+
+> t
+
+, which maintains the most recent compressed states (e.g., 1024 compressed tokens across 16 chunks at ni = 512 , r = 8 , spanning 8K raw tokens) as a sliding window on the GPU to preserve local continuity with zero retrieval latency; and (2) the long-term memory pool Glong  
+
+> t
+
+, which offloads older states to host memory or SSD once they slide out of Gshort  
+
+> t
+
+.
+
+Memory Footprint and Bandwidth Analysis. On the Qwen3.5-4B hybrid backbone ( D = 2560 ,
+
+ni = 512 , r = 8 ), each compressed 64-token chunk occupies only 320 KB. Consequently, the GPU-resident short-term window Gshort  
+
+> t
+
+(16 chunks) requires a constant footprint of 5.0 MB. During retrieval, fetching the top-K (K = 64 ) long-term chunks M long  
+
+> t
+
+from SSD/CPU transfers only 20 .0 MB over PCIe (Table 10), yielding a total active memory state Mt = [ M long  
+
+> t
+
+∥ Gshort  
+
+> t
+
+] of just 25 .0 MB (vs. 1, 150 .0 MB for 32-layer retrieval in M+). Once loaded onto the GPU, Mt is decoded on demand into multi-layer KV caches Ct = {(Kl, V l)}l∈L attn 
+
+for the full-attention layers Lattn ⊆ { 1, . . . , L } via uθ, where each layer-specific projection Kl 
+
+> Proj
+
+and V l
+
+> Proj
+
+consists of LayerNorm, a linear projection, and key normalization, leaving all linear GDN blocks free of historical cache overhead. 
+
+Indexing Projection and Memory State Routing. To index Glong  
+
+> t
+
+without external embedding models or layer-wise routers, the projection ϕ : RD → Rde (de = 1024 ) in Eq. (8) extracts the terminal token state 
+
+hLi, −1 ∈ RD of each compressed chunk mi (denoted as ϕ(mi) ≜ ϕ(hLi, −1)) and maps it via a two-layer MLP with SiLU activation followed by ℓ2-normalization. Because causal masking and linear blocks aggregate sequence-level semantics into the terminal token, applying ϕ(·) solely to hLi, −1 yields an expressive descriptor without sequence-pooling overhead. Each index vector ϕ(hLi ) ∈ R1024 takes only 2 KB. Thus, across a 128K context ( 256 chunks), the entire index matrix occupies just 512 KB ( 4.0 MB at 1M tokens) and remains permanently resident in GPU memory. At query time, MemOnce encodes the continual input xt conditioned on Gshort  
+
+> t
+
+to compute the query vector ϕ(hLt ) in 0.25 ms, performs a matrix-vector inner product to select the top-K states from Glong  
+
+> t
+
+, and sorts the retrieved states in chronological order before concatenation in Eq. (9) to preserve temporal causality. 
+
+B.2 Implementation Workflow 
+
+Algorithm 1 summarizes the continual inference pipeline of MemOnce. To ensure stable and efficient optimization over long contexts, we adopt three key strategies during post-training adaptation: 1. Chunked Memory Encoding: Historical inputs x1: t−1 are partitioned into chunks (up to 8 segments or 
+
+4096 tokens) for parallel encoding. Encoding is performed independently per chunk using the short-term sliding window Gshort  
+
+> t
+
+without querying the long-term pool Glong  
+
+> t
+
+, eliminating sequential retrieval dependencies during prefill. Training memory is bounded via activation checkpointing and a dedicated LoRA adapter. 2. Contrastive Retrieval Supervision: To align memory routing with language modeling utility, the indexing projection ϕ(·) is jointly optimized via an InfoNCE contrastive loss over relevant historical states 3Algorithm 1 Continual Inference of MemOnce  
+
+> Require:
+
+Historical context x1: t−1, continual input xt, compression ratio r, retrieval budget K. 
+
+> Ensure:
+
+Generated response ˆyt.
+
+// Step 1: Memory Writing ( gθ ) 
+
+> 1:
+
+Initialize short-term window Gshort  
+
+> t
+
+and long-term pool Glong  
+
+> t
+
+.  
+
+> 2: for
+
+each historical chunk xi ∈ x1: t−1 do  
+
+> 3:
+
+Extract trailing states mi ← hLi, −ni/r : and index vector ϕ(hLi ). 
+
+> 4:
+
+Update Gshort  
+
+> t
+
+← Slide( Gshort  
+
+> t
+
+, m i); offload evicted representations to Glong  
+
+> t
+
+. 
+
+> 5: end for
+
+// Step 2: Memory Indexing ( iθ ) 
+
+> 6:
+
+Compute query representation ϕ(hLt ) conditioned on Gshort  
+
+> t
+
+. 
+
+> 7:
+
+Retrieve top-K states: M long  
+
+> t
+
+← Top-K mi∈Glong 
+
+> t
+
+Sim  ϕ(hLt ), ϕ (mi) (chronologically sorted).  
+
+> 8:
+
+Construct active memory state: Mt ← M long  
+
+> t
+
+∥ Gshort 
+
+> t
+
+.
+
+// Step 3: On-Demand Decoding ( uθ ) and Generation  
+
+> 9:
+
+Disable memory adapter; decode layer-specific KV caches: {Kl, V l}Ll=1 = uθ (Mt). 
+
+> 10:
+
+Generate response ˆyt via frozen backbone with memory-conditioned sparse attention (Eq. (10)).   
+
+> 11: return
+
+ˆyt
+
+m+ ∈ Glong  
+
+> t
+
+:
+
+L = − log πθ (yt | xt, M t) − λ log exp   Sim( ϕ(hLt ), ϕ (m+)) /τ P
+
+> mi∈Glong
+> t
+
+exp   Sim( ϕ(hLt ), ϕ (mi)) /τ  , (11) where τ is the temperature hyperparameter and λ balances retrieval supervision. 3. Frozen-Backbone Generation: Upon constructing the active memory state Mt = [ M long  
+
+> t
+
+∥ Gshort  
+
+> t
+
+], the memory adapter is disabled. The frozen backbone then generates yt conditioned on the on-demand decoded KV caches Ct = uθ (Mt), preserving the base model’s general capabilities without catastrophic forgetting. 
+
+## C Training Dataset Construction and Statistics 
+
+C.1 MemOnce-1M 
+
+To jointly optimize MemOnce’s memory encoder-decoder and single-shot sparse retrieval, we construct a large-scale multi-turn training corpus, MemOnce-1M (1M samples). Every training instance is standardized into a multi-turn conversational sequence H = {x1, x 2, . . . , x t−1, x t}, consisting of h = t − 1 historical interaction rounds followed by a target query turn xt. To obtain high-fidelity supervision for both language modeling and memory retrieval without costly manual annotation, we employ Qwen3.5-35B-A3B as a teacher model for the final user query xt. Conditioned on the complete dialogue history, the teacher model simultaneously generates: (i) a grounded reference response yt to supervise the language modeling objective, and (ii) the exact indices of historical evidence turns E+ ⊂ { 1, . . . , h } containing the supporting facts required to answer the query. These distilled evidence annotations directly supervise the contrastive retrieval loss in Eq. (11), aligning the query descriptor ϕ(hLt ) with relevant historical index vectors {ϕ(hLi )}hi=1 .
+
+C.2 Data Composition 
+
+As illustrated in Figure 5(c), our training corpus integrates eight complementary data sources to balance long-range factual recall, multi-hop reasoning, and conversational fluency: • Long-Context Representation and Memory Corpora (64.2%): The largest portion of the dataset is derived from EvoTrain-180K (Nie et al., 2026a) ( 38.5% ) and LiveMem 3 (25.7% ), which provide rich multi-session dialogues and dense long-range retrieval supervision across diverse domains. 
+
+> 3https://huggingface.co/datasets/chen-l/LiveMem-SFT
+
+4(a) Distribution of history rounds ( h). (b) Distribution of sequence lengths. (c) Data source composition.  
+
+> Figure 5 Statistics of MemOnce-1M. (a)
+
+Percentage of samples across historical dialogue rounds h ∈ [3 , 464] . (b) Token sequence length distribution with a mean of 7, 099 tokens and a 90th percentile ( p90 ) of 16 , 426 tokens. (c) Proportion of the eight constituent data sources. 
+
+• Multi-Hop and Long-Context Instruction Datasets (25.0%): To strengthen complex reasoning over retrieved memory states, we incorporate ChatQA-2 4 (11.0% ), LongMIT-SFT 5 (6.0% ), 2WikiMultiHopQA 6 (5.0% ), Step-3.5-Flash-SFT 7 (2.8% ), and δ-Mem Qasper (Lei et al., 2026) 8 (0.2% ). Raw long-document QA pairs are segmented into sequential conversational turns so that supporting paragraphs are distributed across separate historical segments. • Synthetic Data (10.8%): Following the data synthesis methodology of EvoEmbedding (Nie et al., 2026a), we construct an additional 10.8% of synthetic multi-turn samples ( Synthetic (Ours) ) via structured template-based question generation. Specifically, we plant multi-source factual chains, evolving user states, and entity attributes across distant dialogue turns using controllable templates, and interleave semantically similar hard-negative distractor turns in between. Positional shortcuts (e.g., explicit turn-index references) are systematically stripped during synthesis, forcing the indexing module and backbone to rely strictly on semantic matching and cross-segment reasoning. 
+
+C.3 Statistical Analysis 
+
+Figures 5(a) and 5(b) present the structural statistics of the dataset across historical conversation rounds and token lengths: • Historical Rounds ( h): As shown in Figure 5(a), the number of historical rounds h spans from 3 to 464 
+
+turns. While short-to-medium dialogues ( 3–10 and 11 –20 rounds) account for 12 .4% and 24 .0% of the corpus (activating a full-window supervision fallback to stabilize early ϕ(·) training), over 63% of the samples exceed MemOnce’s 16 -segment short-term sliding window Gshort  
+
+> t
+
+. Specifically, medium-horizon dialogues ( 21 –60 rounds) constitute 25 .8% , long-horizon sessions ( 61 –200 rounds) account for 25 .4% ,and ultra-long multi-session histories ( 201 –464 rounds) make up the remaining 12 .4% . This heavy-tailed distribution ensures that the model is rigorously trained to retrieve evicted memory representations from the long-term pool Glong  
+
+> t
+
+.• Context Lengths: Figure 5(b) depicts the token length distribution across dialogue trajectories, exhibiting a multi-modal long-tail profile up to 25 , 000 tokens, with a mean of 7,099 tokens , a 90th-percentile (p90 ) of 16,426 tokens , and high-density clusters around 10 K– 12 K and 16 K tokens. Training across these multi-chunk trajectories (exceeding our 4096 -token chunk budget) enables MemOnce to generalize seamlessly to 128 K and 1M evaluation contexts at test time. 
+
+> 4https://huggingface.co/datasets/nvidia/ChatQA2-Long-SFT-data
+> 5https://github.com/WowCZ/LongMIT
+> 6https://github.com/Alab-NII/2wikimultihop
+> 7https://huggingface.co/datasets/stepfun-ai/Step-3.5-Flash-SFT
+> 8https://huggingface.co/datasets/huaXiaKyrie/delta-mem-qasper-data
+
+5Table 7 Hyperparameters for pre-training and post-training. Configuration Pre-training Post-training                            
+
+> Backbone MemOnce Qwen3.5 Training Paradigm Scratch LoRA (rank = 128 , α = 256 )Training Dataset FineWeb-Edu-10B MemOnce-1M Max Sequence Length 4K64 KBlock Size 128 512
+> Parallel Encoding Chunks 88
+> Global Batch Size 128 64
+> Step Data Volume 0.5M—Training Steps 21 ,748 15 ,625
+> Learning Rate 6×10 −45×10 −5
+
+## D Experimental Details 
+
+D.1 Training and Implementation Details 
+
+Pre-training Details. To evaluate architectural design choices from scratch, we pre-train our base models on FineWeb-Edu-10B (Lozhkov et al., 2024) for one full epoch, tokenized with the Llama-2 BPE tokenizer (Touvron et al., 2023) (vocabulary size 32 ,000 ). All models are optimized with fused AdamW under a 2,000 -step linear warmup followed by cosine decay, on 8× NVIDIA H100 GPUs. The full configurations are summarized in Table 7. 
+
+Post-training and Memory Adaptation. For the main models across the Qwen3.5 hybrid family (2B and 4B), we freeze the pretrained backbone and perform memory-aware post-training on MemOnce-1M for one epoch on an 8× NVIDIA H100 node with Distributed Data Parallel and activation checkpointing, following the configurations in Table 7. For representation and reranking evaluations, our testing protocol strictly follows EvoEmbedding (Nie et al., 2026a). 
+
+Trainable Modules and Optimization Settings. Across the Qwen3.5 hybrid backbones (2B and 4B), post-training adaptation introduces three lightweight trainable components while keeping the base model frozen: 1. Memory LoRA Adapter: Low-rank adapters ( r = 128 , α = 256 , dropout 0.05 ) attached to the attention projections, activated exclusively during memory encoding ( gθ) and query descriptor extraction, and disabled during response generation. 2. Indexing Projection ϕ(·): A two-layer SiLU MLP mapping the terminal token state of each segment from hidden dimension D to de = 1024 for cosine similarity routing ( τ = 0 .1, retrieval budget K = 64 ). 3. On-Demand Decoders ( uθ ): For full-attention layers only (e.g., 8 of 32 layers in Qwen3.5-4B), trainable copies of the input LayerNorm, Kl
+
+> Proj
+
+/V l 
+
+> Proj
+
+projections, and key normalization, initialized from the frozen backbone, decode the active memory state Mt = [ M long  
+
+> t
+
+∥ Gshort  
+
+> t
+
+] into layer-specific KV caches Ct.The model is optimized end-to-end under Eq. (11) with λ = 0 .1 and τ = 0 .1 (computing the contrastive loss over all available historical states when the dialogue fits entirely within Gshort  
+
+> t
+
+). 
+
+D.2 Memory Benchmarks 
+
+We evaluate MemOnce across six complementary benchmarks spanning short-context state updates to million-token multi-session interactions: • MemBench 9 (Tan et al., 2025): To assess precise state tracking and fact overwriting without long-context dilution, we adopt the Knowledge Update (KU) subset of MemBench, which comprises 2, 000 evaluation 
+
+> 9https://github.com/import-myself/Membench
+
+6instances with an average history length of approximately 4K tokens. • LoCoMo 10 (Maharana et al., 2024): A multi-session conversational memory benchmark consisting of 10 
+
+extended daily-life dialogues, each spanning roughly 30 sessions. The model assumes the role of one speaker and must concisely answer questions regarding specific biographical and event details of both participants based on the entire conversation history. Following standard evaluation practice, we filter out the unanswerable adversarial category (Category 5), resulting in 1, 540 evaluation questions. • LongMemEval 11 (Wu et al., 2025): A comprehensive multi-session memory benchmark covering five core memory capabilities (single-session recall, multi-session synthesis, temporal reasoning, knowledge updates, and abstention), containing 500 questions each paired with approximately 115 K tokens of timestamped multi-session history. • PersonaMem-128 (Jiang et al., 2025): A long-context memory benchmark sharing the same data distribution and four-way multiple-choice task formulation as PersonaMem-1M, designed to evaluate fine-grained recall of user-disclosed facts and preferences over 1, 000 test questions within a 128 K-token context horizon. • PersonaMem-1M 12 (Jiang et al., 2025): An ultra-long-range personalized memory stress test comprising 
+
+500 four-way multiple-choice questions. Each instance requires tracking implicit user facts, evolving preferences, and persona details across 32 conversational sessions totaling approximately 1M tokens. • HotpotQA ♣-1M : A multi-hop QA benchmark constructed from HotpotQA 13 (Yang et al., 2018) to evaluate long-context memory capabilities. It is synthesized by aggregating 9, 848 raw validation passages (approximately 1.35 M tokens) while retaining 500 open-ended multi-hop questions whose supporting evidence resides completely within the aggregated memory bank. 
+
+D.3 Evaluation Protocol 
+
+For multiple-choice benchmarks ( MemBench , PersonaMem-128 , and PersonaMem-1M ), we report exact accuracy. For open-ended QA and conversational benchmarks ( LoCoMo , LongMemEval , and HotpotQA ♣-1M ), we follow the official LLM-as-a-Judge protocols specified by each benchmark to ensure fair comparison. Specifically, we adopt benchmark-native binary grading prompts (e.g., tailored prompt (Nie et al., 2026a) templates for LongMemEval and LoCoMo) to evaluate whether the generated response entails the ground-truth answer. Empirical verification confirms that employing these official benchmark-aligned prompts yields consistent relative performance trends without affecting the core conclusions. The standard binary evaluation prompt is shown below:  
+
+> I will give you a question, a correct answer, and a response from a model. Please answer yes if the response contains the correct answer. Otherwise, answer no. If the response is equivalent to the correct answer or contains all the intermediate steps to get the correct answer, you should also answer yes. If the response only contains a subset of the information required by the answer, answer no. Question: {question} Correct Answer: {answer} Model Response: {response} Is the model response correct? Answer yes or no only.
+> 10 https://huggingface.co/datasets/Percena/locomo-mc10
+> 11 https://huggingface.co/datasets/xiaowu0162/longmemeval
+> 12 https://huggingface.co/datasets/bowen-upenn/PersonaMem-v1
+> 13 https://huggingface.co/datasets/hotpotqa/hotpot_qa
+
+7Table 8 Ablation study on compression ratio r and long-term linear state persistence across eight downstream benchmarks. 
+
+Best results are in bold and second-best are underlined.   
+
+> Linear State Ratio
+
+r PIQA Hella. Wino. ARC-E ARC-C SciQ BoolQ LAMB. Avg. 
+
+Persisted 
+
+1× 0.669 0.419 0.527 0.531 0.288 0.814 0.617 0.360 0.5280 
+
+2× 0.673 0.416 0.493 0.525 0.278 0.845 0.600 0.376 0.5259 
+
+4× 0.664 0.416 0.511 0.510 0.264 0.831 0.609 0.366 0.5213 
+
+8× 0.668 0.418 0.522 0.516 0.281 0.836 0.613 0.350 0.5255 Discarded 
+
+1× 0.676 0.422 0.496 0.524 0.275 0.847 0.619 0.352 0.5263 
+
+2× 0.668 0.414 0.518 0.514 0.290 0.835 0.590 0.360 0.5235 
+
+4× 0.675 0.414 0.502 0.513 0.283 0.836 0.608 0.370 0.5253 
+
+8× 0.678 0.419 0.518 0.523 0.277 0.817 0.616 0.340 0.5235   
+
+> Table 9 Ablation study on the retrieval budget
+
+K across long-context memory benchmarks. Best results are in bold and second-best are underlined.                                                
+
+> Model Top-KMemBench LoCoMo LongMemEval PersonaMem-128 PersonaMem-1M Mem. Avg.
+> MemOnce-4B K= 0 72.49 20.06 14.00 40.20 37.40 36.83 MemOnce-4B K= 16 84.94 65.06 47.00 53.60 48.00 59.72 MemOnce-4B K= 32 84.64 66.23 45.20 53.60 48.80 59.69
+> MemOnce-4B K= 64 84.34 67.01 47.40 53.60 48.00 60.07
+> MemOnce-4B K= 128 84.94 65.97 45.60 51.00 46.80 58.86
+
+## E Ablation Study 
+
+E.1 Compression Ratio 
+
+We first evaluate the trade-off between the compression ratio r ∈ { 1, 2, 4, 8} and downstream accuracy in Table 8. Increasing r from 1× to 8× compresses the persistent memory bank Gt by 8× along the sequence dimension, while causing only a negligible accuracy drop of 0.0025 (0.5280 → 0.5255 when linear states are persisted) and 0.0028 (0.5263 → 0.5235 when discarded). This confirms that the trailing 1/r final-layer hidden states effectively encapsulate segment-level semantics, allowing r = 8 to serve as our default setting. 
+
+E.2 Linear State Persistence 
+
+Table 8 also examines whether the recurrent states of linear layers need to be maintained across historical segments. The Persisted setting carries linear recurrent states across segments alongside Gt, whereas the 
+
+Discarded setting resets linear states at segment boundaries and relies solely on the decoded KV caches from 
+
+Mt for long-range context. Across all compression ratios, both settings yield nearly identical performance (e.g., 0.5255 vs. 0.5235 at r = 8 ), demonstrating that long-range information is predominantly preserved by our expandable memory bank Gt rather than fixed-capacity linear states. We therefore discard cross-segment linear states by default, which eliminates multi-layer recurrent state storage. 
+
+E.3 Top-K Retrieval Budget 
+
+We next analyze the sensitivity of MemOnce to the retrieval budget K ∈ { 0, 16 , 32 , 64 , 128 } across five long-context memory benchmarks (Table 9). At K = 0 , the model relies solely on the short-term window 
+
+Gshort  
+
+> t
+
+without long-term retrieval, resulting in a low average score of 36 .83 . Retrieving just K = 16 long-term representations yields a substantial gain of +22 .89 points ( 59 .72 ), verifying the high information density of our compact memory states. Performance peaks at K = 64 (60.07 ), capturing sufficient multi-session evidence for multi-hop and temporal queries in LoCoMo ( 67 .01 ) and LongMemEval ( 47 .40 ). Further expanding K to 128 
+
+slightly reduces the average score to 58 .86 while doubling the retrieval footprint, as excessive low-relevance states introduce contextual noise. Consequently, we adopt K = 64 as the default retrieval budget. 84 6 8 10 12 13 14 15               
+
+> Val Perplexity
+> 150M
+> 46810 11 12 13
+> 400M
+> 46810 10 11 12
+> 600M
+> 46810 10 11 12
+> 1B
+> Training Tokens (B)
+> Transformer GDN YOCO MemOnce Figure 6 Pre-training dynamics across the four parameter tiers.
+
+Gaussian-smoothed validation perplexity on FineWeb-Edu-10B at the ∼150M, ∼400M, ∼600M, and ∼1B scales. MemOnce descends fastest and reaches the lowest validation perplexity at 150M–600M and stays on par with the full-attention Transformer during training at 1B, where it attains the lower final evaluated perplexity (Table 11).   
+
+> Table 10 Query-time retrieval overhead of RAG-Rewrite, M+, and MemOnce at a 128K-token context.
+
+Latency is broken down by pipeline stage. Off-pool reads use SSD cold-read latency. M+ retrieves layer-wise inside the forward pass and has no separate encoding or reading stage.                     
+
+> System Encode Search & Load Read Total Latency Data Transfer
+> RAG-Rewrite (Ma et al., 2023) 1081.84 ms 0.46 ms 12.00 ms 1094.30 ms 0.13 MB M+ (Wang et al., 2025a) —772.50 ms —772.50 ms 1,150.00 MB
+> MemOnce (Ours) 60.39 ms 3.85 ms —64.24 ms 20.00 MB
+
+E.4 Retrieval Efficiency 
+
+Finally, Table 10 compares the query-time retrieval latency breakdown and PCIe data transfer of MemOnce against RAG and M+ at a 128K context ( 256 segments of 512 tokens). MemOnce encodes the query via a single prompt forward pass through the backbone ( 60 .39 ms, with the short-term state injected as decoded KV) and loads the top-64 compact memory representations ( 20 .00 MB) from SSD in 3.85 ms, totaling 64.24 ms (63 .0 ms with OS page cache and 60 .7 ms when Glong  
+
+> t
+
+resides on GPU). In contrast, M+ performs layer-wise retrieval across all 32 layers during the forward pass, transferring 1, 150 .00 MB of multi-layer states from CPU to GPU and incurring 772 .50 ms latency. Meanwhile, RAG-Rewrite (Ma et al., 2023) first invokes an LLM to rewrite the conversational query with historical context ( 1081 .84 ms), before searching and reading the retrieved text, totaling 1094 .30 ms, alongside additional prefill compute over retrieved tokens. Overall, MemOnce achieves a 17 .0× latency speedup over RAG-Rewrite and a 12 .0× speedup over M+. 
+
+## F Additional Experimental Results and Analysis 
+
+F.1 Scaling Behavior 
+
+To verify that MemOnce scales effectively across model capacities, we evaluate four parameter tiers ( ∼150M, 
+
+∼400M, ∼600M, and ∼1B) pre-trained from scratch on FineWeb-Edu-10B against a standard full-attention Transformer, pure Gated DeltaNet (GDN) (Yang et al., 2025), and YOCO (Sun et al., 2024b) in Table 11, complementing the comprehensive 400M architectural comparison in Table 15. At the 150M scale, MemOnce achieves the lowest perplexity on four of the five corpora, reducing WikiText perplexity from 25 .64 (Transformer) and 31 .22 (GDN) to 23 .40 , while maintaining competitive downstream accuracy. As capacity scales to 400M, 600M, and 1B parameters, both uncompressed ( r = 1 ) and 8× compressed ( r = 8 ) variants of MemOnce consistently achieve the top-two average accuracies ( Avg. ) across all eight zero-shot benchmarks while maintaining strong language modeling perplexity. Specifically, whereas pure GDN suffers from severe long-range perplexity degradation on WikiText and Penn Treebank (PTB) due to fixed-state bottlenecks, MemOnce scales smoothly to achieve the best validation perplexity ( 10 .16 at 603M and 9.65 at 945M) and highest overall downstream accuracy ( 0.5409 and 0.5515 ). Crucially, the gap between r = 8 and r = 1 narrows with scale, enabling the 8× compressed model to likewise outperform the 1B full-attention Transformer with fewer 9Table 11 Pre-training scaling comparison from ∼150M to ∼1B parameters. We report validation perplexity ( ↓) and zero-shot accuracy ( ↑) across eight downstream benchmarks. MemOnce is evaluated under both the uncompressed configuration (r = 1 ) and the 8× compressed configuration ( r = 8 ) across all scales. Best results within each scale are in bold and second-best are underlined.    
+
+> Model Params Val PPL
+
+↓ WT2 ↓ WikiText ↓ LAMB. ↓ PTB ↓ PIQA Hella. Wino. ARC-E ARC-C SciQ BoolQ LAMB. Avg. ↑∼150M Scale 
+
+Transformer 146M 12.65 16.55 25.64 36.49 171.91 0.642 0.362 0.519 0.475 0.253 0.799 0.579 0.294 0.4904 
+
+GDN (Yang et al., 2025) 174M 12.82 17.26 31.22 37.40 246.51 0.642 0.355 0.516 0.470 0.259 0.786 0.569 0.283 0.4850 YOCO (Sun et al., 2024b) 152M 12.63 16.39 29.35 36.98 225.30 0.632 0.330 0.530 0.460 0.249 0.787 0.600 0.250 0.4798 
+
+> MemOnce (
+
+r = 8 ) 158M 12.64 16.77 25.81 36.17 166.99 0.648 0.355 0.514 0.469 0.250 0.791 0.581 0.306 0.4893 
+
+> MemOnce (
+
+r = 1 ) 158M 12.46 16.14 23.40 36.55 171.67 0.646 0.364 0.506 0.474 0.253 0.791 0.548 0.311 0.4866 
+
+∼400M Scale 
+
+Transformer 365M 10.97 13.68 20.90 33.24 134.34 0.657 0.404 0.515 0.524 0.282 0.832 0.582 0.352 0.5185 GDN (Yang et al., 2025) 410M 11.11 14.24 26.03 33.37 223.14 0.676 0.406 0.503 0.541 0.272 0.842 0.606 0.340 0.5231 YOCO (Sun et al., 2024b) 387M 10.97 13.63 24.38 35.18 346.33 0.674 0.407 0.511 0.516 0.265 0.826 0.597 0.361 0.5197 
+
+> MemOnce (
+
+r = 8 ) 400M 10.89 14.05 21.08 32.45 151.80 0.678 0.419 0.518 0.523 0.277 0.817 0.616 0.340 0.5235 
+
+> MemOnce (
+
+r = 1 ) 400M 10.77 13.33 19.28 32.69 144.83 0.676 0.422 0.496 0.524 0.275 0.847 0.619 0.352 0.5263 
+
+∼600M Scale 
+
+Transformer 516M 10.57 13.16 19.83 31.55 127.64 0.661 0.422 0.509 0.505 0.287 0.832 0.542 0.359 0.5146 GDN (Yang et al., 2025) 587M 10.61 13.44 24.77 32.16 221.83 0.667 0.422 0.515 0.516 0.275 0.827 0.610 0.358 0.5237 YOCO (Sun et al., 2024b) 580M 10.52 13.01 20.97 32.14 145.74 0.673 0.424 0.509 0.548 0.300 0.841 0.574 0.330 0.5249 
+
+> MemOnce (
+
+r = 8 ) 603M 10.34 12.87 19.52 31.04 144.66 0.680 0.437 0.527 0.546 0.299 0.848 0.597 0.355 0.5392 
+
+> MemOnce (
+
+r = 1 ) 603M 10.16 12.35 18.08 30.70 139.43 0.673 0.440 0.530 0.551 0.301 0.845 0.591 0.396 0.5409 
+
+∼1B Scale 
+
+Transformer 1007M 9.78 11.70 17.14 29.98 113.45 0.687 0.456 0.526 0.552 0.312 0.858 0.608 0.409 0.5512 GDN (Yang et al., 2025) 971M 9.98 12.35 23.11 30.77 211.12 0.685 0.452 0.523 0.556 0.305 0.845 0.545 0.371 0.5350 YOCO (Sun et al., 2024b) 977M 9.87 11.88 18.42 30.47 146.47 0.681 0.454 0.522 0.550 0.306 0.855 0.596 0.407 0.5462 
+
+> MemOnce (
+
+r = 8 ) 945M 9.83 12.12 18.11 29.59 143.98 0.688 0.461 0.537 0.564 0.298 0.875 0.569 0.420 0.5513 
+
+> MemOnce (
+
+r = 1 ) 945M 9.65 11.52 17.08 29.93 128.41 0.678 0.466 0.530 0.546 0.300 0.888 0.586 0.418 0.5515 
+
+Table 12 Comparison with RAG on five memory benchmarks. Best results are in bold and second-best are underlined.        
+
+> Model Size MemBench LoCoMo LongMemEval PersonaMem-128 PersonaMem-1M Mem. Avg.
+
+(∼4K) ↑ (∼21K) ↑ (∼115K) ↑ (∼128K) ↑ (∼1M) ↑ ↑
+
+Qwen3.5-4B (Full Context) 4B 82.64 69.55 42.20 43.50 33.60 54.30 RAG (Lewis et al., 2020) 4B 70.69 45.06 52.40 51.00 45.20 52.87  
+
+> MemOnce (Ours)
+
+4B 84.34 67.01 47.40 53.60 48.00 60.07 
+
+parameters. Figure 6 traces the full pre-training dynamics at the four scales. 
+
+F.2 Comparison with RAG 
+
+Table 12 compares MemOnce with a RAG baseline that retrieves the top-8 most relevant historical dialogues using All-MiniLM-L6-v2. MemOnce achieves better overall performance ( 60 .07 vs. 52 .87 ). While RAG achieves a higher score on LongMemEval by directly prepending uncompressed raw text chunks for verbatim single-session extraction, MemOnce outperforms RAG on four out of five benchmarks and improves the overall average by +7 .20 points under an 8× sequence compression ratio. 
+
+F.3 Long-Context Memory 
+
+To further validate the memory capabilities of MemOnce at the 1M-token scale beyond multiple-choice tasks, we evaluate on HotpotQA ♣-1M , which concatenates 9, 848 context passages across validation samples ( ∼ 1.35 Mtokens) and evaluates on 500 open-ended multi-hop questions with complete in-bank supporting evidence. To verify that the improvements stem from genuine memory utilization rather than parametric overfitting, we report both zero-context accuracy ( No Mem. ) and the resulting net memory gain ( ∆). As shown in Table 13, the post-trained MemOnce-2B and MemOnce-4B models achieve the highest memory gains ( ∆ = +41 .00 
+
+and +39 .80 ). Moreover, MemOnce-4B surpasses RAG-4B ( 59 .40 vs. 52 .20 ) and outperforms existing memory systems by a substantial margin, further demonstrating the effectiveness of MemOnce. 
+
+F.4 Inference Efficiency Across Context Lengths 
+
+Table 14 benchmarks prefill latency, computational FLOPs, decoding throughput, and active versus offloaded memory footprints from 32 K to 1M tokens. Crucially, these performance disparities stem from fundamental architectural designs rather than engineering or implementation artifacts. The full-context Qwen3.5 baseline 10 Table 13 Memory capability evaluation on HotpotQA ♣-1M. We report accuracy (%) with memory ( With Mem. ), without memory ( No Mem. ), and net memory gain ( ∆). Best results are in bold and second-best are underlined.                                                          
+
+> Model Size With Mem. (ctx) ↑No Mem. (noctx) Gain ( ∆)↑
+> Full Context & Retrieval Baselines
+> Qwen3.5-2B 2B 23.80 8.60 +15.20 Qwen3.5-4B 4B 26.60 10.60 +16.00 RAG (Lewis et al., 2020) 4B 52.20 15.60 +36.60
+> Native Memory Models
+> δ-Mem (Lei et al., 2026) 4B 21.60 10.60 +11.00 EvoEmbedding (Nie et al., 2026a) 4B 21.40 11.00 +10.40 Metis (Zhang et al., 2026) 4B 18.20 10.60 +7.60 M+ (Wang et al., 2025a) 8B 33.40 7.20 +26.20
+> δ-Mem †(Lei et al., 2026) 4B 26.20 18.80 +7.40 EvoEmbedding †(Nie et al., 2026a) 4B 28.20 20.00 +8.20 Metis †(Zhang et al., 2026) 4B 26.60 16.40 +10.20
+> MemOnce (Ours) 2B 49.80 8.80 +41.00 MemOnce (Ours) 4B 59.40 19.60 +39.80
+
+retains quadratic attention, rendering its prefill competitive only at short lengths and causing decoding throughput to collapse once the KV cache exceeds the memory-bandwidth budget. Meanwhile, the official implementation of δ-Mem constructs its associative states through full-context forward passes, negating its theoretical linear-time advantage during inference. Metis is likewise linear-time and matches MemOnce in decoding speed, but its state updates proceed on overly large blocks that underutilize GPU parallelism, incurring a roughly 3× prefill overhead. EvoEmbedding maintains separate generation and retrieval adapters, requiring two context forward passes when switching between them. Furthermore, M+ performs layer-wise retrieval during the forward pass, triggering frequent CPU–GPU transfers that throttle compute utilization to 
+
+∼10 TFLOP/s. In contrast, MemOnce bounds chunk attention to 4K-token windows at 167 –180 TFLOP/s utilization and holds its active memory state to at most C = 5120 tokens while offloading the growing pool to SSD, thereby sustaining linear prefill and invariant decoding throughput across the entire 1M horizon. 
+
+F.5 Architectural Comparison 
+
+Table 15 presents the complete pre-training evaluation on FineWeb-Edu-10B, comparing MemOnce against standard full-attention Transformers (365M and 516M), Sliding-Window Attention (SWA), cross-layer KV sharing (YOCO (Sun et al., 2024b) and LastKV (Cai et al., 2026)), latent KV compression (MLA (Liu et al., 2024)), recurrent linear models (DeltaNet, Gated DeltaNet (Yang et al., 2025), and Kimi-Linear (Kimi Team et al., 2026)), segment-level memory caching (MemCache-GRM (Behrouz et al., 2026)), and a standard hybrid backbone. Two key findings emerge: (1) Superiority over canonical attention and recurrent baselines: 
+
+All MemOnce variants ( r ∈ { 1, 2, 4, 8}) consistently outperform the 365M Transformer ( 0.5185 Avg.), SWA (0.5160 ), MLA ( 0.5187 ), YOCO ( 0.5197 ), and even the 1.4× larger 516M Transformer ( 0.5146 ) in overall downstream accuracy, while avoiding the severe long-range perplexity spikes of pure recurrent architectures on WikiText and PTB ( 26 .03 /223 .14 for GDN and 26 .70 /223 .33 for Kimi-Linear vs. 19 .28 –21 .08 /138 .31 –151 .80 
+
+for MemOnce). Meanwhile, directly reusing raw final-layer KV states in LastKV yields 11 .13 validation perplexity and 0.5109 Avg., trailing all MemOnce variants, while MemCache-GRM degrades to 15 .60 validation perplexity and 0.4578 Avg. (2) Resilience across compression ratios: MemOnce maintains remarkably stable perplexity and downstream performance from r = 1 up to r = 8 , reaching 0.5263 Avg. at r = 1 (the best across all models). 
+
+F.6 Qualitative Analysis 
+
+We extract attention weights across the eight full-attention layers (layers 4, 8, . . . , 32 ) of MemOnce-4B to inspect both memory pathways. For memory writing , we feed 512 -token segments embedding factual statements amidst filler text through the memory encoder and measure the attention difference from the trailing 64 memory tokens to the factual span versus a length-matched filler span. For memory reading on LoCoMo, we construct 11 Table 14 Inference efficiency scaling from 32K to 1M tokens (4B scale). We report prefill time (s), estimated FLOPs (with effective hardware throughput in TFLOP/s), decoding throughput (tokens/s), active memory cache footprint, and offloaded SSD/CPU memory pool size. Single-GPU (80GB H100) out-of-memory (OOM) baselines are evaluated with multi-GPU. 
+
+Method Prefill Time (s) ↓ Prefill FLOPs (Throughput) Decode (tok/s) ↑ Active Memory Cache ↓ Offloaded SSD/CPU 32K Context Length 
+
+Qwen3.5 (Baseline) 0.87 308T (354 TF/s) 26.5 1.05 GB —M+ (Wang et al., 2025a) 24.40 466T (19 TF/s) 24.8 2.50 GB 4.60 GB 
+
+δ-Mem (Lei et al., 2026) 2.24 634T (283 TF/s) 21.6 4.5 KB —EvoEmbedding (Nie et al., 2026a) 5.02 525T (105 TF/s) 28.2 2.6 MB —Metis (Zhang et al., 2026) 4.22 221T (52 TF/s) 27.5 80.1 MB —
+
+MemOnce (Ours) 1.38 230T (167 TF/s) 29.4 20.0 MB 20.0 MB 
+
+128K Context Length 
+
+Qwen3.5 (Baseline) 6.66 2.29P (344 TF/s) 18.7 4.05 GB —M+ (Wang et al., 2025a) 105.42 1.86P (18 TF/s) 24.4 2.50 GB 16.60 GB 
+
+δ-Mem (Lei et al., 2026) 19.91 7.28P (366 TF/s) 21.2 4.5 KB —EvoEmbedding (Nie et al., 2026a) 20.04 2.10P (105 TF/s) 29.0 2.6 MB —Metis (Zhang et al., 2026) 16.40 884T (54 TF/s) 28.0 80.1 MB —
+
+MemOnce (Ours) 5.11 921T (180 TF/s) 29.0 25.0 MB 80.0 MB 
+
+512K Context Length 
+
+Qwen3.5 (Baseline) 77.47 26.03P (336 TF/s) 12.8 16.05 GB —M+ (Wang et al., 2025a) 645.66 7.46P (12 TF/s) 23.6 2.50 GB 35.90 GB 
+
+δ-Mem (Lei et al., 2026) 304.26 105.14P (346 TF/s) 16.5 4.5 KB —EvoEmbedding (Nie et al., 2026a) 81.26 8.40P (103 TF/s) 28.7 2.6 MB —Metis (Zhang et al., 2026) 65.82 3.53P (54 TF/s) 28.3 80.1 MB —
+
+MemOnce (Ours) 20.98 3.69P (176 TF/s) 29.3 25.0 MB 320.0 MB 
+
+1M Context Length 
+
+Qwen3.5 (Baseline) 286.86 97.10P (338 TF/s) 8.4 32.05 GB —M+ (Wang et al., 2025a) 1479.50 14.92P (10 TF/s) 21.5 2.50 GB 35.90 GB 
+
+δ-Mem (Lei et al., 2026) 1065.88 412.94P (387 TF/s) 18.0 4.5 KB —EvoEmbedding (Nie et al., 2026a) 160.33 16.81P (105 TF/s) 29.1 2.6 MB —Metis (Zhang et al., 2026) 132.26 7.07P (53 TF/s) 28.0 80.1 MB —
+
+MemOnce (Ours) 41.36 7.37P (178 TF/s) 29.3 25.0 MB 640.0 MB 
+
+Table 15 Comprehensive pre-training comparison of architectural baselines and MemOnce. We report language modeling perplexity ( ↓) across five corpora and zero-shot accuracy ( ↑) across eight downstream benchmarks ( Avg. ).    
+
+> Model Params Val PPL
+
+↓ WT2 ↓ WikiText ↓ LAMB. ↓ PTB ↓ PIQA Hella. Wino. ARC-E ARC-C SciQ BoolQ LAMB. Avg. ↑
+
+> Transformers & Attention Variants
+
+Transformer 516M 10.57 13.16 19.83 31.55 127.64 0.661 0.422 0.509 0.505 0.287 0.832 0.542 0.359 0.5146 Transformer 365M 10.97 13.68 20.90 33.24 134.34 0.657 0.404 0.515 0.524 0.282 0.832 0.582 0.352 0.5185 SWA 365M 11.00 13.72 20.52 32.69 131.13 0.656 0.410 0.514 0.501 0.274 0.832 0.597 0.345 0.5160 MLA (Liu et al., 2024) 387M 11.20 13.93 23.07 33.37 135.89 0.670 0.397 0.507 0.506 0.277 0.832 0.619 0.342 0.5187 
+
+> Linear & Recurrent Architectures
+
+DeltaNet 309M 11.69 15.07 23.75 33.71 151.01 0.656 0.379 0.510 0.491 0.268 0.807 0.603 0.308 0.5028 GDN (Yang et al., 2025) 410M 11.11 14.24 26.03 33.37 223.14 0.676 0.406 0.503 0.541 0.272 0.842 0.606 0.340 0.5231 Kimi-Linear (Kimi Team et al., 2026) 315M 11.15 14.22 26.70 33.44 223.33 0.664 0.402 0.521 0.531 0.284 0.840 0.602 0.357 0.5250 
+
+> Efficient & Memory Architectures
+
+Hybrid Backbone 394M 10.70 13.04 19.56 32.61 146.76 0.665 0.420 0.517 0.514 0.271 0.834 0.587 0.351 0.5199 YOCO (Sun et al., 2024b) 387M 10.97 13.63 24.38 35.18 346.33 0.674 0.407 0.511 0.516 0.265 0.826 0.597 0.361 0.5197 LastKV (Cai et al., 2026) 365M 11.13 13.78 21.12 34.04 148.66 0.655 0.400 0.505 0.509 0.278 0.815 0.588 0.337 0.5109 MemCache-GRM (Behrouz et al., 2026) 309M 15.60 22.77 29.84 42.47 178.42 0.626 0.335 0.499 0.475 0.257 0.728 0.566 0.176 0.4578 
+
+> MemOnce (Ours) at Different Compression Ratios
+
+MemOnce ( r = 1 ) 400M 10.77 13.33 19.28 32.69 144.83 0.676 0.422 0.496 0.524 0.275 0.847 0.619 0.352 0.5263 
+
+MemOnce ( r = 2 ) 400M 10.85 13.69 19.84 32.03 138.31 0.668 0.414 0.518 0.514 0.290 0.835 0.590 0.360 0.5235 MemOnce ( r = 4 ) 400M 10.88 13.97 20.66 32.29 147.16 0.675 0.414 0.502 0.513 0.283 0.836 0.608 0.370 0.5253 MemOnce ( r = 8 ) 400M 10.89 14.05 21.08 32.45 151.80 0.678 0.419 0.518 0.523 0.277 0.817 0.616 0.340 0.5235 the context from the 16 -block short-term window ( State prefix ), the top-16 retrieved long-term blocks, and the query ( Question ), and partition the attention of teacher-forced answer tokens across the answer-carrying block ( Answer ), the remaining 15 retrieved blocks ( Other ), Question , and State prefix . Writing results are averaged over 60 synthetic conditions, and reading results over 60 LoCoMo questions whose gold answers appear verbatim in the retrieved blocks. Figure 7 illustrates attention patterns during memory writing and reading across the full-attention layers of the Qwen3.5-4B backbone: • Selective Attention during Writing: As shown in Figure 7(a), while shallow layers treat factual and filler spans similarly, middle-to-deep layers assign substantially higher attention to factual spans than to filler context. This suggests that the trailing memory tokens preferentially attend to factual content during encoding. • Targeted Evidence Grounding during Reading: Figure 7(b) demonstrates a clear three-stage progression 12 4 8 12 16 20 24 28 32            
+
+> Full-attention layer
+> 2
+> 0246810
+> Attention difference (×10  3)
+> 1.3 -1.2 1.0 3.1 7.1 7.5 6.9 3.5
+> (a) Memory Writing
+> 4812 16 20 24 28 32
+> Full-attention layer
+> 020 40 60
+> Attention share (%)
+> (b) Memory Reading
+> Question Answer State prefix Other
+
+Figure 7 Attention dynamics during memory writing and reading across full-attention layers. (a) Memory Writing: Attention difference from trailing memory tokens to factual spans versus filler spans. Middle-to-deep layers selectively attend to salient facts over background noise. (b) Memory Reading: Attention distribution (%) from generated answer tokens across Question , Answer , remaining retrieved blocks ( Other ), and the short-term window ( State prefix ). Attention to the answer-carrying block peaks at layers 20–24. Error bars and shading indicate ±1 standard deviation. 
+
+Table 16 Comparison of memory state learning paradigms under Eq. (12) .     
+
+> Paradigm Active Memory Mechanism State Cache State Optimization Theoretical Property under Eq.
+
+(13) Transformer Full KV cache {(Kl, V l)}Ll=1 O(LN D ) End-to-end LNTP ∆I = 0 , but O(LN D ) depth-time redundancy Linear / GDN Recurrent matrix {SlN ∈ Rd×d}Ll=1 O(Ld 2) Local Llocal + outer LNTP ∆I > 0 grows with N due to rank bottleneck   
+
+> MemOnce (Ours) Indexed
+
+Mt decoded via uθ (Mt) on demand O(CD ) End-to-end LNTP ∆I ≈ 0 via query-conditioned sparsity 
+
+when generating answers from on-demand decoded KV caches. Shallow layers primarily attend to the 
+
+Question . Attention to the Answer block peaks at layers 20–24, exceeding both the question and the other retrieved blocks combined ( Other ). The final layer shifts attention back toward the Question . This pattern suggests that the frozen backbone can selectively attend to answer-relevant memory through the decoded KV states. 
+
+## G Theoretical Analysis of Memory State Learning 
+
+We provide an information-theoretic and optimization analysis of Eq. (1) to explain why existing architectures struggle with long-horizon recall and how MemOnce resolves this bottleneck. 
+
+G.1 Problem Formulation 
+
+Given historical context x1: t−1 of total length N and continual input xt, learning an active memory state 
+
+Mt = fθ(xt, x 1: t−1) to predict target yt under a bounded active state budget C ≪ N can be formulated as minimizing a variational upper bound on the conditional entropy: 
+
+min 
+
+θ E(x1: t,y t)
+
+ − log πθ (yt | xt, M t)| {z }
+
+≥ H(yt|xt,M t)
+
+s.t. Mt = fθ (xt, x 1: t−1), Size( Mt) ≤ C. (12) Conditioned on xt, Mt is a deterministic function of x1: t−1, forming the Markov chain yt ↔ x1: t−1 → Mt | xt.By the data processing inequality and the chain rule of mutual information, compressing x1: t−1 into Mt
+
+induces a non-negative information loss gap :
+
+∆I(Mt) ≜ I(x1: t−1; yt | xt) − I(Mt; yt | xt) = H(yt | xt, M t) − H(yt | xt, x 1: t−1) = I(x1: t−1; yt | xt, M t) ≥ 0.
+
+(13) Minimizing Eq. (12) thus requires both driving ∆I(Mt) → 0 under Size( Mt) ≤ C (so that Mt forms a compact sufficient statistic of x1: t−1 with respect to (xt, y t)) and tightening the variational decoding gap between 
+
+πθ (yt | xt, M t) and the true posterior. 13 G.2 Theoretical Analysis 
+
+Limitations of Query-Agnostic Memory States. As summarized in Table 16, standard architectures construct Mt = fθ(x1: t−1) independently of xt. Because Mt is fixed prior to observing xt, achieving 
+
+∆I(Mt) ≈ 0 across all potential future queries requires Mt to preserve the full historical entropy Ω( N ),creating a fundamental dilemma between cache complexity and recall fidelity: • Cross-Layer Redundancy in Full KV Caches: Standard Transformers achieve ∆I(Mt) = 0 under next-token prediction ( LNTP ) by retaining all intermediate states M KV  
+
+> t
+
+= {(Kl, V l)}Ll=1 . However, because residual blocks accumulate contextual representations additively via HL = H0 + PLl=1 Block l(Hl−1),the final-layer states HL already consolidate the multi-layer semantic trajectory into a representation directly decodable by lightweight linear projections uθ, capturing virtually the same usable predictive information ( I(M KV  
+
+> t
+
+; yt | xt) ≈ I(HL; yt | xt)). Caching all L layers across all N tokens therefore incurs 
+
+O(LN D ) complexity to store redundant intermediate states. • Rank Bottleneck and Objective Mismatch in Linear Models: Linear and delta-rule models (Yang et al., 2025; Sun et al., 2024a; Lei et al., 2026) compress x1: t−1 into fixed-size matrices SlN ∈ Rd×d via the online delta rule in Eq. (3). With write gate βlτ (acting as the online step size) and erase gate αlτ , this recurrence executes one-step online gradient descent on an exponentially weighted local reconstruction loss defined prior to observing xt:
+
+Llocal (S; x1: t−1) ≜
+
+> N
+
+X 
+
+> τ=1
+
+βlτ
+
+
+
+> N
+
+Y 
+
+> j=τ+1
+
+αlj
+
+ Sk lτ − vlτ 
+
+> 22
+
+. (14) Because S ∈ Rd×d can losslessly map at most d linearly independent key directions, when N > d ,the rank constraint rank( SlN ) ≤ d ≪ N renders the associative system in Eq. (14) overdetermined, inducing cross-token interference and exponential decay QNj=τ +1 αlj on early states. Crucially, because compression is query-agnostic ( ∂S lN /∂x t = 0 ), task-irrelevant tokens with I(xτ ; yt | xt) = 0 compete equally for finite rank capacity and overwrite historical signals critical for yt, causing ∆I(M Linear  
+
+> t
+
+) to grow monotonically with N .
+
+Query-Conditioned Sufficiency in MemOnce. MemOnce overcomes this trade-off through the three-stage factorization Gt = gθ(x1: t−1), Mt = iθ(xt, G t), and Ct = uθ(Mt) in Eq. (5), decoupling the persistent memory bank Gt from the active memory state Mt ⊆ Gt. By the chain rule of mutual information, the total information loss gap in Eq. (13) decomposes exactly across our two compression stages: 
+
+∆I(Mt) = I(x1: t−1; yt | xt) − I(Gt; yt | xt)| {z } 
+
+> ∆Iwrite (Gt): compression loss in gθ
+
++ I(Gt \ Mt; yt | xt, M t)
+
+| {z } 
+
+> ∆Iroute (Mt): sparse routing loss in iθ
+
+. (15) MemOnce drives both terms toward zero while bounding the active cache to O(CD ):• Depth-Time Compression without Rank Overwriting ( ∆Iwrite ≈ 0): Within each historical segment 
+
+xi, interleaved linear and causal attention blocks continuously aggregate local sequential context into the trailing final-layer states hLi, −ni/r :. Caching only Gt ∈ R⌊N/r ⌋× D eliminates the layer factor L
+
+and compresses sequence length by r without collapsing history into a fixed-rank matrix, empirically preserving I(Gt; yt | xt) ≈ I(x1: t−1; yt | xt), as verified by our compression ablations (Table 8). • Query-Aware Sparse Routing and On-Demand Decoding ( ∆Iroute ≈ 0): For any realized query xt,predictive information in Gt is highly sparse: only a small subset of historical segments carries non-zero conditional mutual information with yt. By maximizing the InfoNCE contrastive bound in Eq. (11) over ground-truth evidence states m+ ∈ Glong  
+
+> t
+
+, the indexing module iθ concentrates task-relevant mutual information into the retrieved subset Mt ∈ RC×D such that unselected states satisfy 
+
+I(Gt \ Mt; yt | xt, M t) ≈ 0. Subsequently, uθ decodes Mt on demand into layer-specific KV caches 
+
+Ct = {(Kl
+
+> Proj
+
+(Mt), V l
+
+> Proj
+
+(Mt)) } for the attention layers, and end-to-end optimization under LNTP directly minimizes the variational upper bound in Eq. (12) without local reconstruction proxies. 14

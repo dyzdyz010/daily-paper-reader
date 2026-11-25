@@ -1,12 +1,177 @@
 {
-  "generated_at": "2026-11-24T04:07:22.299046+00:00",
-  "updated_date": "20261124",
+  "generated_at": "2026-11-25T03:08:17.693770+00:00",
+  "updated_date": "20261125",
   "carryover_days": 9,
   "tag_states": {
     "agent-memory": {
-      "updated_date": "20261124",
+      "updated_date": "20261125",
       "carryover_days": 9,
-      "items": []
+      "items": [
+        {
+          "id": "2611.29804v1",
+          "source": "arxiv",
+          "title": "FORGETMENOT: Auditing Memory Driven Privacy Risks in Commercial AI Agents",
+          "abstract": "Commercial AI agents increasingly incorporate long-term memory (both persistent and chat-history) to enable more accurate and personalized responses, raises significant privacy and policy concerns. Yet little is known about user privacy risks associated with memory behavior, in particular, about memory storage, disclosure, transparency and deletion control. To bridge this gap, we propose FORGETMENOT, an auditing framework for analyzing the privacy risks of long term memory in commercial AI agents. Using our framework, we collect around 3800 multi-turn sessions comprising around 6M tokens across five popular AI agents. Our results show that agents store a wide range of personal attributes, including demographics, health, and sensitive details. Furthermore, user visible memory reveals substantially less (around 20% on average) attributes than the agents store in practice, exposing a significant transparency gap. Our stealth memory injection (SMI) technique further increases the amount of personal and sensitive attribute stored in memory, raising it by 25% and 15% for Copilot and Claude, respectively. We further observed memory deletion control is unreliable, as all five agents exhibit non-zero post deletion leakage, including health and self-harm related attributes. Finally, we demonstrate the feasibility of memory disclosure to a 3rd-party email recipient as a proof-of-concept, as Gemini shows 31.9% leakage rate. Together, our findings reveal notable privacy risks in commercial agents memory. Finally, we discuss both design implications and regulatory recommendations to protect users memory privacy in commercial agents.",
+          "authors": [
+            "Ismat Jarin",
+            "Tu Le",
+            "Athina Markopoulou"
+          ],
+          "primary_category": "cs.CR",
+          "categories": [
+            "cs.CR"
+          ],
+          "published": "2026-11-22T22:10:40+00:00",
+          "link": "https://arxiv.org/pdf/2611.29804v1",
+          "tags": [
+            "keyword:agent-memory",
+            "query:agent-memory"
+          ],
+          "llm_score": 8.0,
+          "llm_evidence_en": "Audits privacy risks of long-term memory in commercial AI agents",
+          "llm_evidence_cn": "审计商用AI智能体长期记忆的隐私风险",
+          "llm_evidence": "审计商用AI智能体长期记忆的隐私风险",
+          "canonical_evidence": "审计商用AI智能体长期记忆的隐私风险",
+          "llm_tldr_en": "Proposes FORGETMENOT framework to analyze memory-driven privacy risks, collecting 3800 sessions from five agents revealing storage of sensitive personal attributes.",
+          "llm_tldr_cn": "针对商用AI智能体长期记忆的隐私隐患，提出FORGETMENOT审计框架，采集3800个多轮会话，发现智能体存储大量个人敏感信息，凸显记忆隐私和透明性问题。",
+          "llm_tldr": "针对商用AI智能体长期记忆的隐私隐患，提出FORGETMENOT审计框架，采集3800个多轮会话，发现智能体存储大量个人敏感信息，凸显记忆隐私和透明性问题。",
+          "llm_tags": [
+            "query:agent-memory"
+          ],
+          "matched_query_tag": "query:agent-memory",
+          "matched_query_text": "long-term memory in AI agents",
+          "matched_requirement_id": "req-5",
+          "selection_source": "carryover_cache",
+          "paper_id": "2611.29804v1",
+          "carry_days": 1
+        },
+        {
+          "id": "2611.30412v1",
+          "source": "arxiv",
+          "title": "DMC-5: Dual-Model Collaboration with Cache-aware Context Compression for Long-horizon Agents",
+          "abstract": "Long-horizon agents repeatedly feed an ever-growing interaction trajectory to a specialized agent model. Prefix caching reuses computation over repeated history, but cannot prevent context growth or remove information irrelevant to the current decision. This is especially costly when the specialized agent lacks the cached-input discounts available to general-purpose models, making trajectory compression a natural alternative. However, existing compression methods on selective context risk losing global information, recursively rewriting summary leads to semantic drift, while repeatedly recompressing the full history shifts the growing cost to the compressor. Therefore, we introduce DMC-5 (Dual-Model Collaboration with CaChe-aware Context Compression), an asymmetric framework that assigns full-history integration to a general compression model and action generation to a specialized agent model. DMC-5 maintains the raw trajectory as an Append-only Canonical View, preserving global access while allowing the compressor to reuse a stable historical prefix instead of recursively rewriting or recomputing prior context. The agent operates only on a compact Decision View with recent raw interactions, reducing repeated input while retaining the information needed for the next action. DMC-5 further incorporates YAMATO (integritY-Aware Memory Abstractions for Tool Operations) to preserve execution-critical information during lossy compression. Experiments on AppWorld, OfficeBench, and 8-objective QA show that DMC-5 reduces agent model input by 38.5-57.0% and end-to-end cost by 14.5-28.0% with 78.0-85.0% compressor cache-hit rates, while improving task performance by 1.0-5.8% over the uncompressed baseline.",
+          "authors": [
+            "Haochen Li",
+            "Xiaobing Tu",
+            "Yinggui Wang",
+            "Jinkui Ren",
+            "Xiantao Zhang"
+          ],
+          "primary_category": "cs.AI",
+          "categories": [
+            "cs.AI"
+          ],
+          "published": "2026-11-23T10:12:52+00:00",
+          "link": "https://arxiv.org/pdf/2611.30412v1",
+          "tags": [
+            "keyword:agent-memory",
+            "query:agent-memory"
+          ],
+          "llm_score": 8.0,
+          "llm_evidence_en": "Cache-aware context compression for long-horizon agents",
+          "llm_evidence_cn": "面向长时程智能体的缓存感知上下文压缩",
+          "llm_evidence": "面向长时程智能体的缓存感知上下文压缩",
+          "canonical_evidence": "面向长时程智能体的缓存感知上下文压缩",
+          "llm_tldr_en": "Combines dual-model collaboration with cache-aware compression to manage growing trajectories, avoiding semantic drift and cost overhead.",
+          "llm_tldr_cn": "针对长时程智能体上下文不断增长的问题，提出双模型协作与缓存感知压缩结合的方法，在保留全局信息的同时降低计算开销。",
+          "llm_tldr": "针对长时程智能体上下文不断增长的问题，提出双模型协作与缓存感知压缩结合的方法，在保留全局信息的同时降低计算开销。",
+          "llm_tags": [
+            "query:agent-memory"
+          ],
+          "matched_query_tag": "query:agent-memory",
+          "matched_query_text": "agent memory system design",
+          "matched_requirement_id": "req-4",
+          "selection_source": "carryover_cache",
+          "paper_id": "2611.30412v1",
+          "carry_days": 1
+        },
+        {
+          "id": "2611.29062v1",
+          "source": "arxiv",
+          "title": "HyperHarness: Learning to Generate Personalized Agent Harnesses from User Histories",
+          "abstract": "Personalized LLM agents rely on an agent harness, the surrounding memory and control code, to connect user history with downstream decisions. Existing methods typically employ either a single shared memory workflow across all users, which is efficient to deploy but cannot adapt how evidence is retrieved and interpreted across diverse histories, or per-user harness optimization, which customizes behavior for each user but requires costly repeated candidate evaluation at deployment and suffers from sparse, noisy supervision in raw logs. To address this trade-off, we present HyperHarness, a framework that learns a shared history-to-harness generator to synthesize executable, user-specific retrieval and answer-guidance code directly from user histories. Given a user's permitted history, HyperHarness prompts a construction LLM to write personalized retrieval and guidance functions, while downstream task scores across training users supervise iterative refinements to the shared generator without reference harnesses or answering-model updates. At deployment, the frozen generator constructs a harness for each unseen user in a single pass from history alone, eliminating per-user task-scored search. Across three benchmarks (PersonaMemv3, Mem-PAL, and MemoryCD) and three answering models (Qwen3.5-9B, Qwen3.8-27B, and GPT-5.6-Luna), HyperHarness achieves the highest aggregate score in seven of nine settings and ranks second in the remaining two, improving over the strongest baselines by up to 5.95 points while cutting matched answer-time tokens by 90.32% over long-context prompting. Analyses show that optimization tailors context allocation to each executor, transfers to unseen user clusters, and amortizes adaptation costs.",
+          "authors": [
+            "Zhaoxuan Tan",
+            "Jiachen Zhao",
+            "Jingbo Yang",
+            "Zheyuan Liu",
+            "Chuhan Wang",
+            "Pei Zhou",
+            "Mengting Wan",
+            "Meng Jiang"
+          ],
+          "primary_category": "cs.CL",
+          "categories": [
+            "cs.CL"
+          ],
+          "published": "2026-11-21T21:57:03+00:00",
+          "link": "https://arxiv.org/pdf/2611.29062v1",
+          "tags": [
+            "keyword:agent-memory",
+            "query:agent-memory"
+          ],
+          "llm_score": 8.0,
+          "llm_evidence_en": "Learns personalized agent harnesses from user histories for memory and control",
+          "llm_evidence_cn": "从用户历史学习个性化智能体记忆与控制代码",
+          "llm_evidence": "从用户历史学习个性化智能体记忆与控制代码",
+          "canonical_evidence": "从用户历史学习个性化智能体记忆与控制代码",
+          "llm_tldr_en": "Proposes HyperHarness to learn shared history-to-harness generator that synthesizes user-specific retrieval and answer-guidance code, balancing efficiency and personalization.",
+          "llm_tldr_cn": "针对个性化LLM智能体中共享记忆工作流与每用户优化之间的权衡，提出HyperHarness框架，从用户历史学习生成用户特定的检索与答案引导代码。",
+          "llm_tldr": "针对个性化LLM智能体中共享记忆工作流与每用户优化之间的权衡，提出HyperHarness框架，从用户历史学习生成用户特定的检索与答案引导代码。",
+          "llm_tags": [
+            "query:agent-memory"
+          ],
+          "matched_query_tag": "query:agent-memory",
+          "matched_query_text": "agent memory system design",
+          "matched_requirement_id": "req-4",
+          "selection_source": "carryover_cache",
+          "paper_id": "2611.29062v1",
+          "carry_days": 1
+        },
+        {
+          "id": "2611.29912v1",
+          "source": "arxiv",
+          "title": "SuperNav-1.5: Structured Spatial Memory For Agentic Navigation Systems",
+          "abstract": "This paper addresses the challenge of scene-level memory design for efficient navigation across sessions and successive object goals. Recent methods commonly represent a scene using scene graphs or image--text records. However, dense scene-graph representations impose substantial reasoning and context overhead on multimodal large language models, while image--text records cannot be directly converted into executable geometric routes. To address these limitations, we propose SuperNav-1.5, an agentic navigation system equipped with a structured spatial memory constructed by the agent. The memory consists of an area-segmented occupancy map annotated with agent-maintained, map-grounded memory nodes. This map guides the agent toward unvisited areas and provides executable routes to known locations. For multi-session navigation, we introduce agent-guided relocalization, whereby the agent infers an area prior from current observations and stored memory records to constrain geometric matching and localize the robot within the stored map. Together, these designs enable efficient navigation across session and successive object goals. Experiments show that our method outperforms baselines on single-object, multi-object, and demand-driven navigation benchmarks, with particularly strong gains in path efficiency. Multi-session evaluation demonstrates that the constructed memory can be reused, while deployment on a real quadruped robot further shows the system's applicability.",
+          "authors": [
+            "Jiarui Guo",
+            "Jinkai Zhang",
+            "Yuanhong Yu",
+            "Yongchen Zai",
+            "Futang Zhu",
+            "Ruizhen Hu",
+            "Sida Peng",
+            "Xiaowei Zhou"
+          ],
+          "primary_category": "cs.RO",
+          "categories": [
+            "cs.RO"
+          ],
+          "published": "2026-11-23T02:10:43+00:00",
+          "link": "https://arxiv.org/pdf/2611.29912v1",
+          "tags": [
+            "keyword:agent-memory",
+            "query:agent-memory"
+          ],
+          "llm_score": 8.0,
+          "llm_evidence_en": "structured spatial memory for agentic navigation systems",
+          "llm_evidence_cn": "智能体导航系统的结构化空间记忆",
+          "llm_evidence": "智能体导航系统的结构化空间记忆",
+          "canonical_evidence": "智能体导航系统的结构化空间记忆",
+          "llm_tldr_en": "Proposes SuperNav-1.5 with structured spatial memory built by the agent, using area-segmented occupancy map and map-grounded memory nodes for efficient navigation.",
+          "llm_tldr_cn": "该文针对智能体导航中场景级记忆设计问题，现有场景图表示推理开销大、图像-文本记录无法直接生成几何路径。提出SuperNav-1.5，配备由智能体构建的结构化空间记忆，包括区域分割占据地图和地图锚定记忆节点。该记忆引导智能体探索未访问区域并提供可执行路径，实验表明其能高效支持跨会话和连续目标导航，为导航智能体的空间记忆架构提供了新方案。",
+          "llm_tldr": "该文针对智能体导航中场景级记忆设计问题，现有场景图表示推理开销大、图像-文本记录无法直接生成几何路径。提出SuperNav-1.5，配备由智能体构建的结构化空间记忆，包括区域分割占据地图和地图锚定记忆节点。该记忆引导智能体探索未访问区域并提供可执行路径，实验表明其能高效支持跨会话和连续目标导航，为导航智能体的空间记忆架构提供了新方案。",
+          "llm_tags": [
+            "query:agent-memory"
+          ],
+          "matched_query_tag": "query:agent-memory",
+          "matched_query_text": "memory architecture for AI agents",
+          "matched_requirement_id": "req-3",
+          "selection_source": "carryover_cache",
+          "paper_id": "2611.29912v1",
+          "carry_days": 1
+        }
+      ]
     }
   }
 }

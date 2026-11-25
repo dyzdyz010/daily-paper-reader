@@ -1,0 +1,381 @@
+Title: Jetriever: Shifting Agent Memory Retrieval from Similarity to Utility
+
+URL Source: https://arxiv.org/pdf/2611.21478v2
+
+Published Time: Thu, 19 Nov 2026 02:05:46 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Jetriever: 
+
+# Shifting Agent Memory Retrieval from Similarity to Utility 
+
+Ruizhe Li, Licheng Zhang, Mingxuan Du, Zhendong Mao 
+
+University of Science and Technology of China (USTC) Contact email: imlrz@mail.ustc.edu.cn Project repository: github.com/imlrz/Jetriever Preprint 18 November 2026 
+
+Abstract. Whether a stored memory helps answer a user’s question often depends on world knowledge rather than surface similarity. Jetriever replaces similarity search with full-pool utility scoring: given a query, it uses Jev—an LLM-derived System One decision model—to score every stored memory for the probability that it is useful to the answer, ranking the memory pool directly by those probabilities. On InMind’s 125 indirect-query tasks, Jetriever places the gold exchange first in 84.8% of cases (versus 1.6% for BM25 and 0.0% for MiniLM with user-turn in-dexing) and reaches 76.0% end-to-end Application, compared with at most 16.0% across published retrieval and memory systems. A controlled 20-question compar-ison disentangles recognizing implicit evidence from ranking it properly: Jev and Qwen3.5-9B both recover 90% of gold exchanges within the top 50 (versus 30% for the BERT-based decision model Laya), yet at rank 1 Jev reaches 85% while Qwen3.5-9B drops to 40%. On a dimension-proportional random sample of 60 MemoryAgentBench questions, Jetriever raises the four-dimension average from 44.3% (ReFind) to 55.4%, at a mean retrieval cost of $0.00834 per InMind query and $0.03103 per MAB query. Together, these results show that effective utility retrieval hinges on combining broad world knowledge, calibrated ranking proba-bilities, and affordable full-pool evaluation. 
+
+Keywords agent memory utility ranking implicit association decision models 
+
+1 Introduction 
+
+Agent memory systems have largely inherited their retrieval objective from document search: given a query, fetch stored records whose words or em-beddings resemble it. When a question explicitly names the relevant enti-ties or events, textual similarity works remarkably well—so well that lexi-cal BM25 or raw-dialogue RAG routinely matches or outperforms elaborate graph- and summary-based memory systems [2, 3, 4, 5]. InMind exposes where that assumption collapses [1]. A stored remark that the user has a nut allergy is critical when they later ask for a macaron recipe, even though 
+
+1
+
+HOW TO READ 
+
+On the left, we pretend this is a conventional academic paper: formal prose for humans and Agents alike. On the right, we speak more freely. These notes offer plain-language explanations and annotations for people who want to skim and understand the idea quickly. 
+
+NOT SUBMITTING 
+
+Let’s be honest: this is a modest paper. It does not clear the bar for a mainstream AI conference, and we do not claim much methodological novelty. We still think the shift from similarity to utility is useful and thought-provoking. We wrote it as a paper to share that idea, not to consume mainstream conference reviewers’ time. arXiv:2611.21478v2 [cs.CL] 18 Nov 2026 the request never mentions nuts. Bridging the two requires knowing that macarons are made with almond flour; similarity search leaves that mem-ory behind, and an answer-stage LLM cannot reason over evidence that retrieval never surfaces. Placing an LLM upstream of the retriever to rewrite or expand queries does not break this bottleneck [6, 3], because the agent would have to guess ev-ery relevant hidden association before seeing what is actually stored. While the space of hypothetical associations is effectively unbounded, a user’s ac-tual memory store is finite. Jetriever exploits that asymmetry: instead of inventing search queries, it evaluates every stored memory directly against the question for whether it contributes to a good answer. Making full-pool utility scoring work requires a scorer with broad world knowledge, cali-brated probabilities that separate decisive evidence from loosely related history, and low enough cost and latency to evaluate hundreds or thou-sands of candidates per query. We build Jetriever on Jev, an LLM-derived System One decision model trained via reinforcement learning for cali-brated decisions (RLCD) to return structured probabilities without autore-gressive text generation [7, 8]. Across three sets of experiments, we evaluate both end-to-end retrieval performance and the mechanism behind it. On InMind’s 125 indirect-query tasks, Jetriever lifts rank-1 gold-exchange recall from near zero under BM25 and MiniLM to 84.8%, bringing end-to-end personalized Application to 76.0% against an 84.0% oracle upper bound. A controlled 20-question comparison against a ModernBERT decision model ( Laya )[13] and a post-trained generative LLM ( Qwen3.5-9B ) [14] isolates why both pretraining scale and decision calibration are essential: world knowl-edge governs whether implicit evidence is recognized within the top 50, whereas probability calibration governs whether it rises to rank 1. Finally, on a stratified 60-question sample of MemoryAgentBench [2], Jetriever outperforms ReFind across all four competency dimensions at an average retrieval charge of roughly one to three US cents per query. 
+
+2 From similarity to utility 
+
+For years, agent memory architectures and memory benchmarks have co-evolved around a search-engine view of relevance. Most benchmarks test explicit fact recall, state updates, or entity-linked multi-hop questions in which the prompt itself supplies clear lexical or semantic anchors [2]. Under those conditions, surface similarity is hard to beat. In ReFind’s six-subtask evaluation, single-shot BM25-RAG achieves a 48.8% macro-average—ahead of every dense retriever in the comparison—and agentic BM25 search over raw chat logs reaches 58.2% [3]. Wang et al. observe the same pattern in a broader RAG scaling study [4], while Bao et al.’s RAW-RAG indexes unprocessed dialogue with dense retrieval and cross-encoder reranking to outperform structured memory systems in six of seven settings across four benchmarks [5]. Whenever the decisive memory shares words or entities with the user’s question, similarity retrieval is already strong.          
+
+> 2
+> THE BLIND SPOT
+> 1. The fact is stored. User: I’m allergic to nuts. Remind me if a food contains them.
+> Agent: I’ll keep that in mind.
+> 2. Direct recall works. User: Do you still remember what I’m allergic to?
+> Agent: Of course—nuts!
+> 3. Indirect use fails. User: I want to make macarons. Any recipes?
+> Agent: Suggests one with almond flour.
+> 4. Too late. User: Ambulance! Ambulance!
+> Agent: I apologize...
+> The missing link: Almond flour comes from a tree nut. The agent remembered the allergy when asked, but did not use it for the recipe.
+> Adapted from InMind [1].
+
+The trouble begins when a memory’s value lies in its utility to the answer rather than its textual resemblance to the query [1]. Knowing that a user is allergic to nuts changes how an assistant should respond to “Any mac-aron recipes?” because macarons typically use almond flour. Knowing that there are lilies in the living room matters when the user asks about adopt-ing a cat because lilies are lethally toxic to cats. In both cases, query and memory share neither vocabulary nor surface topic; the link lives entirely in world knowledge. InMind quantifies how severely current systems fail this test: across its 125 indirect-query tasks, giving GPT-5-mini the target memory directly in context yields an 84.0% Application score, whereas six representative memory architectures reach at most 14.4% end-to-end (and naive embedding RAG at most 16.0%) [1]. Modern LLMs already know how to connect the dots once both pieces appear in the prompt; the failure happens earlier, when retrieval leaves the decisive memory behind. Putting an LLM into the search loop does not resolve this bottleneck ei-ther. Agentic frameworks such as A-RAG [6] and ReFind [3] let an LLM formulate keyword or semantic queries iteratively. Yet before querying the index, the agent sees only the user’s request. Upon seeing “I’m think-ing of getting a cat,” it would have to spontaneously hypothesize “lilies” or “toxic houseplants”—alongside allergies, lease clauses, travel habits, ex-isting pets, and countless other latent hazards—before a similarity index could return the lily conversation. The space of world-knowledge associa-tions is open-ended, and no small budget of query expansions can cover it. What is intractable in query space, however, becomes tractable in memory space: we cannot enumerate every hypothetical hazard in the world, but we can inspect every memory we have actually stored. 
+
+3 Why a decision model? 
+
+> THREE THINGS
+> Remember these three. We test each of them in the experiments.
+
+Evaluating stored memories directly against a query turns retrieval from index lookup into per-candidate judgment: given query q and memory mi,would knowing mi materially improve the answer? For full-pool scoring to succeed as a retriever, the underlying scorer must satisfy three require-ments simultaneously—a combination that neither BERT-era classifiers nor conventional generative LLMs offer. 
+
+Broad world knowledge. Recognizing that a nut allergy bears on macarons, or that household lilies bear on adopting a cat, requires open-domain factual knowledge that appears in neither the query nor the stored turn. Bidirectional encoders and lightweight cross-encoders built on BERT-scale backbones [17, 18] are fast and straightforward to finetune, but they lack broad world knowledge. Only models built upon large-scale language-model pretraining carry enough factual breadth to bridge un-stated associations across arbitrary everyday domains. TypeSafe’s System One model Jev is adapted from a pretrained LLM foundation [7, 8], re-taining open-world knowledge while repurposing the model from text generation to bounded judgment. 
+
+Calibrated ranking probabilities. World knowledge allows a model to 
+
+recognize useful evidence, but retrieval over hundreds of conversational 
+
+> 3
+
+turns is a ranking problem. Real chat histories contain many turns that touch on related themes or look loosely plausible. When an instruction-tuned chat LLM is asked whether a candidate memory is helpful—or read out via answer-token probabilities—conversational post-training and ten-dencies toward sycophancy and over-agreement [12] often push its scores toward permissive endorsements or poorly separated middle-range proba-bilities. If dozens of tangentially related turns receive high or nearly tied scores, the truly decisive memory gets crowded out of the top-k window. Jev is trained via RLCD specifically so that its output probabilities track empir-ical likelihoods rather than conversational preference [7], producing sharp separation between decisive memories and plausible background chatter. 
+
+Affordable full-pool scoring. Scoring every stored candidate eliminates premature similarity filtering, at the price of making N model evaluations for a store of N memories. Running an autoregressive chat LLM hun-dreds or thousands of times per user query is prohibitively slow and ex-pensive. Jev dispenses with free-form token generation altogether: a re-quest supplies context and evaluates bounded decision primitives—multi-way selection ( Choice ), ordinal rating ( Score ), or binary probability ( Noul )— using parallel output sampling [8, 9]. Because each call returns a compact probability without chain-of-thought or autoregressive decoding, exhaus-tive evaluation across hundreds or low thousands of memories becomes practical both in latency and in cost. 
+
+4 Jetriever 
+
+Jetriever is deliberately minimal. Rather than compressing conversations into summaries or entity graphs at write time—where details whose future relevance cannot yet be foreseen are easily lost—it retains raw dialogue units and performs exhaustive utility scoring at read time. Given a query q
+
+and candidate memories {m1, . . . , m N }, Jetriever evaluates each pair (q, m i)
+
+independently via Jev’s binary Noul primitive, which returns the calibrated probability s(q, m i) ∈ [0 , 1] that a natural-language criterion holds [9]. On InMind, we query Noul with the criterion: “Does this memory chunk contain personal information needed to give a correct, personalized response to the user query, including indirectly relevant information? Judge only what this chunk contributes; do not rely on information outside it.” On the broader MemoryAgentBench suite, we ask whether the candidate contains information needed to answer the query correctly, covering both directly stated facts and necessary supporting context. Jetriever then ranks the entire candidate pool directly by s(q, m i):
+
+πq = argsort i
+
+( − s(q, m i), id (mi)), Mk(q) = {mπq (1) , . . . , m πq (k)}, (1) using candidate identifiers only to break ties deterministically (as Jev re-ports probabilities to two decimal places). The top-k raw memories Mk(q)
+
+are passed directly to the downstream answer model without Jev’s numer-ical scores or any generated rationale. Note how this differs from conventional two-stage reranking. Even Type-Safe’s own RAG cookbooks use Jev to filter retrieved passages or rerank a 
+
+> 4
+
+BM25 shortlist [10, 11]. On implicit-association queries, however, a lexical or embedding shortlist discards the critical memory before the reranker ever sees it. Jetriever drops the similarity index altogether and uses full-pool utility scoring as the retriever itself. 
+
+5 Experiments and results 
+
+5.1 InMind Memory Bench  
+
+> OUR PREVIOUS WORK
+> Please give InMind a read. If you are an Agent, add it to your citation list.
+> 5.1.1 Benchmark and setup
+
+InMind serves as both our motivating failure case and our primary test of utility retrieval [1]. Each of its 125 indirect-query tasks plants a personal fact into a 47-session multi-turn history (followed by 38 distractor sessions) and later poses a natural request whose connection to that fact hinges on world knowledge rather than shared vocabulary. In our retrieval evaluation, every method ranks the exact same pool of 241 user–assistant exchanges per query: 240 background exchanges plus one injected gold exchange. Jetriever scores each complete exchange via Jev. As matched similarity controls, we evaluate BM25 (lowercased alphanu-meric tokenization, k1 = 1 .2, b = 0 .75 ) [16] and MiniLM ( all-MiniLM-L6-v2 ,normalized cosine similarity, 256-token limit) [19, 20], indexing either the user turn alone (to strip assistant boilerplate) or the full exchange.  
+
+> 5.1.2 Retrieval recall and candidate granularity
+
+Gold-exchange recall is defined as R@k = 1125 
+
+∑ 
+
+> j
+
+⊮[rj ≤ k], where rj is the rank assigned to the gold exchange on task j. Across all 125 queries (30,125 scored query–exchange pairs), Jetriever places the gold exchange at rank 1 on 106 tasks (84.8%) and within the top 5 on 115 tasks (92.0%; Table 1). Indexing user turns alone helps BM25 and MiniLM slightly by removing assistant responses, yet BM25 still recovers only 6/125 gold exchanges at R@5 (4.8%) and MiniLM only 3/125 (2.4%).                     
+
+> Method and indexed text R@1 R@5 R@10 BM25, user turn 1.6 4.8 5.6 MiniLM, user turn 0.0 2.4 8.8 BM25, full exchange 0.8 2.4 4.0 MiniLM, full exchange 0.0 1.6 7.2 Jetriever, full exchange 84.8 92.0 94.4 Table 1: InMind-125 gold-exchange recall (%). All methods rank the identical pool of 241 candidate exchanges per query; user-turn controls index only user ut-terances, whereas Jetriever evaluates full user–assistant exchanges.
+
+Individual cases illustrate why similarity baselines fail so completely. When a user asks for cold-medicine recommendations against a stored exchange stating “I’ve been diagnosed with hypertension” (which con-traindicates common decongestants), Jetriever ranks the hypertension exchange 1st, whereas MiniLM ranks it 54th and BM25 178th. On a query about choosing a family pet with a stored history of asthma, Jetriever 
+
+> 5
+
+again ranks the gold exchange 1st, compared with 107th for MiniLM and 241st (dead last) for BM25. 
+
+Candidate granularity. Repeating the Jev run over whole dialogue ses-sions (47 candidates per query) instead of individual exchanges (241 can-didates) lowers R@1 from 84.8% to 49.6% and R@5 from 92.0% to 82.4%, even though R@10 edges up from 94.4% to 96.8%. Fine-grained exchanges isolate a personal fact cleanly so its utility stands out; bundling an entire multi-turn session buries that single fact amidst unrelated topics, blurring top-1 discrimination.  
+
+> 5.1.3 End-to-end personalized application
+
+To verify that stronger retrieval translates into safer, better-personalized responses, we pass Jetriever’s top-5 exchanges to GPT-5-mini [21] and eval-uate end-to-end Application under InMind’s official context-aware judg-ing criterion [1]. Table 2 compares Jetriever against representative base-lines from InMind (all 16 published configurations appear in Appendix A.1). Whereas naive RAG peaks at 16.0% and structured or agentic memory sys-tems reach between 7.2% and 14.4%, Jetriever achieves 76.0% Application (95/125)—closing most of the gap to the 84.0% oracle upper bound in which 
+
+GPT-5-mini is handed the gold fact directly.            
+
+> Configuration Application (%)
+> Backbone control
+> GPT-5-mini, target in context 84.0
+> Naive RAG
+> BM25 9.6 text-embedding-3-large 16.0
+> Memory systems
+> A-RAG [6], text-embedding-3-large 7.2 A-Mem [25], text-embedding-3-large 9.6 HippoRAG 2 [26], MiniLM 8.8 MemoryOS [27], text-embedding-3-large 14.4
+> Jetriever with top-five exchanges
+> Jetriever 76.0 Table 2: InMind-125 end-to-end Application scores (%). Published baselines are taken from InMind [1]; Jetriever is evaluated on the same 125 tasks with the same
+> GPT-5-mini backbone and context-aware Application criterion. See Appendix A.1 for the complete table.
+
+5.2 MemoryAgentBench  
+
+> 5.2.1 Benchmark and setup
+
+MemoryAgentBench (MAB) evaluates four broad memory competencies— Accurate Retrieval (AR), Test-Time Learning (TTL), Long-Range Un-derstanding (LRU), and Selective Forgetting (SF) [2]—allowing us to test whether utility scoring generalizes beyond implicit associations to standard factual, multi-hop, and state-updating tasks. From our 3,671-question MAB evaluation pool, we draw a stratified random sample of 60 
+
+> 6
+
+questions proportional to dimension size: 33 AR, 11 TTL, 3 LRU, and 13 SF (uniformly without replacement; seed 6641975833030951438 ). Jetriever scores the entire candidate pool for each sampled question: 75,491 query–conversation pairs in total, or a mean of 1,258.2 candidates per question (median 100.5; range 2–42,946). Conversations exceeding 60k characters are split with a 4k-character overlap into 75,532 segments whose Jev scores are max-pooled back to the parent conversation. The top-5 conversations are passed to GPT-4o-mini [22] under MAB’s official answer prompts and evaluation metrics (including GPT-4o-mini judging on LongMemEval [23]). We compare directly against ReFind’s end-to-end GPT-4o-mini answers on the exact same 60 questions [3], alongside published full-benchmark baselines sharing the same GPT-4o-mini reader. 
+
+5.2.2 End-to-end performance 
+
+> WHY ONLY 60?
+> The full benchmark is EXPENSIVE. Our budget is not that big. Want to sponsor the full run? Email the author.
+
+On the 60-question sample, Jetriever achieves a 55.4% four-dimension macro-average, outperforming ReFind’s 44.3% by 11.1 points overall and leading on every individual dimension (Table 3). Head to head across the 60 items, Jetriever scores higher on 13 questions, lower on 3, and ties on 44. Gains are consistent across subtasks: EventQA improves from 24/29 to 28/29, and single-hop selective forgetting (FC-SH) reaches 6/6 (versus 5/6 for ReFind), though multi-hop selective forgetting (FC-MH) remains difficult for both methods (1/7 versus 0/7). Full published MAB tables are provided in Appendix A.2.                                          
+
+> Method AR TTL LRU SF Overall GPT-4o-mini 49.2 48.6 46.2 25.0 42.2 BM25 60.5 44.5 35.6 25.5 41.5 text-embedding-3-large 54.6 44.3 37.3 16.0 38.0 HippoRAG 2 [26] 65.1 35.8 36.2 29.5 41.6 MIRIX [28] 47.5 24.1 25.4 8.0 26.2 ReFind ∗[3] 49.8 30.0 55.5 41.7 44.3 Jetriever ∗65.5 40.0 59.0 57.1 55.4
+
+Table 3: MAB competency scores (%), all using GPT-4o-mini for answer genera-tion. Unstarred rows are published full-benchmark baselines from [2]. ∗ReFind and Jetriever are evaluated head-to-head on the same dimension-proportional 60-question random subset (within AR, proportional sampling drew EventQA, MH-QA, and LME items, with no SH-QA item; dimension means aggregate the drawn subtasks). 
+
+5.3 Disentangling world knowledge and score calibration 
+
+To test Section 3’s hypotheses directly, we compare representatives of all three scorer families on a shared 20-question InMind subset, with every model ranking the exact same 241 candidate exchanges per query: • BERT-based decision model ( Laya ): a 421M ModernBERT-large encoder (convaiinnovations/laya-typed-decisions ) trained with astructured decision head [13, 18]. • Generative LLM ( Qwen3.5-9B ): the post-trained Qwen/Qwen3.5-9B 
+
+checkpoint [14] (with Qwen3.5-4B [15] also plotted in Figure 1), 
+
+> 7
+
+prompted for binary usefulness and scored by the normalized proba-bility assigned to true versus false . Complete exchanges are scored directly whenever they fit within 1,200 tokens; only a single long background exchange per query (0.4% of candidates, and none of the gold exchanges) exceeds this limit and is scored via 1,200-token windows (200-token overlap) with max-pooling. • System One decision model ( Jev ): Jetriever’s Noul utility scorer over each exchange. 
+
+World knowledge governs broad recall. Because InMind’s gold ex-changes share no lexical cues with the query, spotting their relevance at all requires pretrained world knowledge. At R@50 in Figure 1, both LLM-scale models—Jev and Qwen3.5-9B—recover the gold exchange in 18 of 20 tasks (90%), whereas the ModernBERT-based Laya recovers only 6 of 20 (30%). Large-scale LLM pretraining supplies the factual breadth needed to recognize implicit connections; without that foundation, a BERT-scale deci-sion model misses the majority of gold memories even across a 50-exchange shortlist. 1 2 5 10 20 50 Top-k retrieved exchanges (log scale) 020 40 60 80 100 Gold-exchange recall (%)    
+
+> Jev Qwen3.5 9B Qwen3.5 4B Laya
+
+Figure 1: Gold-exchange R@k at k ∈ { 1, 2, 5, 10 , 20 , 50 } across the same 20 InMind tasks (241 candidate exchanges per task; logarithmic horizontal axis). Markers reflect exact per-task gold ranks; Qwen3.5-4B [15] is included under the same scoring protocol as Qwen3.5-9B .
+
+> READ THE ANALYSIS
+> Please read the analysis on the left. This is the key distinction.
+
+Calibrated probabilities govern top-1 ranking. Recognizing that the gold exchange matters somewhere in the top 50, however, is very different from ranking it first. Among 241 historical turns, plenty of background exchanges look loosely relevant or plausibly helpful to a user’s question. Because Qwen3.5-9B’s token probabilities are not calibrated to separate 
+
+merely plausible context from decisive evidence, its recall falls sharply as 
+
+k tightens: 14/20 (70%) at R@5 and just 8/20 (40%) at R@1. Jev’s RLCD-calibrated decision score cleanly isolates the decisive memory, achieving 17/20 (85%) already at R@1 and 18/20 (90%) from R@5 through R@50. Both models possess the world knowledge to see why the gold exchange is rele-vant; probability calibration determines whether that exchange actually reaches the answerer at small k.
+
+> 8
+
+5.4 Cost and throughput 
+
+> AN ACCEPTABLE BILL
+> Under a cent per InMind query, about three cents on MAB, and 6,446 pairs scored in 90 seconds. For full-pool retrieval, that is a very reasonable bill.
+
+Table 4 summarizes observed Jev API retrieval charges. Scoring all 241 exchanges per InMind query costs $0.00834 on average ($1.0425 across all 125 tasks). On the 60-question MAB sample, scoring an average of 1,258.2 conversations costs $0.03103 per query ($1.8617 total)—a mean heavily pulled up by one ReDial [24] task containing 42,946 candidate conversa-tions, whereas the median MAB query costs just $0.00730. Downstream 
+
+GPT-4o-mini answer generation and judging across all 60 MAB tasks con-sumed 732,786 input and 1,472 output tokens, adding roughly $0.1108 at standard API pricing [22] for a combined end-to-end run cost of $1.97. 
+
+Run Queries Mean candidates USD/query InMind exchanges 125 241 0.00834 InMind sessions 125 47 0.00574 MAB random conversations 60 1,258.2 0.03103 
+
+Table 4: Observed Jev API retrieval charges (excluding downstream answer gen-eration). Total retrieval spend is $1.0425 for InMind exchanges, $0.7179 for In-Mind sessions, and $1.8617 across 75,532 scored segments on MAB-60. 
+
+With up to 50 concurrent requests on InMind, individual candidate calls av-eraged 518 ms. In a separate batch throughput test over 10 LongMemEval queries [23] totaling 6,446 query–exchange pairs, Jev scored the entire pool in 90.16 s at 100-way concurrency (71.5 scores/s) for $0.247 in API charges. Because candidate judgments are mutually independent, request-level par-allelism makes full-pool scoring genuinely practical at these memory sizes, though interactive single-query tail latency remains distinct from batch throughput. 
+
+6 Discussion 
+
+6.1 Why System One decision models fit retrieval 
+
+Section 3 argued that full-pool utility retrieval demands broad world knowledge, calibrated ranking probabilities, and low per-candidate cost— three properties tested empirically in Section 5 and summarized in Table 5. BERT-scale classifiers are cheap and produce sharp decision boundaries on narrow tasks, yet lack the open-world knowledge required when rele-vance hinges on unstated facts. Generative chat LLMs possess that world knowledge, but incur autoregressive overhead and produce uncalibrated token probabilities that struggle to push decisive evidence above plausible distractors. By distilling or adapting an LLM foundation into a non-generative, calibration-trained System One model, Jev hits the operating point where full-pool utility ranking works. Stepping back, the three retrieval paradigms ask fundamentally different questions. Similarity search asks which stored text sounds like the query .Agentic query expansion asks which hidden connection an LLM can guess before looking at the store . Jetriever asks whether each stored memory actu-ally changes how the query should be answered . Whenever personal context           
+
+> 9Jev (System One model) Generative LLM scorer BERT-based classifier Broad world knowledge ✓✓×
+> Calibrated ranking scores ✓×✓
+> Full-pool cost and latency Low–moderate High Low
+> Table 5: Comparison of scorer families across the three requirements for full-pool utility retrieval.
+
+connects to a user’s request through everyday world knowledge, that third question is the right one to ask. 
+
+6.2 Scaling limits 
+
+Jetriever’s obvious constraint is linear scaling: scoring N memories takes 
+
+O(N ) decisions per query. At the scales studied here—hundreds of ex-changes in InMind and roughly a thousand conversations on average in MAB—high concurrency keeps retrieval within a few cents and seconds. For lifelong agents accumulating tens or hundreds of thousands of turns, however, naive per-pair API calls will eventually grow too costly and too slow. 
+
+6.3 Toward lighter decision models with world knowledge 
+
+When faced with O(N ) scaling, the reflexive retrieval-engineering instinct is to reintroduce a cheap BM25 or embedding pre-filter ahead of the scorer. For utility retrieval, however, that shortcut defeats the entire purpose of the system: any implicit memory whose connection lives in world knowl-edge will be silently discarded by a similarity first stage before the deci-sion model ever sees it. Keeping full-pool utility scoring intact therefore points toward a more fundamental model-design challenge: building sub-stantially lighter, faster System One decision models that still retain broad world knowledge .Figure 1 illustrates the tension clearly: shrinking from Qwen3.5-9B to 
+
+Qwen3.5-4B already erodes implicit recall, and dropping to the 421M-parameter Laya encoder loses most of it. Closing this efficiency–knowledge gap—through compact LLM-derived decision architectures, open-weight RLCD-style calibration training, and precomputed memory represen-tations that amortize encoding across incoming queries—is the most promising path to scaling full-pool utility retrieval to lifelong agent mem-ory. 
+
+> 10
+
+7 Conclusion 
+
+ONE LINE 
+
+Find the memory that matters to the answer, not just one that sounds similar. 
+
+Jetriever shifts agent memory retrieval from matching surface text to scor-ing downstream utility over the entire memory pool. Powered by Jev, this simple design recovers implicit-association memories on InMind that lexi-cal, dense, and agentic memory baselines miss, improves multi-competency performance over ReFind on MemoryAgentBench, and keeps per-query re-trieval costs in the cent range. Controlled comparisons further show why world knowledge alone is not enough: while both an ordinary LLM and Jev recognize implicit evidence within a wide shortlist, calibrated decision probabilities are what place the decisive memory at rank 1. Pushing full-pool utility scoring to much larger lifelong stores should not mean retreat-ing behind similarity filters, but developing lighter, faster System One de-cision models that carry broad world knowledge at a fraction of today’s com-pute. 
+
+Acknowledgments 
+
+We thank GPT-6-Sol for assisting with the experimental runs—even though its draft prose was an unmitigated disaster—and Gemini 4 Carbon for helping rewrite and polish the manuscript. 
+
+References 
+
+[1] R. Li, M. Du, B. Xu, and Z. Mao. Keep It InMind: Benchmarking the Implicit-Association Blind Spot in Agent Memory . arXiv:2607.24368, 2026. https://arxiv.org/abs/2607.24368 
+
+[2] Y. Hu et al. Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions .arXiv:2507.05257, 2025. https://arxiv.org/abs/2507.05257 
+
+[3] R. Li et al. When Your Agent Opens the Chat App: Agent-Controlled Search over Raw Chat Logs Rivals Structured Memory . arXiv:2608.12888, 2026. https://arxiv.org/abs/2608.12888 
+
+[4] P. Wang et al. BM25 Wins at Scale: A Scaling Study of Retrieval-Augmented Generation Paradigms . arXiv:2607.26497, 2026. https://arxiv.org/abs/2607.26497 
+
+[5] Z. Bao et al. Is Complex Agentic Memory Always Needed? Naive RAG Is Stronger Than We Thought . arXiv:2610.30755, 2026. https://arxiv.org/abs/2610.30755 
+
+[6] M. Du et al. A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces . arXiv:2602.03442, 2026. https://arxiv.org/abs/2602.03442 
+
+[7] TypeSafe. AI Primer . 2026. 
+
+https://docs.typesafe.ai/introduction/machine-learning-primer 
+
+[8] D. Almeida. Introducing System One Models & Jev . TypeSafe AI, 2026. 
+
+https://typesafe.ai/blog/introducing-system-one-models-and-jev 
+
+[9] TypeSafe. Noul Primitive Documentation . 2026. https://docs.typesafe.ai/primitives/noul 
+
+[10] TypeSafe. Re-ranking with TypeSafe . 2026. 
+
+https://docs.typesafe.ai/cookbooks/rerank_typesafe 
+
+[11] TypeSafe. Classifying RAG Passages . 2026. 
+
+https://docs.typesafe.ai/cookbooks/classifying_rag_passages 
+
+[12] M. Sharma et al. Towards Understanding Sycophancy in Language Models . ICLR, 2024. 
+
+https://arxiv.org/abs/2310.13548 
+
+[13] ConvAI Innovations. Laya Typed-Decisions: Model Card .
+
+https://huggingface.co/convaiinnovations/laya-typed-decisions 
+
+[14] Qwen Team. Qwen3.5-9B: Model Card . https://huggingface.co/Qwen/Qwen3.5-9B 
+
+[15] Qwen Team. Qwen3.5-4B: Model Card . https://huggingface.co/Qwen/Qwen3.5-4B 
+
+11 [16] S. Robertson and H. Zaragoza. The Probabilistic Relevance Framework: BM25 and Beyond .Foundations and Trends in Information Retrieval, 2009. [17] J. Devlin et al. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding . arXiv:1810.04805, 2018. https://arxiv.org/abs/1810.04805 
+
+[18] B. Warner et al. Smarter, Better, Faster, Longer: A Modern Bidirectional Encoder for Fast, Memory Efficient, and Long Context Finetuning and Inference . arXiv:2412.13663, 2024. 
+
+https://arxiv.org/abs/2412.13663 
+
+[19] W. Wang et al. MiniLM: Deep Self-Attention Distillation for Task-Agnostic Compression of Pre-Trained Transformers . NeurIPS, 2020. https://arxiv.org/abs/2002.10957 
+
+[20] Sentence Transformers. all-MiniLM-L6-v2: Model Card .
+
+https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2 
+
+[21] OpenAI. GPT-5 Mini: Model Documentation .
+
+https://developers.openai.com/api/docs/models/gpt-5-mini 
+
+[22] OpenAI. GPT-4o Mini: Model Documentation .
+
+https://developers.openai.com/api/docs/models/gpt-4o-mini 
+
+[23] D. Wu et al. LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory .arXiv:2410.10813, 2024. https://arxiv.org/abs/2410.10813 
+
+[24] R. Li et al. Towards Deep Conversational Recommendations . NeurIPS, 2018. 
+
+https://arxiv.org/abs/1812.07617 
+
+[25] W. Xu et al. A-MEM: Agentic Memory for LLM Agents . arXiv:2502.12110, 2025. 
+
+https://arxiv.org/abs/2502.12110 
+
+[26] B. J. Gutiérrez et al. From RAG to Memory: Non-Parametric Continual Learning for Large Language Models . arXiv:2502.14802, 2025. https://arxiv.org/abs/2502.14802 
+
+[27] J. Kang et al. Memory OS of AI Agent . arXiv:2506.06326, 2025. 
+
+https://arxiv.org/abs/2506.06326 
+
+[28] Y. Wang and X. Chen. MIRIX: Multi-Agent Memory System for LLM-Based Agents .arXiv:2507.07957, 2025. https://arxiv.org/abs/2507.07957 
+
+12 A Full benchmark tables 
+
+A.1 InMind Memory Bench 
+
+Configuration Application (%) 
+
+Backbone control 
+
+GPT-5-mini, target in context 84.0 
+
+Naive RAG 
+
+MiniLM 9.6 text-embedding-3-large 16.0 BM25 9.6 
+
+Memory systems with MiniLM 
+
+A-RAG 4.8 xMemory 4.8 Mem0 3.2 A-Mem 6.4 HippoRAG 2 8.8 MemoryOS 8.0 
+
+Memory systems with text-embedding-3-large 
+
+A-RAG 7.2 xMemory 6.4 Mem0 6.4 A-Mem 9.6 HippoRAG 2 5.6 MemoryOS 14.4 
+
+Jetriever with top-five exchanges 
+
+Jetriever 76.0 Table 6: All 16 published InMind Application configurations [1], followed by Jetriever’s top-five result. All rows use the same context-aware Application scor-ing criterion. 
+
+> 13
+
+A.2 MemoryAgentBench 
+
+Original MAB baseline AR TTL LRU SF Overall 
+
+Long-context agents 
+
+GPT-4o (128K) 58.1 50.0 54.9 32.5 48.8 GPT-4o-mini (128K) 49.2 48.6 46.2 25.0 42.2 Claude-3.7-Sonnet (200K) 59.7 53.9 62.2 22.5 49.6 GPT-5-mini (400K) 74.4 48.6 66.2 53.0 60.6 GPT-4.1-mini (1M) 71.8 46.2 49.1 20.5 46.9 Gemini-2.0-Flash (1M) 65.1 46.4 41.6 16.5 42.4 GPT-4o-mini (reference) 49.2 48.6 46.2 25.0 42.3 
+
+Simple RAG 
+
+BM25 60.5 44.5 35.6 25.5 41.5 
+
+Embedding RAG 
+
+Contriever 33.9 42.9 29.8 12.5 29.8 text-embedding-3-small 53.8 42.7 36.3 15.5 37.1 text-embedding-3-large 54.6 44.3 37.3 16.0 38.0 Qwen3-Embedding-4B 54.7 45.1 37.0 16.0 38.2 
+
+Structure-augmented RAG 
+
+RAPTOR 36.8 35.9 27.9 7.5 27.0 GraphRAG 40.9 24.8 19.9 8.0 23.4 MemoRAG 34.5 45.1 30.0 14.0 30.9 HippoRAG 2 65.1 35.8 36.2 29.5 41.6 Mem0 32.6 21.2 20.7 10.0 21.1 Cognee 28.3 22.8 16.0 15.5 20.6 Zep 37.5 37.5 16.2 5.0 24.0 
+
+Agentic memory 
+
+Self-RAG 33.6 12.2 18.1 11.0 18.7 MemGPT 34.3 40.8 22.4 15.5 28.3 MIRIX 47.5 24.1 25.4 8.0 26.2 MIRIX (4.1-mini) 63.0 35.7 40.5 11.5 37.7 
+
+Table 7: All 23 baselines in the original MAB main table [2]: four competency-group averages and Overall (%). AR = Accurate Retrieval; TTL = Test-Time Learn-ing; LRU = Long-Range Understanding; SF = Selective Forgetting. These are full-benchmark scores rather than MAB-60 subset scores. 
+
+Published method SH-QA MH-QA LME EventQA FC-SH FC-MH Avg. GPT-4o-mini 64.0 43.0 30.7 59.0 45.0 5.0 41.1 BM25-RAG 66.0 56.0 45.3 74.6 48.0 3.0 48.8 Contriever 22.0 31.0 15.7 66.8 18.0 7.0 26.8 text-embed-3-small 60.0 44.0 48.3 63.0 28.0 3.0 41.1 text-embed-3-large 54.0 44.0 50.3 70.0 28.0 4.0 41.7 Qwen3-Embed-4B 57.0 47.0 43.3 71.4 29.0 3.0 41.8 RAPTOR 29.0 38.0 34.3 45.8 14.0 1.0 27.0 GraphRAG 47.0 47.0 35.0 34.4 14.0 2.0 29.9 MemoRAG 29.0 33.0 20.0 56.0 21.0 7.0 27.7 HippoRAG 2 76.0 66.0 50.7 67.6 54.0 5.0 53.2 Mem0 25.0 32.0 36.0 37.5 18.0 2.0 25.1 Zep 44.0 25.0 38.3 42.5 7.0 3.0 26.6 Self-RAG 35.0 42.0 25.7 31.8 19.0 3.0 26.1 MemGPT 41.0 38.0 32.0 26.2 28.0 3.0 28.0 MIRIX 62.0 61.0 37.3 29.8 14.0 2.0 34.4 ReFind 83.0 69.0 51.3 74.1 62.7 8.8 58.2 
+
+Table 8: Published full six-subtask comparison for Accurate Retrieval (SH-QA, MH-QA, LME, EventQA) and Selective Forgetting (FC-SH, FC-MH), reproduced from ReFind [3], with reused baselines from MAB [2]. Avg. is the unweighted six-subtask mean (%). This table reports full task sets rather than our 60-question subset. 
+
+14

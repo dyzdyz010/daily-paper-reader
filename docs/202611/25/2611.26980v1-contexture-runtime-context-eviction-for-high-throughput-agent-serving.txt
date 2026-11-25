@@ -1,0 +1,523 @@
+Title: Contexture: Runtime Context Eviction for High-Throughput Agent Serving
+
+URL Source: https://arxiv.org/pdf/2611.26980v1
+
+Published Time: Mon, 23 Nov 2026 01:35:16 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Contexture: Runtime Context Eviction for High-Throughput Agent Serving 
+
+# Colin Hong 
+
+Nanyang Technological University Singapore 
+
+# Bryan Shan 
+
+Nanyang Technological University Singapore 
+
+# Wei Siong Pang 
+
+Nanyang Technological University Singapore 
+
+# Chengzhi Lu 
+
+Nanyang Technological University Singapore 
+
+# Xu Guo 
+
+Nanyang Technological University Singapore 
+
+# Nitin Shivaraman 
+
+IAIC, A*STAR Singapore 
+
+# Tao Luo 
+
+IAIC, A*STAR Singapore 
+
+# Esha Choukse 
+
+Microsoft USA 
+
+# Kisson Lin 
+
+SuperMem Pte. Ltd. Singapore 
+
+# Dmitrii Ustiugov 
+
+Nanyang Technological University Singapore 
+
+## Abstract 
+
+LLM agents such as Hermes, OpenClaw, and Codex repeatedly re-send growing execution histories, increasing shared GPU key-value (KV) cache demand in high-bandwidth memory (HBM). We show that shared KV capacity limits agent-serving throughput. Existing context-reduction methods lack global cache-state visibility, while runtime KV managers lack tool-execution information. Tracing tokens to their originating tool operations reveals that later oper-ations supersede earlier outputs and associated turns, identifying 64% of recorded final-history tokens as removal candidates. We present Contexture, a harness- and model-agnostic architec-ture for runtime context eviction. Contexture separates the har-ness’s full conversation history from the model’s execution con-text, reducing subsequent requests’ KV demand without modifying harness logic or model execution. It combines tool-execution in-formation with global visibility into shared KV pressure and prefix residency: supersession identifies removal candidates, while run-time state determines when removal justifies sacrificing cached computation. This coordination reduces memory demand and de-code KV traffic while limiting re-prefill interference with concurrent decoding, without additional model calls or training. Across two models, two harnesses, and two benchmarks, Contexture improves throughput under SLO by 20–73% over the best of no eviction, harness compaction, AgentDiet, and Continuum, and by 7–63% over observation masking in five of eight configurations, and re-duces GPU energy per completed session by up to 11%. It also raises throughput under SLO by 23% over LMCache alone on H100. Live-agent experiments show a mean accuracy improvement of 1.4 percentage points over unloaded no eviction, with a worst-case loss of 3.7 points, while observation masking loses 3–28 points. 
+
+## 1 Introduction 
+
+LLM agents such as Hermes [36], OpenClaw [41], and Codex [40] perform multi-step tasks by repeatedly inspecting files, executing commands, and processing the resulting observations with LLMs. These interactions accumulate into a session history that is carried into subsequent model requests and can amount to hundreds of thousands of tokens [4, 47]. To avoid recomputing growing ses-sion histories, the serving runtime retains their reusable KV prefix caches in shared GPU high-bandwidth memory (HBM), where con-current sessions compete for finite cache capacity. Our key observation is that shared KV capacity is the critical bottleneck that limits agent-serving throughput. As more sessions arrive, the session completion rate stops increasing once the avail-able KV cache capacity is exhausted. Beyond this point, the runtime preempts requests and recomputes their KV caches, consuming ad-ditional compute without increasing completed-session throughput. Halving the KV pool of an H200 GPU reduces peak throughput by about 40%. These observations motivate reducing the KV memory occupied by each session to increase serving capacity. Existing approaches address growing KV memory demand at different levels of the agent-serving stack. At the harness level , com-paction [38, 41] and LLM-driven history editing [66] shorten session histories, but operate with a local view that lacks information about shared memory pressure and cached KV residency. Their model judgments consume GPU time and energy, delaying session com-pletion. They may also remove information the agent still needs. At the model level , KV pruning selects tokens based on attention scores within a request [5, 24, 73] or across a session’s turns [23], while other approaches require training to identify obsolete his-tory [19, 64, 72]. These methods do not account for shared KV memory pressure when deciding what to remove. At the runtime level , KV cache management has a global view of shared mem-ory [9, 22], but cannot shorten the session history, so evicted KV may be regenerated on subsequent requests. These approaches leave a coordination gap between identifying removable history and deciding when its removal is worthwhile given shared KV pressure and cached-prefix residency. Closing this gap requires identifying historical context that later agent operations have superseded. We characterize redundancy in the KV cache by tracing historical tokens to their origins in agent 
+
+> 1arXiv:2611.26980v1 [cs.DC] 20 Nov 2026 Hong et al.
+
+tool executions, such as file reads and command executions. We find that later tool operations frequently supersede earlier observations of the same state, making the associated history redundant. Such supersession identifies 64% of the tokens in the final histories of our recorded sessions as removal candidates, without additional LLM calls. Each request exposes these candidates to the runtime, but removing them raises two challenges. A superseded observa-tion may still support ongoing agent actions. Removing an earlier span also invalidates subsequent cached KV, introducing re-prefill that interferes with concurrent decoding. Eviction must therefore balance reduced memory demand against lost cache reuse. 
+
+Our work. We present Contexture, a harness- and model-agnostic architecture for runtime context eviction that combines origin-based context eviction with global cache-aware eviction . Contexture separates identifying removal candidates from deciding when to commit them. It uses tool operations and their targets to identify superseded outputs and associated turns, without additional model inference. Candidates remain available for a configurable grace window, giving the agent additional rounds to complete related actions before removal. For each request, Contexture combines eligible candidates with the runtime’s global view of shared KV pressure and cached-prefix residency across sessions. If no cached KV follows the earliest re-moval point, it commits immediately: the next request would need to recompute that suffix anyway, so removal reduces work without sacrificing cache reuse. Otherwise, Contexture defers removal until memory pressure warrants freeing capacity and limits the cached computation invalidated relative to the context removed. This co-ordination makes eviction responsive to both the demand from concurrent sessions and the cost of losing reusable computation. The harness retains its full conversation history, while the run-time filters the execution context processed by the model. The shortened prompt uses the engine’s ordinary prefix reuse and re-prefill, preserving exact execution over the retained context. This separation reduces subsequent KV demand and decoding work without modifying harness logic or model execution, or requiring additional model calls or training. We implement Contexture in vLLM [20] and evaluate eight con-figurations spanning two models, two harnesses, and two bench-marks on H100 and H200 GPUs. Contexture improves throughput under SLO by 20–73% over the best-performing baseline among no eviction, default and tuned compaction, AgentDiet, and Contin-uum. At the corresponding baseline SLO throughput, Contexture reduces p90 session slowdown by 30–78%. Compared with obser-vation masking, Contexture achieves 7–63% higher throughput in five configurations; masking performs better in the other three, all with Qwen MoE, but incurs 3–28 percentage points of accuracy loss across all configurations. With Qwen MoE and Hermes on Terminal-Bench, Contexture retains its gains with larger HBM ca-pacity and KV offloading, improving throughput by 14% over no eviction on H200 and 23% over LMCache alone on H100. It also reduces GPU energy per completed session by 8–11% at high load. Live-agent experiments across eight configurations and three loads show a mean accuracy gain of 1.4 percentage points over unloaded no eviction, with a worst-case loss of 3.7 points. In summary, we make the following contributions:              
+
+> Agent harness Tool sandboxes Serving runtime
+> Session 1Session 2Session 𝑁 · · · 12𝑁 · · ·
+> tool calls outputs API server responses (reasoning, text, tool calls) requests KV cache manager + prefix cache Scheduler Model
+> batch shared KV pool running and cached free
+
+Figure 1: The agentic serving stack. 
+
+•We identify a fundamental trade-off in runtime context eviction: reducing memory demand can destroy reusable KV computation and stall concurrent decoding, making shared memory pressure and cache residency essential to deciding when to evict. 
+
+•We reveal that tool-operation supersession identifies 64% of to-kens in recorded final histories as removal candidates, providing a selection signal without additional model inference. 
+
+•We design Contexture, a harness- and model-agnostic architec-ture for runtime context eviction that combines execution-based selection with global visibility into shared KV pressure and cache residency, balancing memory savings against recomputation and interference with concurrent decoding. 
+
+•We show throughput and energy benefits from Contexture while improving task accuracy on average, with throughput gains per-sisting alongside larger HBM capacity and KV offloading. 
+
+## 2 Background: Agentic Stack and Workload 
+
+Figure 1 illustrates the agent-serving stack, where an agent harness interacts with an LLM through a serving runtime. The harness, such as Hermes [36], OpenClaw [41], or Codex [40], sends model requests to a serving runtime such as vLLM [20]. The runtime serves requests from multiple agent sessions on shared GPUs. Its API server receives incoming requests, the scheduler batches them for model execution, and the KV cache manager allocates KV blocks from a shared GPU memory pool. The model processes each request and produces reasoning, text, and tool calls conditioned on its history. The harness executes returned tool calls, such as shell commands, file reads, and file writes, in the session’s tool sandbox and incorporates their outputs into the conversation history. We define a model request together with its ensuing tool execution as a round , and the sequence of rounds belonging to one task as a 
+
+session . Each session runs its own harness instance. Across successive rounds, each request carries the session’s ac-cumulated conversation history, which we call its logical context .Consecutive requests share an increasingly long prefix. With prefix caching, the KV cache manager retains the KV of processed tokens in GPU memory after a request finishes, allowing the next round to prefill only its new suffix. This reuse depends on the preceding context remaining unchanged and its KV states remaining cached. Removing an earlier context span changes the prefix of subsequent tokens, invalidating their cached KV states and requiring the surviv-ing suffix to be prefilled again. These KV blocks occupy a finite pool shared by concurrent sessions and remain idle while the harness ex-ecutes tools. As sessions progress, their growing histories increase demand for this shared pool. When the pool fills, the runtime evicts cached blocks or preempts running requests, causing later requests to recompute KV states that are no longer resident.          
+
+> 2Contexture : Runtime Context Eviction for High-Throughput Agent Serving 0.3 0.4 0.5 0.6
+> (a) Slowdown
+> 1× 1.5× 2× 3× 5× 10×
+> p90 slowdown  SLO 0.3 0.4 0.5 0.6
+> (b) KV pool usage
+> 025 50 75 100
+> KV pool used (%)  KV p50 KV max 0150 300
+> Preemptions per run
+> Sessions completed per minute
+
+Figure 2: P90 session slowdown, KV pool usage, and request preemptions versus throughput under increasing load with-out context eviction. (a) P90 session slowdown. (b) KV pool occupancy and preemptions per run. 
+
+## 3 Agent Context and KV Management & Limitations of Existing Approaches 
+
+We review context and KV management (§3.1), establish the shared-KV capacity bottleneck (§3.2) and examine limitations of three existing methods (§3.3). We replay recorded sessions of Hermes [36] on Terminal-Bench 2.1 (TB2.1) [34] at increasing load, served by vLLM [20] with Qwen3.8-27B [54] (§6.1). Throughput is the number of sessions completed within their task budgets per minute, and 
+
+throughput under SLO is the throughput where their p90 slowdown relative to each task’s unloaded no-eviction run reaches 10 ×.
+
+## 3.1 Managing Agent Context and KV 
+
+Management of agent context and KV states spans three levels of the serving stack: the harness, model, and serving runtime. Each level operates on different states and has a distinct scope of control. 
+
+Harness. The harness constructs the logical context for each round from the session’s conversation history, deciding which earlier messages and tool outputs the model sees. It can shorten this his-tory in several ways. Compaction replaces older history with an LLM-generated summary [3, 38, 40, 41]; observation masking [25] replaces older tool outputs with placeholders while retaining the agent’s reasoning and actions; and LLM-driven history editing asks a model which parts to remove [66]. These methods reduce subse-quent requests’ context length and KV demand. 
+
+Model. Given the context assembled by the harness, model-level management uses information derived from model computation or training to identify tokens and their corresponding KV states for retention or removal. Representative examples include attention-based KV pruning and learned context selection [5, 19, 24, 73]. These methods make selection decisions at the token level within individual requests. 
+
+Runtime. Once the model has computed the KV states, the serving runtime manages their residency across concurrent sessions. It determines which cached states remain in GPU memory, are evicted, or are moved to other memory tiers. Representative mechanisms include KV eviction, offloading, and retention [9, 10, 22]. Offloading preserves cached computation outside GPU memory but leaves future context demand unchanged. We evaluate its combination with context eviction in §6.5. 0.3 0.4 0.5 0.6    
+
+> Sessions completed per minute
+> 2× 5× 10×
+> p90 slowdown  SLO No eviction Compaction, 128K Continuum AgentDiet
+
+Figure 3: P90 session slowdown versus throughput under increasing load for no eviction, compaction, AgentDiet, and Continuum. The dashed line marks the 10 × slowdown SLO. 165 180 195 210 225          
+
+> Minutes into measurement
+> (a) Shared KV pool
+> 025 50 75 100
+> KV pool used (%)
+> 165 180 195 210 225
+> Minutes into measurement
+> (b) Per-session context
+> 050K 100K 150K
+> Context (tokens)
+> 128K 172K pool ≥ 95% fi nished (28) cut at budget (76) summary (1)
+
+Figure 4: One hour of Hermes with compaction at 128K to-kens, at an arrival rate of 1.6 sessions/min. The pool is often nearly full while no session reaches the threshold, and the only summary starts after the pressure subsides. 
+
+## 3.2 KV Capacity Bounds Agent Serving 
+
+We examine how shared KV capacity affects agent-serving through-put as the load increases. Fig. 2 shows that without context eviction, throughput rises to 0.59 sessions/min before saturating, while p90 slowdown reaches 6.0 ×. The throughput peak coincides with KV pool saturation, which first occurs at 0.56 sessions/min. As the load increases, preemptions rise to 140 per run, causing repeated KV recomputation without increasing throughput. To further examine the impact of KV capacity, we reduce the KV pool from 1.5M to 1.0M and 0.76M tokens on the same H200. Peak throughput drops to 0.45 and 0.35 sessions/min, respectively. These results establish shared KV capacity as a limiting factor for agent-serving throughput. 
+
+## 3.3 Existing Methods Fall Short 
+
+We test three representative methods from the harness and run-time levels of §3.1 that need no training: Hermes compaction [38] replaces older history with an LLM-generated summary at a 128K-token threshold (§6.1); AgentDiet [66] uses LLM reflection calls to identify and remove unnecessary history; and Continuum [22] retains KV across tool executions for reuse by the next request, without shortening its history. Fig. 3 shows that none improves throughput under SLO over no eviction. Continuum’s curve lies on no eviction’s. Compaction’s and AgentDiet’s p90 slowdowns are above no eviction’s at every load shown, and served unloaded, their p90 is 2.2 × and 4.2 × no eviction’s. We study each method’s runs and identify three causes. 
+
+Session-local decisions miss shared KV pressure. Compaction and AgentDiet decide from one session’s logical context, while KV demand comes from all sessions. In Fig. 4, the shared KV pool stays at least 95% full for 20 minutes while no session reaches the com-paction threshold, and the only summary begins after occupancy      
+
+> 3Hong et al. 050K 100K 150K 200K
+> Total history, removed tokens included
+> AgentDiet compaction 128K no eviction pass
+> fail, +41%
+> pass, +1%
+> convert_masks.py in context removed edit or run read back no eviction's end
+
+Figure 5: One file of a TB2.1 task in three recorded runs; the red row failed, and percentages compare total history with no eviction’s. The x-axis means the cumulative history gen-erated during execution. Model-selected removal can drop a file that the agent then re-reads. 
+
+drops to 68%, too late to relieve the pool. Neither sees cached-prefix residency, which decides whether a removal forces a re-prefill (§2). 
+
+KV retention does not reduce context demand. Continuum manages KV residency across concurrent sessions, but its retention policy leaves the logical context submitted in subsequent requests unchanged. Consequently, these requests continue to demand KV for the same history. 
+
+LLM-driven logical context reduction is costly and fallible. 
+
+Compaction and AgentDiet shorten the history with a model’s judgment. A model can weigh what the agent may need again, but its judgments on the serving GPU cost GPU time and energy, and the harness waits for each one before the session’s next request. In our recordings, a compaction summary call stalls its session for a median of 91 s. AgentDiet’s reflection call, 11 s at the median, runs before 60% of agent requests in the median session, and served unloaded its sessions take 1.5 × as long as no eviction’s. The model’s judgment in both methods can remove file contents from the session history that the agent still needs, forcing re-reads (Fig. 5). Lifting the limit calls for both a selection signal without extra model calls, to decide what to remove, and a global view of shared KV pressure and cached-prefix residency, to decide when. §4 shows that the serving runtime can provide both. 
+
+## 4 Opportunities and Challenges 
+
+Reducing shared KV pressure through context eviction requires identifying removable logical context and deciding when to re-move it. These decisions depend on agent execution history, shared runtime state, and the effects of removal on subsequent execution. 
+
+## 4.1 Key Insights and Opportunities 
+
+Tool Executions Mark Reclaimable Context. Tool executions reveal substantial opportunities to reduce agent context. Fig. 6(a) shows that later tool operations mark 64% of tokens in recorded final histories as candidates for removal, including earlier tool outputs and their associated reasoning and tool calls. These candidates also contribute significantly to memory demand under load. At no eviction’s peak throughput, marked spans of in-flight requests account for an estimated 30% of the shared KV pool’s capacity when occupancy reaches at least 95% (Fig. 6(b)). This indicates substantial potential for reducing context demand when GPU memory is scarce. We identify these candidates through tool-operation supersession .Later tool operations can supersede earlier observations of the same All Reason-ing Tool call Tool output Prompt, task        
+
+> Token type
+> (a) Final context
+> 025 50 75 100
+> Final context (%)  64 40 915 0Evictable Non-evictable 0123
+> Hours
+> (b) KV pool at the wall
+> 025 50 75 100
+> KV pool used (%)
+
+Figure 6: Removal candidates marked by later tool operations: (a) their share of total final-history tokens, broken down by token type, and (b) their estimated share of the KV pool in one run of no eviction at its peak throughput. Candidates are most of the context and a large share of a full pool. reused re-pre fi lled 2K removed 32K to the end last saved state 64K context 0 2 4
+
+time from the next round (s) 
+
+(a) Decode around one round      
+
+> 0500 1000 1500
+> decode throughput (tok/s)
+> nothing removed 2K removed 02K 4K 6K 8K
+
+re-pre fi ll rate (tok/s) 
+
+(b) Decode vs. re-prefill rate 
+
+> 0250 500 750 1000 1250
+> decode throughput (tok/s)
+> −45% −48% −42% 32 sessions 16 sessions 4 sessions
+
+Figure 7: Decode throughput of Qwen on one H100 (a) around one request that removes 2K tokens from a 64K-token cached context, or nothing, with 32 sessions decoding, and (b) against the re-prefill rate. A small removal can cause a large re-prefill that stalls concurrent decoding. 
+
+state. For example, rereading a file provides a newer view of its con-tents, while a successful test rerun can supersede an earlier failed result. The earlier outputs become removal candidates, and once all tool outputs of an assistant turn are superseded, its associated tool calls and reasoning also become candidates. By matching tool operations and their targets, our rules classify 84% of Hermes’s and 83% of OpenClaw’s tool-output tokens (see the setup details in §6.1), enabling supersession detection directly from execution history without additional model inference. 
+
+The Runtime Sees the Signal and the Pool. The superseded context identified above is visible in the requests received by the serving runtime. Each request carries structured tool calls and their outputs, allowing the runtime to identify supersession without ac-cessing the tool sandboxes. The runtime also manages the shared KV pool across concurrent sessions, including its memory occu-pancy and cached-prefix residency. This combined visibility enables context eviction decisions that account for both the memory pres-sure created by concurrent sessions and the cached states that a removal would invalidate. 
+
+## 4.2 Challenges for Runtime Context Eviction 
+
+Tool-operation supersession identifies candidates for context re-moval, while the serving runtime observes the shared memory pres-sure and cached-prefix residency (§4.1). However, turning these candidates into actual removals raises two challenges: 
+
+Selecting context without disrupting subsequent agent ac-tions. Removing history changes the information available to the 
+
+> 4Contexture : Runtime Context Eviction for High-Throughput Agent Serving
+
+Agent harness Tool sandboxes Serving runtime          
+
+> Session 1Session 2Session 𝑁 · · · 12𝑁 · · ·
+> tool calls outputs context candidate evicted span new input API server responses (reasoning, text, tool calls) requests (session ID, tool calls, outputs)
+
+Session Tracker  
+
+> 12
+> 𝑁
+> after dispatch (async)
+
+Session Evictor  
+
+> Policy Actuator
+
+Context Filter   
+
+> 2
+> candidates from earlier requests commits prompt mark evicted context KV cache manager + prefix cache Scheduler
+
+Model  
+
+> batch shortened prompt KV usage; residency probe shared KV pool running and cached free
+
+Figure 8: Architecture of Contexture. 
+
+model in subsequent rounds. A newer tool result may supersede an earlier observation before the agent finishes the related actions, potentially forcing repeated work or disrupting task completion, as illustrated in §3.3. Effective context eviction must therefore identify superseded information while preserving the context needed for subsequent agent actions. 
+
+Deciding when the memory savings justify the cost of invali-dating cached states. Removing an earlier context span invalidates the cached states of the surviving suffix, introducing additional pre-fill that interferes with concurrent decoding. Fig. 7(a) shows that removing just 2K tokens from a cached context triggers 41K tokens of re-prefill instead of 1.5K, sharply reducing the throughput of 32 concurrent decoding sessions. The re-prefill exceeds the 32K-token suffix because the hybrid model resumes from the last saved recurrent state before the cut. Fig. 7(b) further quantifies this inter-ference across different concurrency levels. As competing re-prefill increases from 0 to 8K tokens/s, aggregate decode throughput falls by 42–48% across 4, 16, and 32 concurrent sessions. Thus, the com-putation introduced by context eviction can substantially reduce the serving capacity available to other sessions. 
+
+## 5 System Design 
+
+Contexture performs context eviction within the serving runtime, using tool-operation supersession to identify removal candidates and KV cache state to decide when to remove them. Its design follows four goals derived from opportunities and challenges in §4: 
+
+G1 Global visibility into shared KV state : use the runtime’s view of shared KV pressure and cached-prefix residency across sessions to decide when to evict context. 
+
+G2 Semantic selection through tool-operation supersession :identify superseded tool outputs and their turns from execution history without model calls, keeping the context that later actions need. 
+
+G3 Harness- and model-agnostic context eviction : shorten only the prompt the model executes, in the runtime, without modifying the harness or the model and without training. 
+
+G4 Bounded cache invalidation and re-prefill interference :avoid unnecessary recomputation and bound the cached com-putation each eviction sacrifices relative to the context it re-moves.                           
+
+> (a) read app.py 1edit app.py 2test fails 3edit app.py 4test passes 5same test passes cut
+> (b) task 12345cached Nothing cached past the cut.
+> Commit at any pool usage (cold commit).
+> (c) task 12345cached prefix removed invalidated Cached past the cut. No pool pressure: hold (pressure gate). Under pressure: commit within the cap.
+> (d) task 12345After the commit, the task is reused and rounds 4–5 are prefilled again (blue).
+
+Figure 9: Contexture’s marking and commit policy. (a) Later tool operations mark superseded outputs as removal candi-dates. (b)–(d) A later request, after rounds 1–3 pass the grace window. (b) A batch commits immediately when no cached tokens follow its earliest removal point. (c) Otherwise, it com-mits under pool pressure when the re-prefill cap is satisfied. (d) The commit reuses the prefix before the removal point and re-prefills the remaining suffix. 
+
+## 5.1 Overview 
+
+Fig. 8 shows how Contexture processes each request between the API server and the unmodified scheduler. Each request carries the session’s full history and a session ID. The Session Evictor retrieves the session’s removal candidates , and its Policy Actuator uses shared KV pool occupancy and the candidates’ cached-prefix residency to decide whether to commit their removal or defer it (§5.3, §5.4). The 
+
+Context Filter then removes all committed spans from the prompt before scheduling (§5.5). The harness keeps its full history, while the model processes the filtered prompt. After dispatch, the Session Tracker processes the request’s new tool messages asynchronously and marks earlier outputs that later operations supersede as candidates (§5.2). Each commit decision therefore uses candidates from earlier requests, which keeps track-ing off the critical path. Only a session’s first request, or one whose earlier history changed, waits for tracking. 
+
+## 5.2 Tracking Superseded Context 
+
+The Session Tracker semantically identifies removal candidates from the agent’s execution history without model calls (G2). For each request, it processes only the new messages and records each tool operation’s type, target, and outcome. 
+
+Observing tool operations. To continue a session, the harness includes each tool call and its output in the next model request. The tracker therefore extracts tool operations directly from requests without accessing the harness or tool sandboxes. A tool call’s name and arguments identify the operation and its target. File tools name file paths, and the tracker parses shell command lines to find the programs they run and the files they read or write. Each tool output is linked to its call and records the outcome. A new harness or tool only extends the mapping from tool names and argument fields to operations. Calls to external services, such as web APIs and MCP servers, are tracked the same way. 
+
+Supersession rules. The tracker matches later tool operations to earlier outputs by operation type and target (Fig. 9(a)). A later read or edit of a file supersedes earlier observations of it. Rerunning a normalized shell command supersedes its previous output, and a later run or build supersedes earlier run or build outputs whose 
+
+> 5Hong et al.
+
+target files overlap. Failed outputs are not superseded by unrelated operations, and a test result is superseded only when a rerun of the same test passes. Once all tool outputs of a round are superseded, the round’s tool calls and reasoning also become candidates. An unmapped tool’s output is superseded only by a repeat of the same call or a later run over a file the call names; otherwise it stays. The system prompt and task description are always retained. 
+
+Grace window. Candidates become mature , and eligible for commit, only after a configurable grace window, 2 rounds by default (§6.4.1). The window keeps recently superseded information while the agent completes related operations, such as verifying an earlier edit. We evaluate the sensitivity of Contexture to it in §6.4.1. 
+
+Locating spans. To remove a span, Contexture must know where each message lies in the token prompt that the chat template renders. The tracker renders the conversation a second time with the new message’s content blanked and takes the window where the two renders differ as its span, which leaves the template’s tool-response markers intact. Because tracking is asynchronous, spans come from an earlier prompt. The filter removes a span only while the current prompt still matches that prompt up to the span’s end. Otherwise, the request waits for tracking. 
+
+## 5.3 Eviction Timing from Global KV State 
+
+Contexture uses the runtime’s global view of shared KV state (G1) to decide when mature candidates are removed. Pool pressure de-termines when reducing context demand is beneficial, and cached-prefix residency determines whether a removal sacrifices reusable computation. The pressure gate and cold commits use these signals to avoid unnecessary re-prefill (G4). 
+
+Pressure gate. When a removal would invalidate cached states, Contexture defers it until the shared KV pool is under pressure. With memory to spare, the invalidation adds computation without relieving capacity. Under pressure, removing superseded context reduces the KV demand of later requests, which admits more con-current sessions and avoids preemptions. Pressure is the fraction of KV blocks held by running requests, with a configurable thresh-old of 80% by default. We evaluate Contexture’s sensitivity to it in §6.4.2. Cached blocks of idle sessions are excluded because the allocator can reclaim them on demand. This global pressure signal coordinates eviction across sessions, while each session applies eligible removals at its next request. 
+
+Cold commits. When the cached prefix ends before the earliest removal point, the next request recomputes the uncached suffix regardless, e.g., after cached blocks are reclaimed during tool ex-ecution. Committing cuts this recomputation without sacrificing cache reuse, so Contexture makes such cold commits regardless of pressure. 
+
+## 5.4 Cache-Aware Commit Policy 
+
+To balance context reduction against lost cache reuse (G4), Contex-ture groups a session’s matured candidates into one batch (Fig. 9(c)). The batch’s gain is the number of prompt tokens it removes. Since each prefix-cache block depends on all preceding tokens, the batch’s 
+
+cost , the cached tokens whose reuse it invalidates, equals the num-ber of cached tokens after the earliest removal point, or zero if the cached prefix ends at or before that point. Candidates after the earliest removal point therefore add gain without adding cost. 
+
+Residency probe. The cached-prefix length changes at each engine step as sessions run and the allocator reclaims idle blocks. The API server cannot compute it because the engine chains block hashes with a per-process seed, so Contexture adds a read-only 
+
+residency probe to the engine’s KV cache manager. The probe hashes a session’s prompt block by block, as the scheduler does, and looks the hashes up in the GPU prefix cache. It neither allocates blocks nor modifies cache state, and the Policy Actuator invokes it only when a session has a matured batch. 
+
+Commit rule. The Policy Actuator commits a batch whose cost is zero regardless of pressure (a cold commit, Fig. 9(b)). Otherwise, it commits only when pool pressure exceeds the threshold and the cost is at most the gain times a configurable re-prefill cap , 6 by default. We evaluate sensitivity to the cap in §6.4.3. For hybrid models, vLLM saves the recurrent states of linear-attention layers only at block-aligned engine-step boundaries. Re-prefill therefore starts from the last saved state before the cut, so the cost is a lower bound on the recomputation (Fig. 7). The cold-commit condition remains exact because a cached prefix ending before the cut also ends at a saved recurrent state. Context-window commits and tracker failures (§5.5) bypass the cap. A batch that fails these conditions stays pending until the session’s next request. 
+
+## 5.5 Eviction Mechanism 
+
+To keep eviction harness- and model-agnostic (G3), the runtime removes committed spans from the model’s input only, keeping the prompt structure valid and the prefix cache consistent. 
+
+Prompt filtering. The Context Filter removes committed spans from the token prompt after chat template rendering and before scheduling. For tool outputs, it removes their content while retain-ing the template’s tool-response markers; committed assistant turns are removed entirely. The filter also excludes previously committed spans from every subsequent request, preventing their reintro-duction from breaking prefix-cache reuse. The harness keeps and resends its full history, while the model receives the shortened prompt. The harness only adds a session ID to each request. 
+
+Cache interaction. The shortened prompt follows the engine’s normal prefix-caching mechanism. The committing request reuses the cached prefix before the earliest removal and re-prefills the rest (Fig. 9(d)). Subsequent requests extend the shortened prompt and reuse its cached states. Context removal does not immediately release GPU memory. The removed spans’ cached blocks are no longer referenced and are reclaimed through normal cache eviction. Shorter prompts reduce the KV demand of subsequent rounds and the KV entries read by full-attention layers for each generated token, lowering decode memory traffic. 
+
+Request handling. Contexture checks the context window after filtering, so committed removals count before the engine applies the model’s context limit. If the prompt and output budget would still exceed the limit, Contexture commits the session’s matured candidates regardless of pressure and the re-prefill cap. If the res-idency probe times out, the batch stays pending and the request proceeds with earlier commits. The probe’s reading can be stale by the time the scheduler admits the request, but only in one direction. 
+
+> 6Contexture : Runtime Context Eviction for High-Throughput Agent Serving
+
+A session has at most one request in flight, so other requests can only reclaim its idle blocks. A stale reading thus only overstates the cost, so a pressure-driven commit stays within the re-prefill cap and a cold commit stays cold. If candidate tracking fails, the request runs unmodified with its full history, re-prefilling from the earliest restored span. It is rejected only if it exceeds the context window. 
+
+## 5.6 Implementation 
+
+We implement Contexture in vLLM 0.26 [20] with about 7K lines of Python. The Session Tracker and Session Evictor hook into vLLM’s OpenAI-compatible API server between chat-template rendering and scheduling. The tracker runs on a worker thread and parses shell commands with Python’s shlex . The prototype has superses-sion rules only for sandbox and file tools; external and MCP services are out of scope. The residency probe adds fewer than 100 lines to the engine core, which answers probes between execution steps. It is the only engine-core change, and the scheduler, KV cache alloca-tor, and model execution are unchanged. Pool usage comes from vLLM’s existing stat logger, which records the scheduler’s usage at each step. Each request carries its session ID in an agent_tracker 
+
+field, which Hermes and OpenClaw forward through configuration. Per-session tracking state lives in host memory in a single API server process. 
+
+## 6 Evaluation 
+
+We evaluate Contexture across eight configurations spanning two models, two agent harnesses, and two benchmarks. We first compare its throughput under SLO against existing context-management and KV-management baselines, including observation masking (§6.2.1). We then evaluate its energy efficiency and task accuracy (§6.2.2, §6.2.3). Ablation and parameter-sensitivity experi-ments examine the contributions and robustness of its design (§6.3, §6.4). Finally, we evaluate Contexture with larger HBM capacity and KV offloading, and measure its request-path overhead (§6.5, §6.6). 
+
+## 6.1 Experimental Setup 
+
+We evaluate Contexture on two long-horizon agent benchmarks, two open-source agent harnesses, and one dense and one mixture-of-experts (MoE) model deployed on two GPU generations under varying load, and report throughput, latency slowdown, energy efficiency, and task accuracy. 
+
+Workloads and platforms. We evaluate Contexture on two long-horizon agent benchmarks, Terminal-Bench 2.1 (TB2.1) [34] and SWE-Atlas-QnA (SWE-Atlas) [55], using their default task verifiers and rubrics, respectively. Both benchmarks comprise long-horizon tasks whose sessions reach 100K to 228K tokens of context at p90. We run two open-source agent harnesses, Hermes v2026.10.11 [61] and OpenClaw v2026.7.1 [41], on both benchmarks. The experi-ments use a dense model, Qwen3.8-27B [54], on an H200 GPU and an MoE model, Qwen3.6-35B-A3B [53], on an H100 GPU. Both mod-els use FP8 weights and vLLM 0.26 [20], with KV pools equivalent to six to seven full 262K-token contexts. They use hybrid linear and full attention (§5.4). 
+
+Baselines. We compare Contexture against no eviction, production harnesses’ compaction, tuned harness compaction, observation masking, and academic works: LLM-driven history editing and runtime KV retention. These are the harness- and runtime-level methods (§3.1) that run on original Hermes and OpenClaw, require no model training, and support hybrid-attention models we serve: 
+
+• No eviction retains the full history except when the harness han-dles context overflow. 
+
+• Default compaction follows each harness’s shipped trigger. Her-mes compacts when a prompt reaches 75% of the input capacity after reserving output tokens (172K tokens) [37], while OpenClaw compacts only upon context overflow. These triggers depend on context length rather than KV pressure and are reached by 16% of no-eviction sessions in Hermes and 7% in OpenClaw, on average. 
+
+• Tuned compaction lowers the default trigger to compact more sessions. We consider thresholds reached by more than 16% of no-eviction sessions, the higher of the two defaults’ mean reach, but by fewer than 40%, as more aggressive compaction reduces accuracy [18]. For each configuration, we select the threshold that completes the most tasks within their task budgets in unloaded recordings. 
+
+• Observation masking [25] replaces every tool output except the 10 most recent with a short placeholder, without model calls. Hermes and OpenClaw ship variants [38, 42]. We implement it in vLLM’s request path, so both harnesses run unmodified. 
+
+• AgentDiet [66] uses a reflection call to the agent’s own model on the serving GPU to reduce history, and is ported from Trae Agent [63] to both harnesses. 
+
+• Continuum [22] uses the authors’ published implementation, whose default retains a completed request’s KV cache for 2 s when the tool’s mean execution time is shorter than 2 s. Contexture uses the same default parameters across all configura-tions: a pressure threshold of 80%, a re-prefill cap of 6, and a grace window of 2 rounds (§5). We evaluate Contexture’s sensitivity to them in §6.4. 
+
+Load generation. We use trace replay to make the workload re-producible across load sweeps and repeated runs. Fixing agent trajectories, output lengths, and tool delays prevents run-to-run variation in generated work from confounding measurements of serving performance; scheduling, caching, and Contexture’s evic-tion decisions still respond dynamically to load. We first record each task’s session, including its prompts and tool execution times, for each harness, model, and baseline that changes the conversa-tion, and then replay these recordings. Compaction and AgentDiet replay their own recordings, which capture their context modifica-tions and additional model calls; these do not depend on load, so we replay each request by its prompt and output lengths, keeping the prefix it shares with the one before. Since Contexture makes eviction decisions based on shared KV pressure, its throughput experiments replay no-eviction recordings with their full prompts, from whose content it selects what to evict, with eviction applied dynamically at runtime. No eviction, Continuum, and observation masking, which masks outputs at runtime, replay the same record-ings, so all four start from the same recorded request sequence at each load. Replay preserves the recorded requests, output lengths, and inter-request gaps, including tool execution time. Sessions ar-rive according to a Poisson process [22, 31], with identical arrival schedules across policies at each load level. A session’s task budget 
+
+> 7Hong et al.
+
+is the benchmark-defined task timeout [62]. Each run includes a 2 h warmup to allow the KV pool to fill and measurements to stabilize. 1
+
+Metrics. We report three metrics. 1. Throughput under SLO mea-sures the number of sessions completed within their task budgets per minute. We report the throughput at which p90 session slow-down reaches 10 ×. Following Splitwise [48], we measure slowdown relative to the same task’s no-eviction recording served unloaded. We choose the 10 × SLO following prior serving systems [2, 49, 51]. 
+
+2. GPU energy per completed session is the total GPU energy divided by the number of completed sessions during the measurement win-dow. We sample the GPU’s cumulative energy counter through NVML [6, 35, 39] every second. We also report mean GPU power, calculated by dividing energy by the measurement-window du-ration. 3. Task accuracy is the fraction of probe tasks that pass the benchmark’s default evaluation procedure. Replay fixes every model output, so we run live agent sessions, called probes, alongside the load generator to measure accuracy under eviction. 
+
+## 6.2 End-to-End Results 
+
+6.2.1 Throughput and Latency Slowdown. We evaluate whether Contexture increases throughput under SLO across two models, two harnesses, and two benchmarks. Fig. 10 compares each policy’s p90 slowdown against throughput. At light load, Contexture keeps p90 slowdown within 10% of the no-eviction value by committing only removals that invalidate no cached KV (§5.3). Under the same conditions, compaction incurs 1.4–2.5 × the p90 slowdown of no eviction, and AgentDiet incurs at least 2 ×; observation masking incurs up to 1.24 ×, as each request moves its window and breaks the cached prefix. At the throughput where the best baseline other than observation masking reaches the SLO in each configuration, Contexture achieves 30–78% lower p90 slowdown, and 32–61% lower where masking reaches it, in the five configurations where Contexture sustains that throughput. At the 10 × p90 slowdown limit, Contexture completes 20–73% more sessions per minute than that baseline in each of the eight configurations. Fig. 10(a) illustrates the performance differences on TB2.1 when Hermes uses Qwen. Without eviction, the shared KV pool fills and request preemptions prevent throughput from increasing, while p90 slowdown rises sharply. Continuum follows nearly the same curve because retaining a turn’s KV for 2 s does not reduce the context carried into subsequent requests. Compaction starts with more than twice the unloaded p90 slowdown of no eviction, and its context-length trigger is reached too late to relieve KV pressure. AgentDiet exhibits a different limitation. Its KV pool never fills in this workload, but reflection calls make unloaded sessions 1.5 ×
+
+as long as those under no eviction, causing it to reach the SLO at 28% lower throughput. Contexture delays KV pool saturation by committing deferred removals once shared memory pressure builds, achieving 23% higher throughput under SLO than the best of them. The same performance trends appear across the eight config-urations. The better of default and tuned compaction improves 
+
+> 1Replay fixes trajectories and therefore excludes behavioral changes induced by evic-tion. We assess this approximation with live probes across all eight configurations and fully live execution for Qwen with Hermes on TB2.1 at three load levels. In the latter experiment, throughput is 9–13% lower than replay for Contexture and 2–5% lower for no eviction, but Contexture retains a 13% advantage in throughput under the 10 ×
+> p90 slowdown SLO.
+
+throughput under SLO over no eviction by 11–37% in five configu-rations, but ties or trails it in the other three. Default compaction matches no eviction in OpenClaw because both use the same over-flow handling. It also matches no eviction for Hermes with Qwen MoE on SWE-Atlas because the compaction threshold is never reached. Continuum remains within 6% of no eviction across all configurations. AgentDiet trails no eviction by 21–28% on three Qwen workloads and leads it by only 2% on the fourth. Across the four Qwen MoE configurations, AgentDiet’s median unloaded session duration is 1.7–6 × the corresponding no-eviction duration, causing it to miss the SLO even at the lightest load. Observation masking improves throughput under SLO over no eviction by 10– 95%. Contexture outperforms it by 7–63% in five configurations. In the remaining three, all using Qwen MoE, observation masking achieves 6–25% higher throughput at the cost of 9–28 percentage points lower task accuracy (§6.2.3). These gains reflect two effects of context reduction. It reduces per-session KV demand, delaying pool saturation under memory pressure, and reduces KV-cache reads during decoding, easing memory-bandwidth pressure and lowering time per output token (§6.3.1 and §6.5). 
+
+6.2.2 Energy Efficiency. We examine whether the throughput gains from Contexture translate into lower GPU energy per completed session, accounting for the re-prefill introduced by context eviction. Fig. 11 reports energy per completed session for Hermes on TB2.1 at three offered loads, Low, Mid, and High, on both models. For each model, Low is the load at which no eviction reaches 90% of its throughput under SLO, while High is the load at which Contexture reaches 90% of its throughput under SLO. Mid is the midpoint between these two offered loads. Contexture consumes the least energy per completed session at all three loads on both models. Compared with the lowest-energy baseline at each load, Contexture reduces energy per completed session by 2%, 8%, and 11% with Qwen, and by 10%, 10%, and 8% with Qwen MoE, respectively. These results show that the through-put gains from Contexture translate into lower GPU energy per completed session, despite the additional re-prefill caused by evic-tion. Mean GPU power varies across policies by at most 2% at each load with Qwen. With Qwen MoE, the maximum difference reaches 17% at High, and Contexture draws the least power at Mid and High. With Qwen, Contexture completes only 2–11% more sessions than the baselines other than AgentDiet at Low, but its through-put advantage grows to 12–27% at High. This corresponds to an increase in energy savings from 2% to 11%. From Low to High, Contexture’s energy per completed session falls by 24% with Qwen and 19% with Qwen MoE. Compaction reduces energy per session by at most 11%, while no eviction and Continuum reduce it by at most 9% with Qwen and increase it with Qwen MoE. Despite the additional re-prefill caused by eviction, Contexture performs the least prefill per completed session at every load. At High, its prefill is half that of no eviction with Qwen and one-quarter with Qwen MoE. AgentDiet consumes 1.4–2.5 × as much energy per completed session as Contexture. Its reflection calls add prefill and lengthen sessions (§6.2.1), contributing to its high energy consumption. 
+
+6.2.3 Task Accuracy. We evaluate whether Contexture preserves task accuracy when context eviction occurs under memory pressure.                          
+
+> 8Contexture : Runtime Context Eviction for High-Throughput Agent Serving 0.4 0.6
+> (a) Hermes, TB2.1
+> 1× 2× 5× 10×
+> Qwen
+> 0.4 0.6 0.8
+> (b) OpenClaw, TB2.1
+> 0.1 0.2 0.3
+> (c) Hermes, SWE-Atlas
+> 0.1 0.2 0.3 0.4 0.5
+> (d) OpenClaw, SWE-Atlas
+> 0.5 1.0 1.5 2.0
+> (e) Hermes, TB2.1
+> 1× 10× 50×
+> Qwen MoE
+> 0.5 1.0
+> (f) OpenClaw, TB2.1
+> 123
+> (g) Hermes, SWE-Atlas
+> 123
+> (h) OpenClaw, SWE-Atlas
+
+Sessions completed per minute p90 slowdown 
+
+No eviction Default compaction Tuned compaction Observation masking AgentDiet Continuum Contexture 
+
+Figure 10: Each policy’s p90 slowdown against throughput, on a log scale, with Qwen (top) and Qwen MoE (bottom) on each workload; the dashed line is the 10 × SLO. Contexture sustains the highest throughput within the SLO on every workload, except three with Qwen MoE, where observation masking leads at the cost of dropping accuracy by 9–28 percentage points (§6.2.3). Low Mid High         
+
+> (a) Qwen
+> 75 100 125
+> kJ per session
+> −2% −8% −11%
+> Low Mid High
+> (b) Qwen MoE
+> 20 40 60
+> −10% −10% −8% lower is better
+
+No eviction Default compaction Tuned compaction Observation masking AgentDiet Continuum Contexture 
+
+Figure 11: GPU energy per completed session for each policy at Low, Mid, and High loads with Hermes on TB2.1. Numbers below Contexture’s points show its energy reduction relative to the lowest-energy baseline at each load. 60 80 
+
+> Qwen  86 Hermes TB2.1 78 OpenClaw TB2.1 71 Hermes SWE-Atlas 76 OpenClaw SWE-Atlas Default Cmp. Tuned Cmp. Obs. Masking AgentDiet Contexture 20 40 60 80
+> Qwen MoE
+> 68 Default Cmp. Tuned Cmp. Obs. Masking AgentDiet Contexture 56 Default Cmp. Tuned Cmp. Obs. Masking AgentDiet Contexture 49 Default Cmp. Tuned Cmp. Obs. Masking AgentDiet Contexture 41
+> Accuracy (%)
+
+No eviction Contexture: range over Low, Mid, High 
+
+Figure 12: Each policy’s accuracy with Qwen and Qwen MoE on each workload. The baselines are served unloaded; Con-texture’s bar is its mean over Low, Mid and High load and its whisker spans its lowest to its highest accuracy among the three loads. Contexture under load averages 1.4 percentage points above no eviction, with a worst-case loss of 3.7. 
+
+We run live probes on tasks solved in at least one recording and allow each task up to 6h to complete. Fig. 12 compares the accuracy of different policies. The baselines are measured unloaded because their context-management decisions do not depend on offered load. For Contexture, we report the mean and range across Low, Mid, and High loads. Across eight configurations and three loads, Contexture averages 1.4 percentage points above unloaded no eviction and matches or exceeds it in most cases. Its average accuracy is 2 points higher at Low and 1 point higher at High, where it removes the most context. The largest accuracy loss occurs with OpenClaw on TB2.1 at Mid, reaching 1 point with Qwen at High and 3.7 points with Qwen MoE at Mid. With Qwen MoE, Contexture matches no eviction again at High. Overall, Contexture maintains task accuracy within 3.7 percentage points of unloaded no eviction across the evaluated configurations and loads. Tuned compaction and AgentDiet exhibit larger accuracy devi-ations from no eviction, even when served unloaded. Tuned com-paction ranges from 8 points below to 6 points above no eviction, while AgentDiet ranges from 11 points below to 4 points above. Both use model-generated context reduction, which can remove infor-mation needed by subsequent agent actions. Observation masking also loses 3–28 percentage points across the eight configurations because its fixed window removes older tool outputs regardless of whether subsequent actions still need them. Contexture identifies removable history through subsequent tool operations and retains candidates for a grace window before committing their removal. This preserves recently superseded context while allowing older redundant history to be removed under memory pressure. 
+
+## 6.3 Ablation Study 
+
+We conduct an incremental ablation to determine which mechanism raises throughput and what the cache-aware commits add at that throughput, using Qwen with Hermes on TB2.1. All configurations replay identical session arrivals. Starting from no eviction, we add one mechanism at a time. No eviction + Sel adds candidate selec-tion and commits superseded context as soon as it matures (§5.2). This configuration includes file-aware supersession [7, 27, 60] and also selects superseded command, build, and test outputs, with-out consulting runtime cache state. No eviction + Sel + Cold adds cold commits, which defer removal until it can proceed without invalidating cached KV, as determined by the residency probe (§5.3, §5.4). Finally, No eviction + Sel + Cold + Pressure adds the pressure                
+
+> 9Hong et al. (a) Prefill (K tokens)
+> 100 450 800 594 444 280 288
+> (b) p90 TPOT (ms)
+> 40 90 140 118 70 62 62
+> (c) p90 TTFT (s)
+> 0714 10.6 3.2 2.1 2.1 0.5 0.6 0.7
+> (d) Sessions completed/min
+> 2× 5× 10×
+> p90 slowdown
+> No eviction No eviction + Sel No eviction + Sel + Cold No eviction + Sel + Cold + Pressure
+
+Figure 13: Ablation of Contexture with Qwen and Hermes on TB2.1. Panels (a), (b), and (c) show prefill per completed session, p90 time per output token (TPOT), and p90 TTFT at High load, pooled across three traces. Panel (d) shows p90 slowdown versus throughput, with the 10 × SLO marked by a dashed line. Selection raises peak throughput, cold commits cut prefill and TTFT, and the pressure gate further increases peak throughput. 
+
+gate, allowing removals that invalidate cached KV when the shared pool is under pressure, subject to the re-prefill cap (§5.3, §5.4). This final configuration corresponds to Contexture. We examine the effects of each mechanism on prefill work and decoding, followed by throughput under SLO and GPU energy per completed session. 
+
+6.3.1 Prefilling and Decoding. At High load, the KV pool under no eviction is full, causing the engine to preempt requests and re-compute their prompts when they resume. Removing superseded context allows more sessions to fit in the shared KV pool, eliminat-ing nearly all preemptions. The shorter contexts also reduce prefill per completed session by 25% and p90 TPOT by 41% (Fig. 13(a, b)). Fewer preemptions also cut p90 TTFT, the time a request spends queued and in prefill, by 70% (Fig. 13(c)). However, committing candidates as soon as they mature invalidates the cached prefix following each removal. This re-prefill delays the request that car-ries it and interferes with concurrent decoding, as shown in Fig. 7. Cold commits avoid this cost by shortening prompts only when the affected suffix would need to be recomputed anyway (§5.4). They further reduce prefill tokens per completed session by 37%, and p90 TPOT by 10%. At the lightest load, where the pool never fills, selection alone doubles p90 TTFT over no eviction, while cold com-mits leave it unchanged. Thus, selection relieves memory pressure, while cold commits remove the re-prefill that selection adds. 
+
+6.3.2 Throughput. Fig. 13(d) shows how the reductions in KV de-mand and re-prefill translate into higher throughput. Selection increases throughput under SLO by 20%. Cold commits leave peak throughput approximately unchanged but raise it below the peak: at a p90 slowdown of 5 ×, they increase throughput by 6% over selection alone. The pressure gate commits these pending removals once the threshold is crossed. Compared with cold commits alone, it increases the share of prompt tokens removed from 21% to 25% and reduces request preemptions by 25%. Fewer preemptions reduce repeated prompt recomputation, slowing the increase in p90 slow-down and raising peak throughput by a further 4% on each of the three traces. Overall, Contexture achieves 24% higher throughput under SLO than no eviction. Mean GPU power differs by only about 0 1 2 3 4 5          
+
+> (a) Grace window (rounds)
+> 80 90
+> Accuracy (%)
+> 70 80 90
+> (b) Pressure threshold (%)
+> 0.5 0.6 0.7
+> Passing sessions/min
+> 02630 none
+> (c) Re-prefill cap (per token)
+> Setting Default No eviction
+
+Figure 14: Contexture with one parameter varied at a time, compared with no eviction (dotted line; accuracy measured unloaded). (a) Task accuracy at High across grace windows. (b,c) Passing sessions per minute at High across pressure thresholds and re-prefill caps, respectively. Passing sessions per minute is calculated as throughput under SLO multiplied by task accuracy. Gold markers indicate the default settings. 
+
+1% across the four configurations, so energy per completed session closely follows throughput. Selection reduces energy per session by 18%, and cold commits provide a further 3% reduction. The pressure gate maintains this saving at High load. Selection accounts for most of the throughput improvement, while cold commits and pressure gating reduce the associated execution overhead, cutting prefill by about one-third and p90 TTFT by about one-third relative to selection alone. 
+
+## 6.4 Parameter Sensitivity 
+
+We evaluate the sensitivity of Contexture to each parameter using the workload in §6.3. We vary one parameter at a time while keeping the others at their default settings. 
+
+6.4.1 Selection: Grace Window. The grace window delays the re-moval of superseded context for a configurable number of rounds. This gives the agent time to complete actions that may still depend on earlier outputs, such as verifying an edit (§5.2). We compare windows by task accuracy at High, where Contexture commits the most context. The default 2-round window achieves the highest accuracy at 88%, 2 percentage points above no eviction (Fig. 14(a)). Shorter windows reduce accuracy by 2–4 points, as they may re-move context before the agent finishes using it. Longer windows reduce accuracy by 6–7 points because they retain stale context for more rounds. 
+
+6.4.2 Pressure Gate: Threshold. The pressure threshold determines when Contexture begins committing removals that invalidate cached prefixes. We compare thresholds, and re-prefill caps below, by passing sessions per minute, calculated as throughput under SLO multiplied by task accuracy at High. As shown in Fig. 14(b), the default threshold of 80% achieves 5–6% more passing sessions per minute than thresholds of 70% and 90%, and 27% more than no eviction. Throughput under SLO differs by only about 1% across the three thresholds because they remove similar fractions of the prompt near peak load. The 80% threshold achieves 4 percentage points higher accuracy, accounting for its higher passing-session rate. 
+
+6.4.3 Cache-Aware Commits: Re-Prefill Cap. The re-prefill cap lim-its the number of cached tokens invalidated by each pressure-driven       
+
+> 10 Contexture : Runtime Context Eviction for High-Throughput Agent Serving H100 H200
+> (a) GPU memory
+> 0123
+> Sessions/min
+> +32% +14% No o ffl oading LMCache
+> (b) KV offloading, H100
+> +32% +23%
+> No eviction Contexture
+
+Figure 15: Throughput under SLO of no eviction and Contex-ture with Qwen MoE and Hermes on TB2.1 : (a) on an H100 and an H200; (b) on the H100 without and with LMCache offloading to a 100 GB host tier. Contexture’s gain holds with a larger HBM and with offloading. 
+
+commit relative to the number of context tokens removed. The de-fault cap of 6 achieves 10% more passing sessions per minute than a cap of 0 and 2% more than larger caps, as shown in Fig. 14(c). At a cap of 0, the pressure gate cannot commit removals that inval-idate cached KV, leaving only cold commits (§6.3.2). This setting reduces accuracy by 5 percentage points relative to the default. Larger caps provide no additional passing sessions per minute and reduce accuracy by 2 points. 
+
+## 6.5 Generalization to HBM Expansion and KV Offloading 
+
+A larger HBM capacity delays KV-pool saturation, while KV of-floading lowers the cost of reclaiming GPU memory. We evaluate whether Contexture retains its gains under both conditions. We serve Qwen MoE with Hermes on an H100 and an H200 using the same recordings, arrival schedules, and task budgets. The two GPUs provide comparable compute but differ in KV-pool capacity, with 1.75M (4.44M) tokens on the H100 (H200). Contexture improves throughput under SLO by 32% on the H100 and 14% on the H200 (Fig. 15(a)). The smaller gain on the H200 is consistent with the reduced impact of KV capacity on serving throughput. Shorter con-texts reduce the KV-cache reads required during decoding, easing memory-bandwidth pressure even before the KV pool is full (§6.3.1). KV offloading keeps evicted KV in host memory and reloads it when its session resumes, instead of prefilling it again (§3). We add LMCache v0.5.7 [26] to no eviction and Contexture on the H100, configured per its recipe [30] with a 100 GB host tier. Offloading raises no eviction’s throughput under SLO by 29%(Fig. 15(b)); Con-texture alone reaches 2% more. With offloading, Contexture still gains 23% (22% with Qwen on the H200, where offloading adds 16% to no eviction). Offloading cuts the cost of evicting KV, but a running request still holds and attends over its full context on the GPU; Contexture shortens that context, so the two are composable. 
+
+## 6.6 Overhead 
+
+We measure Contexture’s request-path overhead across both mod-els, benchmarks, and harnesses at their highest probed loads. Across requests, Contexture adds a median delay of 30 ms before engine execution, accounting for 0.2% of request time at the median. Com-mit decisions and prompt filtering take a median of 9 ms, while 69% of requests also wait a median of 25 ms for a residency probe. The engine answers these probes between forward passes, so the me-dian wait is shorter than one forward pass over the batched prefill and decode tokens. The Session Tracker maintains its per-session state in host memory. Its host-memory footprint per tracked to-ken is well under 1% of the GPU KV memory required per token. Contexture introduces no additional GPU computation beyond the re-prefill caused by its commits. 
+
+## 7 Related Work 
+
+Agent context management. Harnesses shorten session histories through threshold-based summarization [3, 38, 40, 41, 43], obser-vation masking [25, 33], file-aware removal [7, 27, 60], or model-guided editing [18, 56, 66, 67]. These methods do not coordinate removals with shared KV pressure and prefix residency. Model-guided editing also incurs additional model calls and can discard information the agent still needs [66]. TokenPilot [67] maintains a provider’s prompt cache across a continuous task stream, but relies on cache hit and miss counts rather than runtime cache state. Most harness-integrated methods require adapting to each har-ness’s history format and hooks [8, 15, 52]. Pichay [33] performs masking through an API proxy but lacks visibility into the serving runtime’s KV pool. Contexture operates in the runtime, directly accesses shared KV pressure and prefix residency, and requires only a mapping from tool names to operation types for each new harness (§5.2). It extends supersession to commands, builds, and tests, and coordinates removal timing with shared KV state. 
+
+Model-level KV reduction. Model-level methods keep the KV of high-attention tokens within a budget, some guided by cross-turn intent [5, 23, 24, 28, 65, 73], fetch only the KV predicted to mat-ter [21], or train a model to find stale history [19, 59, 64, 72]. They approximate attention or need model-specific training. Contexture is model-agnostic: it needs no training and keeps exact attention over the context it retains. KV quantization [16, 29] is orthogonal: it shrinks each token’s KV rather than the number of tokens. 
+
+Runtime KV management. Serving runtimes reuse cached prefixes [20, 75], offload KV to host memory, SSDs or remote stores [10, 13, 26, 50, 69], evict cached blocks by predicted reuse or recompute cost [9, 44, 57, 74], and retain or prefetch a session’s KV across tool calls and workflow steps [1, 22, 45, 71]. They de-cide where KV resides but leave the history unchanged, so states needed again must be reloaded or recomputed. Contexture removes superseded history, which lowers the KV that later requests need and that memory tiers must store or move, and it uses the pool’s pressure and cached prefixes to decide when to commit each re-moval. Autoscalers (ServerlessLLM [12], BlitzScale [70]) scale the aggregate serving capacity, while load balancers (Llumnix [58]) distribute sessions across instances to manage KV load and cache locality. Contexture complements these mechanisms by reducing the KV demand generated by each session. 
+
+Efficient context edits. Other work makes an edit’s re-prefill cheaper. Prompt caching and span removal from cached KV [11, 14, 17, 32, 56, 68] reuse states computed under a different preceding context. Leyline [32], for example, deliberately keeps downstream states influenced by the removed content, so its result differs by design from re-prefilling the edited prompt. These implementations also constrain the model or the engine: Leyline’s splice kernel [32] 
+
+> 11
+
+Hong et al. 
+
+supports only MLA attention, and AKV [11], concurrent with this work, uses one-token KV pages in its evaluated implementation and does not yet support the linear-attention layers of the models we serve. SmoothAgent [46] keeps edits exact by scheduling their re-prefill ahead of time within available latency slack, which can limit this benefit at high load. Contexture selects superseded his-tory from tool executions and uses shared KV pressure and prefix residency to decide when to commit each removal, paying an exact re-prefill. Exact execution of the retained prompt is separate from task accuracy, which depends on what is removed. 
+
+## 8 Conclusion 
+
+We present Contexture, a runtime context-eviction system that identifies superseded agent history through tool operations and coordinates removal with shared KV pressure and cache residency. Across eight configurations, Contexture improves throughput un-der SLO by 20–73% over the strongest of no eviction, compaction, AgentDiet, and Continuum, reduces GPU energy per completed session by up to 11%, and maintains task accuracy within 3.7 per-centage points of unloaded no eviction. These benefits persist with larger HBM capacity and KV offloading, while context reduction also lowers KV-read traffic during decoding. 
+
+## Acknowledgments 
+
+The authors used Claude (Anthropic) to write experiment code, plot figures, and refine text. The authors directed this use and reviewed, verified, and take responsibility for all code, results, and text. 
+
+## References 
+
+[1] Reyna Abhyankar, Zijian He, Vikranth Srivatsa, Hao Zhang, and Yiying Zhang. 2024. InferCept: Efficient Intercept Support for Augmented Large Language Model Inference. In Proceedings of the 41st International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 235) . PMLR, 81–95. https://proceedings.mlr.press/v235/abhyankar24a.html [2] Amey Agrawal, Nitin Kedia, Ashish Panwar, Jayashree Mohan, Nipun Kwatra, Bhargav S. Gulavani, Alexey Tumanov, and Ramachandran Ramjee. 2024. Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve. In 18th USENIX Symposium on Operating Systems Design and Implementation (OSDI 24) . USENIX Association, 117–134. https://www.usenix.org/conference/osdi24/ presentation/agrawal [3] Anthropic. 2026. Claude Code Docs: How Claude Code Works (When Context Fills Up). https://code.claude.com/docs/en/how-claude-code-works. Accessed 2026-10-09. [4] Anthropic. 2026. Claude Code Docs: Model Configuration (Context Window and Auto-Compaction). https://code.claude.com/docs/en/model-config. Accessed 2026-10-09. [5] Zefan Cai, Wen Xiao, Hanshi Sun, Cheng Luo, Yikai Zhang, Ke Wan, Yucheng Li, Yeyang Zhou, Li-Wen Chang, Jiuxiang Gu, Zhen Dong, Animashree Anandkumar, Abedelkadir Asi, and Junjie Hu. 2025. R-KV: Redundancy-aware KV Cache Compression for Reasoning Models. In Advances in Neural Information Processing Systems 38 . Neural Information Processing Systems Foundation, Inc. (NeurIPS), 67839–67864. doi:10.52202/085713-2038 [6] Jae-Won Chung, Jeff J. Ma, Ruofan Wu, Jiachen Liu, Oh Jun Kweon, Yuxuan Xia, Zhiyu Wu, and Mosharaf Chowdhury. 2025. The ML.ENERGY Benchmark: To-ward Automated Inference Energy Measurement and Optimization. In Advances in Neural Information Processing Systems 38 . Neural Information Processing Systems Foundation, Inc. (NeurIPS), 121191–121219. doi:10.52202/085713-3652 [7] Cline. 2026. Cline: Context Manager with Duplicate File-Read Removal (Source Code). GitHub, commit 791d238, https://github.com/cline/cline/blob/ 791d2389966d927396830470c51d456d04687b69/apps/vscode/src/core/context/ context-management/ContextManager.ts. Accessed 2026-10-14. [8] DeepSeek. 2026. DeepSeek Harness: Everything is a Plugin. GitHub, https: //github.com/deepseek-ai/deepseek-harness. Accessed 2026-11-16. [9] Shaoke Fang, Ziang Li, Wenfei Wu, Jiatong Ji, Qingsong Liu, and Ruizhi Pu. 2026. Not All Tokens Are Worth Caching: Learning Semantic-Aware Eviction for LLM Prefix Caches. arXiv preprint arXiv:2605.18825. arXiv:2605.18825 doi:10.48550/arXiv.2605.18825 [10] Shaoting Feng, Yuhan Liu, Hanchen Li, Xiaokun Chen, Samuel Shen, Kuntai Du, Zhuohan Gu, Rui Zhang, Yuyang Huang, Yihua Cheng, Jiayi Yao, Qizheng Zhang, Ganesh Ananthanarayanan, and Junchen Jiang. 2025. EVICPRESS: Joint KV-Cache Compression and Eviction for Efficient LLM Serving. arXiv preprint arXiv:2512.14946. arXiv:2512.14946 doi:10.48550/arXiv.2512.14946 [11] Tianyu Fu, Ruoxi Wang, Zihan Min, Zhongqi Ren, Zhihao Li, Tengxuan Liu, Shengxu Mu, Hanling Zhang, and Yu Wang. 2026. Cache Engineering for Agents. arXiv preprint arXiv:2610.28577. arXiv:2610.28577 doi:10.48550/arXiv.2610.28577 [12] Yao Fu, Leyang Xue, Yeqi Huang, Andrei-Octavian Brabete, Dmitrii Ustiugov, Yuvraj Patel, and Luo Mai. 2024. ServerlessLLM: Low-Latency Serverless In-ference for Large Language Models. In 18th USENIX Symposium on Operating Systems Design and Implementation (OSDI 24) . USENIX Association, 135–153. https://www.usenix.org/conference/osdi24/presentation/fu [13] Bin Gao, Zhuomin He, Puru Sharma, Qingxuan Kang, Djordje Jevdjic, Junbo Deng, Xingkun Yang, Zhou Yu, and Pengfei Zuo. 2024. Cost-Efficient Large Language Model Serving for Multi-turn Conversations with CachedAttention. In 
+
+2024 USENIX Annual Technical Conference (USENIX ATC 24) . USENIX Association, 111–126. https://www.usenix.org/conference/atc24/presentation/gao-bin-cost [14] In Gim, Guojun Chen, Seung-seob Lee, Nikhil Sarda, Anurag Khandel-wal, and Lin Zhong. 2024. Prompt Cache: Modular Attention Reuse for Low-Latency Inference. In Proceedings of Machine Learning and Systems ,Vol. 6. 325–338. https://proceedings.mlsys.org/paper_files/paper/2024/hash/ a66caa1703fe34705a4368c3014c1966-Abstract-Conference.html [15] Goose Contributors. 2026. goose: An Open Source, Extensible AI Agent. GitHub, https://github.com/aaif-goose/goose. Accessed 2026-11-16. [16] Coleman Hooper, Sehoon Kim, Hiva Mohammadzadeh, Michael W. Mahoney, Yakun Sophia Shao, Kurt Keutzer, and Amir Gholami. 2024. KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization. In Advances in Neural Information Processing Systems 37 . Neural Information Processing Systems Foundation, Inc. (NeurIPS), 1270–1303. doi:10.52202/079017-0040 [17] Junhao Hu, Wenrui Huang, Weidong Wang, Haoyi Wang, Tiancheng Hu, Qin Zhang, Hao Feng, Xusheng Chen, Yizhou Shan, and Tao Xie. 2025. EPIC: Efficient Position-Independent Caching for Serving Large Language Models. In Proceedings of the 42nd International Conference on Machine Learning (Pro-ceedings of Machine Learning Research, Vol. 267) . PMLR, 24391–24402. https: //proceedings.mlr.press/v267/hu25j.html [18] Minki Kang, Wei-Ning Chen, Dongge Han, Huseyin A Inan, Lukas Wutschitz, Yanzhi Chen, Robert Sim, and Saravan Rajmohan. 2026. ACON: Optimizing 12 Contexture : Runtime Context Eviction for High-Throughput Agent Serving 
+
+Context Compression for Long-horizon LLM Agents. In Proceedings of the 43rd International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 306) . PMLR, 55321–55375. https://proceedings.mlr.press/v306/ kang26b.html [19] Sanjay Kariyappa and G. Edward Suh. 2026. SideQuest: Model-Driven KV Cache Management for Long-Horizon Agentic Reasoning. arXiv preprint arXiv:2602.22603. arXiv:2602.22603 doi:10.48550/arXiv.2602.22603 [20] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph Gonzalez, Hao Zhang, and Ion Stoica. 2023. Efficient Memory Management for Large Language Model Serving with PagedAttention. In Proceedings of the 29th Symposium on Operating Systems Principles . ACM, 611–626. doi:10.1145/3600006.3613165 [21] Wonbeom Lee, Jungi Lee, Junghwan Seo, and Jaewoong Sim. 2024. InfiniGen: Efficient Generative Inference of Large Language Models with Dynamic KV Cache Management. In 18th USENIX Symposium on Operating Systems Design and Implementation (OSDI 24) . USENIX Association, 155–172. https://www. usenix.org/conference/osdi24/presentation/lee [22] Hanchen Li, Runyuan He, Qiuyang Mang, Qizheng Zhang, Huanzhi Mao, Xi-aokun Chen, Hangrui Zhou, Huanchen Zhang, Alvin Cheung, Joseph Gonza-lez, and Ion Stoica. 2025. Continuum: Efficient and Robust Multi-Turn LLM Agent Scheduling with KV Cache Time-to-Live. arXiv preprint arXiv:2511.02230. arXiv:2511.02230 doi:10.48550/arXiv.2511.02230 [23] Junjie Li, Jiong Lou, and Jie Li. 2026. IntentKV: Cross-Turn Intent-Aware KV Cache Pruning for Agent Inference. arXiv preprint arXiv:2606.09916. arXiv:2606.09916 doi:10.48550/arXiv.2606.09916 [24] Yuhong Li, Yingbing Huang, Bowen Yang, Bharat Venkitesh, Acyr Locatelli, Hanchen Ye, Tianle Cai, Patrick Lewis, and Deming Chen. 2024. SnapKV: LLM Knows What You are Looking for Before Generation. In Advances in Neural Information Processing Systems 37 . Neural Information Processing Systems Foun-dation, Inc. (NeurIPS), 22947–22970. doi:10.52202/079017-0722 [25] Tobias Lindenbauer, Igor Slinko, Ludwig Felder, Egor Bogomolov, and Yaroslav Zharov. 2025. The Complexity Trap: Simple Observation Masking Is as Effi-cient as LLM Summarization for Agent Context Management. arXiv preprint arXiv:2508.21433. arXiv:2508.21433 doi:10.48550/arXiv.2508.21433 4th Deep Learning for Code (DL4C) Workshop at NeurIPS 2025. [26] Yuhan Liu, Yihua Cheng, Jiayi Yao, Yuwei An, Xiaokun Chen, Shaoting Feng, Yuyang Huang, Samuel Shen, Rui Zhang, Kuntai Du, and Junchen Jiang. 2025. LMCache: An Efficient KV Cache Layer for Enterprise-Scale LLM Inference. arXiv preprint arXiv:2510.09665. arXiv:2510.09665 doi:10.48550/arXiv.2510.09665 [27] Yingying Liu, Junzhou Fang, and Chenxiong Qian. 2026. When Agent Con-text Goes Stale: Incoherence in Volatile Agent Context. arXiv preprint arXiv:2610.05281. arXiv:2610.05281 doi:10.48550/arXiv.2610.05281 [28] Yujian Liu, Jiabao Ji, Li An, Rohit Jain, Gungor Polatkan, Siyu Zhu, and Shiyu Chang. 2026. Practical Online KV Cache Compaction for LLM Agents: An Empirical Study. arXiv preprint arXiv:2608.00902. arXiv:2608.00902 doi:10. 48550/arXiv.2608.00902 [29] Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong, Zhaozhuo Xu, Vladimir Braverman, Beidi Chen, and Xia Hu. 2024. KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache. In Proceedings of the 41st International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 235) . PMLR, 32332–32344. https://proceedings.mlr.press/v235/liu24bz.html [30] LMCache Team. 2026. Qwen3.5 / Qwen3.6 / Qwen3.8 Series. LMCache docu-mentation, recipes, https://docs.lmcache.ai/recipes/qwen3_5.html. Accessed 2026-11-16. [31] Michael Luo, Xiaoxiang Shi, Colin Cai, Tianjun Zhang, Justin Wong, Yichuan Wang, Chi Wang, Yanping Huang, Zhifeng Chen, Joseph E. Gonzalez, and Ion Stoica. 2026. Agentix: An Efficient Serving Engine for LLM Agents as General Programs. In 23rd USENIX Symposium on Networked Systems Design and Imple-mentation (NSDI 26) . USENIX Association, 2443–2459. https://www.usenix.org/ conference/nsdi26/presentation/luo [32] Bole Ma, Jan Eitzinger, and Harald Koestler. 2026. Leyline: KV Cache Directives for Agentic Inference. arXiv preprint arXiv:2606.01065. arXiv:2606.01065 doi:10. 48550/arXiv.2606.01065 [33] Tony Mason. 2026. The Missing Memory Hierarchy: Demand Paging for LLM Context Windows. arXiv preprint arXiv:2603.09023. arXiv:2603.09023 doi:10. 48550/arXiv.2603.09023 [34] Mike A. Merrill, Alexander G. Shaw, Nicholas Carlini, Boxuan Li, Harsh Raj, Ivan Bercovich, Lin Shi, Jeong Yeon Shin, Thomas Walshe, E. Kelly Buchanan, Junhong Shen, Guanghao Ye, Haowei Lin, Jason Poulos, Maoyu Wang, Mari-anna Nezhurina, Jenia Jitsev, Di Lu, Orfeas Menis Mastromichalakis, Zhiwei Xu, Zizhao Chen, Yue Liu, Robert Zhang, Leon Liangyu Chen, Anurag Kashyap, Jan-Lucas Uslu, Jeffrey Li, Jianbo Wu, Minghao Yan, Song Bian, Vedang Sharma, Ke Sun, Steven Dillmann, Akshay Anand, Andrew Lanpouthakoun, Bardia Koopah, Changran Hu, Etash Guha, Gabriel H. S. Dreiman, Jiacheng Zhu, Karl Krauth, Li Zhong, Niklas Muennighoff, Robert Amanfu, Shangyin Tan, Shreyas Pimpal-gaonkar, Tushar Aggarwal, Xiangning Lin, Xin Lan, Xuandong Zhao, Yiqing Liang, Yuanli Wang, Zilong Wang, Changzhi Zhou, David Heineman, Hange Liu, Harsh Trivedi, John Yang, Junhong Lin, Manish Shetty, Michael Yang, Nabil Omi, Negin Raoof, Shanda Li, Terry Yue Zhuo, Wuwei Lin, Yiwei Dai, Yuxin Wang, Wenhao Chai, Shang Zhou, Dariush Wahdany, Ziyu She, Jiaming Hu, Zhikang Dong, Yuxuan Zhu, Sasha Cui, Ahson Saiyed, Arinbjorn Kolbeinsson, Jesse Hu, Christopher Michael Rytting, Ryan Marten, Yixin Wang, Alex Dimakis, Andy Konwinski, and Ludwig Schmidt. 2026. Terminal-Bench: Benchmarking Agents on Hard, Realistic Tasks in Command Line Interfaces. arXiv preprint arXiv:2601.11868. arXiv:2601.11868 doi:10.48550/arXiv.2601.11868 [35] ML.ENERGY Initiative. 2026. Zeus: GPU Energy Monitor (Source Code). GitHub, commit bd28925, https://github.com/ml-energy/zeus/blob/ bd289256033ac8c729ef54a4da046dcfbcb0661b/zeus/monitor/energy.py. Accessed 2026-11-15. [36] Nous Research. 2026. Hermes Agent. https://github.com/NousResearch/hermes-agent. Accessed 2026-10-01. [37] Nous Research. 2026. Hermes Agent: Context Compressor (Source Code). GitHub, commit 29112be, https://github.com/NousResearch/hermes-agent/blob/ 29112bef099274229cadff79cdff7bf7b99c4b77/agent/context_compressor.py. Ac-cessed 2026-10-14. [38] Nous Research. 2026. Hermes Agent Docs: Context Compression and Caching. https://hermes-agent.nousresearch.com/docs/developer-guide/context-compression-and-caching. Accessed 2026-10-09. [39] NVIDIA. 2026. NVML API Reference Guide: nvmlDeviceGetTotalEnergyCon-sumption. Release 620, https://docs.nvidia.com/deploy/nvml-api/latest/api/ group__nvmlDeviceQueries.html. Accessed 2026-11-15. [40] OpenAI. 2026. Codex CLI: Auto-Compaction Token Limit (Source Code). GitHub, commit e45069d, https://github.com/openai/codex/blob/ e45069d770c6d0b8984c58a6e7cbaf221ad37599/codex-rs/protocol/src/openai_ models.rs. Accessed 2026-10-09. [41] OpenClaw. 2026. OpenClaw Docs: Compaction Behavior and Settings. https: //docs.openclaw.ai/reference/session-management-compaction/compaction. Ac-cessed 2026-10-09. [42] OpenClaw. 2026. OpenClaw Docs: Session Pruning. https://docs.openclaw.ai/ concepts/session-pruning. Accessed 2026-11-17. [43] OpenHands. 2026. OpenHands Software Agent SDK: LLM Summarizing Con-denser (Source Code). GitHub, commit 3304418, https://github.com/OpenHands/ software-agent-sdk/blob/33044182505244749928644a4643368a9e998ee7/ openhands-sdk/openhands/sdk/context/condenser/llm_summarizing_ condenser.py. Accessed 2026-10-09. [44] Rui Pan, Zhuang Wang, Zhen Jia, Can Karakus, Luca Zancato, Tri Dao, Yida Wang, and Ravi Netravali. 2025. Marconi: Prefix Caching for the Era of Hybrid LLMs. In Proceedings of Machine Learning and Systems ,Vol. 7. MLSys. https://proceedings.mlsys.org/paper_files/paper/2025/hash/ 7c180af017258d239bac6248d1eb26ac-Abstract-Conference.html [45] Zaifeng Pan, Ajjkumar Dahyalal Patel, Yipeng Shen, Zhengding Hu, Yue Guan, Wan-Lu Li, Lianhui Qin, Yida Wang, and Yufei Ding. 2025. KVFlow: Efficient Prefix Caching for Accelerating LLM-Based Multi-Agent Workflows. In Advances in Neural Information Processing Systems 38 . Neural Information Processing Systems Foundation, Inc. (NeurIPS), 139912–139931. doi:10.52202/085713-4208 [46] Zaifeng Pan, Qianxu Wang, Zhengding Hu, Chang Chen, Yue Guan, Yanbo Zhou, Steven Swanson, and Yufei Ding. 2026. SmoothAgent: Efficient Long-Horizon LLM-Based Agent Serving with Lookahead Context Engineering. arXiv preprint arXiv:2607.00151. arXiv:2607.00151 doi:10.48550/arXiv.2607.00151 [47] Jooyoung Park, Leonid Kondrashov, Boxi Zhou, Hongrui Liu, Zonghao Liu, Chengzhi Lu, Riccardo Mancini, Esha Choukse, Haris Javaid, German Sviridov, Tao Peng, Chen Zhao, Anastasia Avdeeva, Aleksei Gusev, Marios Kogias, Luo Mai, and Dmitrii Ustiugov. 2026. Rethinking AI Cloud Infrastructure for Agentic Serving Systems with the Aries Experimentation Framework. arXiv preprint arXiv:2607.29069. arXiv:2607.29069 doi:10.48550/arXiv.2607.29069 To appear in the ACM Symposium on Cloud Computing (SoCC ’26). [48] Pratyush Patel, Esha Choukse, Chaojie Zhang, Aashaka Shah, Inigo Goiri, Saeed Maleki, and Ricardo Bianchini. 2024. Splitwise: Efficient Generative LLM Infer-ence Using Phase Splitting. In 2024 ACM/IEEE 51st Annual International Sym-posium on Computer Architecture (ISCA) . IEEE, 118–132. doi:10.1109/isca59077. 2024.00019 [49] You Peng, Youhe Jiang, Wenshuang Li, Xu Xu, Ke Zhou, Jiawei Jiang, Chen Wang, and Binhang Yuan. 2026. HexAGenT: Efficient Agentic LLM Serv-ing via Workflow- and Heterogeneity-Aware Scheduling. arXiv preprint arXiv:2605.16637. arXiv:2605.16637 doi:10.48550/arXiv.2605.16637 [50] Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, and Xinran Xu. 2025. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. In 23rd USENIX Conference on File and Storage Technologies (FAST 25) . USENIX Association, 155–170. https://www.usenix.org/conference/fast25/ presentation/qin [51] Ruoyu Qin, Zheming Li, Weiran He, Mingxing Zhang, Yongwei Wu, Weimin Zheng, and Xinran Xu. 2024. Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving. arXiv preprint arXiv:2407.00079. arXiv:2407.00079 doi:10.48550/arXiv.2407.00079 13 Hong et al. 
+
+[52] Qwen Team. 2026. Qwen Code: An Open-Source AI Coding Agent That Lives in Your Terminal. GitHub, https://github.com/QwenLM/qwen-code. Accessed 2026-11-16. [53] Qwen Team. 2026. Qwen3.6-35B-A3B-FP8. Model card, https://huggingface.co/ Qwen/Qwen3.6-35B-A3B-FP8. Accessed 2026-11-09. [54] Qwen Team. 2026. Qwen3.8-27B. Model card, https://huggingface.co/Qwen/ Qwen3.8-27B. Accessed 2026-10-01. [55] Mohit Raghavendra, Soham Dan, Miguel Romero Calvo, Yannis Yiming He, Johannes Baptist Mols, Gautam Anand, Cole McCollum, Edgar Arakelyan, Vijay Bharadwaj, Andrew Park, Jeff Da, MohammadHossein Rezaei, Bing Liu, Brad Kenstler, and Yunzhong He. 2026. SWE Atlas: Benchmarking Coding Agents Beyond Issue Resolution. arXiv preprint arXiv:2605.08366. arXiv:2605.08366 doi:10.48550/arXiv.2605.08366 [56] Rulin Shao, Shannon Zejiang Shen, Junjie Oscar Yin, Yuetai Li, Minheng Wang, Hamish Ivison, Radha Poovendran, Nathan Lambert, Teng Xiao, Mike Lewis, Wen-tau Yih, Luke Zettlemoyer, and Pang Wei Koh. 2026. Context Language Models. arXiv preprint arXiv:2609.37725. arXiv:2609.37725 doi:10.48550/arXiv.2609.37725 [57] Chunan Shi, Yilei Chen, Yilin Chen, Xupeng Miao, and Bin Cui. 2026. Multi-Segment Attention: Enabling Efficient KV-Cache Management for Faster Large Language Model Serving. arXiv preprint arXiv:2606.02964. arXiv:2606.02964 doi:10.48550/arXiv.2606.02964 [58] Biao Sun, Ziming Huang, Hanyu Zhao, Wencong Xiao, Xinyi Zhang, Yong Li, and Wei Lin. 2024. Llumnix: Dynamic Scheduling for Large Language Model Serving. In 18th USENIX Symposium on Operating Systems Design and Implementation (OSDI 24) . USENIX Association, 173–191. https://www.usenix.org/conference/ osdi24/presentation/sun-biao [59] Weiwei Sun, Miao Lu, Zhan Ling, Kang Liu, Xuesong Yao, Yiming Yang, and Jiecao Chen. 2026. Scaling Long-Horizon Agent via Context Folding. In Proceedings of the 43rd International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 306) . PMLR, 116894–116910. https://proceedings.mlr. press/v306/sun26x.html [60] SWE-agent Team. 2026. SWE-agent: History Processors (Source Code). GitHub, commit 3ea751c, https://github.com/SWE-agent/SWE-agent/blob/3ea751c087f32b16e039a2233dd6eefecef325d5/sweagent/agent/ history_processors.py. Accessed 2026-10-09. [61] Teknium. 2026. Fix: Replay Prior Reasoning to Every Chat-Completions Route That Can Read It. Hermes Agent GitHub com-mit 336b115, https://github.com/NousResearch/hermes-agent/commit/ 336b11584ce30ba19610d93c33e460c31356d030. Accessed 2026-11-16. [62] The Terminal-Bench Team. 2025. Leaderboard Integrity and Timeouts. https: //www.tbench.ai/news/leaderboard-integrity-and-timeouts. Accessed 2026-11-12. [63] Trae Research Team, Pengfei Gao, Zhao Tian, Xiangxin Meng, Xinchen Wang, Ruida Hu, Yuanan Xiao, Yizhou Liu, Zhao Zhang, Junjie Chen, Cuiyun Gao, Yun Lin, Yingfei Xiong, Chao Peng, and Xia Liu. 2025. Trae Agent: An LLM-based Agent for Software Engineering with Test-time Scaling. arXiv preprint arXiv:2507.23370. arXiv:2507.23370 doi:10.48550/arXiv.2507.23370 [64] Yuhang Wang, Yuling Shi, Shaoqiu Zhang, Jialiang Liang, Shilin He, Siyu Ye, Yut-ing Chen, Kai Cai, and Xiaodong Gu. 2026. SWE-Pruner Pro: The Coder LLM Al-ready Knows What to Prune. arXiv preprint arXiv:2607.18213. arXiv:2607.18213 doi:10.48550/arXiv.2607.18213 [65] Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song Han, and Mike Lewis. 2024. Efficient Streaming Language Models with Attention Sinks. In The Twelfth International Conference on Learning Representations (ICLR) . https: //openreview.net/forum?id=NG7sS51zVF [66] Yuan-An Xiao, Pengfei Gao, Chao Peng, and Yingfei Xiong. 2026. Reducing Cost of LLM Agents with Trajectory Reduction. Proceedings of the ACM on Software Engineering 3, FSE (2026), 1241–1263. doi:10.1145/3797084 [67] Buqiang Xu, Zirui Xue, Dianmou Chen, Chenyang Fu, Chiyu Wu, Caiying Huang, Chen Jiang, Jizhan Fang, Xinle Deng, Yijun Chen, Yunzhi Yao, Xuehai Wang, Jin Shang, Huajun Chen, and Ningyu Zhang. 2026. TokenPilot: Cache-Efficient Context Management for LLM Agents. In Findings of the Association for Com-putational Linguistics: EMNLP 2026 . Association for Computational Linguistics, 19034–19049. doi:10.18653/2026.findings-emnlp.899 [68] Jiayi Yao, Hanchen Li, Yuhan Liu, Siddhant Ray, Yihua Cheng, Qizheng Zhang, Kuntai Du, Shan Lu, and Junchen Jiang. 2025. CacheBlend: Fast Large Language Model Serving for RAG with Cached Knowledge Fusion. In Proceedings of the Twentieth European Conference on Computer Systems . ACM, 94–109. doi:10.1145/ 3689031.3696098 [69] Lingfan Yu, Jinkun Lin, and Jinyang Li. 2025. Stateful Large Language Model Serving with Pensieve. In Proceedings of the Twentieth European Conference on Computer Systems . ACM, 144–158. doi:10.1145/3689031.3696086 [70] Dingyan Zhang, Yang Liu, Haotian Wang, Xingda Wei, Yizhou Shan, Rong Chen, and Haibo Chen. 2026. BlitzScale: Fast and Live Large Model Autoscaling with O(1) Host Caching. ACM Transactions on Computer Systems (2026). doi:10.1145/ 3807606 [71] Rui Zhang, Chaeeun Kim, Cheng-Wei Ching, Yi Zhong, and Liting Hu. 2026. A Policy-Driven Runtime Layer for Agentic LLM Serving. In Proceedings of the 17th ACM SIGOPS Asia-Pacific Workshop on Systems . ACM, 31–37. doi:10.1145/ 3838177.3841725 [72] Yuxiang Zhang, Jiangming Shu, Ye Ma, Xueyuan Lin, Shangxi Wu, and Jitao Sang. 2026. Memory as Action: Autonomous Context Curation for Long-Horizon Agentic Tasks. In Findings of the Association for Computational Linguistics: ACL 2026 . Association for Computational Linguistics, 19149–19164. doi:10.18653/v1/ 2026.findings-acl.956 [73] Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong Chen, Lianmin Zheng, Ruisi Cai, Zhao Song, Yuandong Tian, Christopher Re, Clark Barrett, Zhangyang Wang, and Beidi Chen. 2023. H 2O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models. In Advances in Neural Information Processing Systems 36 . Neural Information Processing Systems Foundation, Inc. (NeurIPS), 34661–34710. doi:10.52202/075280-1506 [74] Haoyu Zheng, Fangcheng Fu, Jia Wu, Binhang Yuan, Yongqiang Zhang, Hao Wang, Yuanyuan Zhu, Xiao Yan, and Jiawei Jiang. 2026. Efficient Serving for Dynamic Agent Workflows with Prediction-based KV-Cache Management. arXiv preprint arXiv:2605.06472. arXiv:2605.06472 doi:10.48550/arXiv.2605.06472 [75] Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Chuyue Sun, Jeff Huang, Cody Hao Yu, Shiyi Cao, Christos Kozyrakis, Ion Stoica, Joseph E. Gonzalez, Clark Barrett, and Ying Sheng. 2024. SGLang: Efficient Execution of Structured Language Model Programs. In Advances in Neural Information Processing Sys-tems 37 . Neural Information Processing Systems Foundation, Inc. (NeurIPS), 62557–62583. doi:10.52202/079017-2000 14

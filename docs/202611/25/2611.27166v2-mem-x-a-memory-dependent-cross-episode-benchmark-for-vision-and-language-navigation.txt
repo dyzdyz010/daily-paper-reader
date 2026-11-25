@@ -1,0 +1,501 @@
+Title: Mem-X: A Memory-Dependent Cross-Episode Benchmark for Vision-and-Language Navigation
+
+URL Source: https://arxiv.org/pdf/2611.27166v2
+
+Published Time: Tue, 24 Nov 2026 04:29:11 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# Mem-X: A Memory-Dependent Cross-Episode Benchmark for Vision-and-Language Navigation 
+
+Zhikang Shi 1, YUK TUNG SAMUEL FANG 1, Hongyu Ding 2, Zixuan Chen 1, Yujin Wang 1,Junhui Guo 1, You Wu 1, Jieqi Shi 1,* , Jing Huo 2, Yang Gao 1
+
+> 1
+
+School of Intelligence Science and Technology, Nanjing University, China. 
+
+> 2
+
+School of Computer Science, Nanjing University, China. 
+
+> *
+
+Corresponding author. 
+
+Abstract — Long-term memory enables embodied agents to reuse past observations across tasks. However, existing cross-episode vision-and-language navigation (VLN) benchmarks of-ten leave it unclear whether successful navigation relies on historical memory or current exploration. We introduce Mem-X, a benchmark designed to evaluate memory-dependent cross-episode VLN. Mem-X organizes episodes into sessions in which subsequent instructions refer to objects or routes encountered in earlier episodes. Its three levels evaluate historical-object recall, in-memory localization and episodic indexing, and off-memory relocalization and historical-route reproduction. For the latter two levels, agents receive episode-local poses but no transformations between episode frames, requiring them to establish spatial correspondence with historical memory. Mem-X comprises 2,071 episodes across 710 sessions in 34 scenes, including 1,204 memory-dependent episodes. We also provide MemBridge, a modular baseline that combines se-mantic scene memory, cross-episode localization, and coarse-to-fine retrieval to support existing VLN agents. Experiments with state-of-the-art VLN methods demonstrate the bene-fits of MemBridge while revealing substantial room for im-provement on memory-dependent navigation. The benchmark and baseline code are available at https://github.com/ NJU-R-L-Group-Embodied-Lab/Mem-X .
+
+I. I NTRODUCTION 
+
+Embodied agents that operate in real environments over long horizons need to retain and use observations and expe-rience from past tasks [1], [2]. When an agent continuously executes tasks in the same scene, different tasks usually share the same locations, and historical memory from preceding episodes can often assist later tasks [1]. Cross-episode mem-ory is therefore necessary. Traditional VLN benchmarks [3]–[8] usually evaluate each episode independently, and an agent’s historical information is used only within the current task, making it difficult to exploit the associations across tasks. Existing cross-episode VLN benchmarks [1], [9] and life-long navigation benchmarks already allow agents to retain and use historical information. However, these benchmarks usually do not make historical memory necessary for com-pleting later tasks. Relying only on the spatial relations and actions suggested by the current instruction, exploration can achieve the same effect. We therefore consider this task design not tightly coupled with the memory mechanism, and it cannot truly evaluate an algorithm’s cross-episode memory ability. 
+
+> TABLE I COMPARISON WITH RELATED BENCHMARKS .
+
+Benchmark Cross-Episode Memory Memory-Dependent Self-Localization R2R × × ×
+
+GOAT-Bench × × ×
+
+IVLN ✓ × ×
+
+GSA-R2R ✓ × ×
+
+LMEE-Bench × ✓ ×
+
+FindingDory ✓ ✓ ×
+
+Ours ✓ ✓ ✓
+
+To address this issue, we construct Mem-X, a cross-episode VLN benchmark for memory-dependent tasks, as shown in Figure 1. Its three levels of increasing difficulty are detailed in Section III-A. Unlike existing work, we design Mem-X for tightly coupled memory evaluation. Through memory recall, in-memory and off-memory localization, episode indexing, and historical-path reproduction, it forces the agent to use mem-ory to complete the related tasks. Table I compares Mem-X with existing related benchmarks. To provide a reference baseline for Mem-X, we introduce MemBridge, a modular approach that combines semantic scene memory, cross-episode localization, and coarse-to-fine retrieval. MemBridge connects historical observations to current navigation tasks and can be integrated with different VLN agents, providing a practical starting point for studying memory-dependent navigation. The contributions of this paper are summarized as follows:  
+
+> •
+
+We introduce Mem-X, a benchmark that makes histori-cal experience an explicit part of VLN task specification through references to previously encountered objects and traversed routes. It comprises 2,071 episodes or-ganized into 710 sessions across 34 scenes, including 1,204 memory-dependent episodes.  
+
+> •
+
+We establish an evaluation protocol that controls access to cross-episode coordinates and assesses both memory-related capabilities and task completion, revealing nav-igation failures that endpoint-based metrics alone over-look.  
+
+> •
+
+We provide MemBridge, a modular reference baseline that enables existing VLN agents to use historical mem-arXiv:2611.27166v2 [cs.CV] 23 Nov 2026 Mem-X 
+
+Recall a past target 
+
+“Walk to the sink you saw earlier.” 
+
+Localize + Index 
+
+“Go to the bed seen earlier, then stop at the curtains.” 
+
+Relocalize + Retrace 
+
+“Return to the dining table, then retrace the route to the bathtub.” 
+
+(a) Three Levels of Memory-Dependent Cross-Episode Navigation     
+
+> C: Cross-episode memory M: Memory-required tasks L: Self-localization Benchmark CML
+> R2R
+
+× × × 
+
+> IVLN
+
+✓ × × 
+
+> FindingDory
+
+✓ ✓ × 
+
+> Mem-X
+
+✓ ✓ ✓
+
+> Explicit memory dependencies
+
+L1 Recall 
+
+> Single-trajectory memory
+
+L2 Localize + Index 
+
+> Find the correct episode
+
+L3 Route Re-entry   
+
+> Align a historical sub-path
+> RGB-D + local pose
+> Scene-graph construction Cross-episode localization Memory alignment + fusion Coarse-to-fine retrieval
+> Existing VLN agent
+> (CMA, ETPNav, JanusVLN, Uni-LaViRA)
+> Memory-aware metrics
+> MRR Loc-SR C-SR C-SPL ST-nDTW
+
+Can embodied agents recall past experience , localize across episodes , and follow historical routes when memory is required? 
+
+L1 Memory Recall 
+
+> Shared global coordinate frame
+
+L2 In-Memory Localization 
+
+> Start within a previously visited region
+
+L3 Off-Memory Relocalization 
+
+> Start outside historical memory
+
+Prior Benchmarks Mem-X 
+
+(b) Progressive Benchmark and Memory Evaluation (c) Performance Comparison 
+
+MemBridge Evaluation CMA ETPNav JanusVLN Uni-LaViRA   
+
+> L1 MRR L2 C-SR L2 C-SPL L3 C-SR L3 C-SPL L3 ST-nDTW
+> 80 60 40 20
+> Base +MemBridge
+
+Memory-task metrics (%) 
+
++53.24 pp 
+
+> maximum MRR gain
+
+Fig. 1. Overview of the Mem-X benchmark. (a) Three memory-dependent levels: In-Trajectory Memory Recall, In-Memory Localization and Episodic Indexing, and Off-Memory Relocalization and Route Re-entry. (b) Mem-X requires historical memory, unlike prior VLN benchmarks; MemBridge is evaluated with memory-aware metrics. (c) Memory-task results of four VLN agents with and without MemBridge. 
+
+ory across episodes. Experiments with four representa-tive agents demonstrate its effectiveness while highlight-ing substantial room for improvement on Mem-X. II. R ELATED WORK 
+
+A. Vision-and-Language Navigation Benchmarks 
+
+VLN benchmarks typically evaluate each episode inde-pendently. R2R [3] established the classic setting on the discrete Matterport3D [10] graph; R4R [5] and RxR [4] extended it to longer and multilingual paths. CVDN [6], REVERIE [7], and SOON [8] study dialog, remote-object, and goal-oriented variants, while R2R-CE [11] and LH-VLN [12] move to continuous and long-horizon settings. In all of these benchmarks, historical information remains limited to a single episode. 
+
+B. Cross-Episode Memory and Lifelong Embodied Naviga-tion 
+
+In addition to independent single-episode settings, existing studies have also begun to explore persistent memory across tasks and lifelong embodied navigation. IVLN [1] organizes independent episodes from existing VLN datasets into tours that are executed continuously in the same scene, and allows agents to retain and use historical memory across episodes. GSA-R2R [9] evaluates agents that execute a large number of instructions in the same building and perform scene adaptation. LENL [13] is a continual-learning benchmark across scenes and instruction types. GOAT-Bench [2] extends lifelong embodied navigation from the perspective of multimodal sequential-goal navigation. These benchmarks usually treat historical memory only as auxiliary information, and the completion of later tasks does not necessarily depend on historical memory. Some recent work tries to emphasize historical memory. LMEE-Bench [14] accumulates episodic memory along a single multi-goal exploration trajectory and then tests recall with question answering; the memory dependency occurs in QA rather than in later navigation, and it does not constitute a cross-episode setting. FindingDory [15] first collects long-horizon interactions, then retrieves a target frame from the historical video and navigates back, which evaluates in-trajectory memory recall quite thoroughly. Its history records include pose, and the agent is also equipped with GPS, so it does not require cross-episode self-localization and memory alignment without a shared global pose. Mem-RGB-D back-projection          
+
+> object label + visual feature
+> Merge Node
+> New Node
+> Prior Memory Visual Semantic Geometric Instance Match RGB-D + Pose
+> Label Room Position Feature Object ID+best view
+> Instruction :“Go to the sofa you saw earlier. Then turn right, walk straight, and stop at the door. ”
+> VLM Parsing Base VLN Memory Query: object + room VLM visual matching UID08
+> Coarse retrieval Object match: max(label, text similarity )Room consistency: optional constraint
+> View quality: centering + visible area
+> Top-k candidates
+> UID 17 UID 08 UID 25
+
+(a) Episode-Level Memory Construction 
+
+> object position
+> Segmentation & Encoding
+
+(c) Coarse-to-Fine Memory Retrieval    
+
+> Memory Retrieval
+> Top-k memory candidates Current observation
+> SuperPoint + LightGlue
+> Frontier Exploration Self-Localization
+> enough inliers unique peak
+> Uniqueness Check Depth Unprojection + SE(2) RANSAC
+
+(b) Cross-Episode Memory Localization Fig. 2. Overview of MemBridge, a modular baseline that attaches memory construction, cross-episode localization, and coarse-to-fine retrieval to an existing VLN agent. (a) Episode-Level Memory Construction builds a semantic scene graph from RGB-D observations and local poses. (b) A transform between episode-local frames aligns new observations with historical memory, which is then updated. (c) Coarse-to-fine retrieval identifies the referenced target for planning on the aligned map. 
+
+X instead organizes multiple episodes into sessions with explicit dependencies and adds in-memory / off-memory localization. 
+
+C. Memory-Augmented VLN Agents 
+
+Memory in existing VLN methods is typically implicit temporal memory or explicit spatial memory. Implicit meth-ods encode history inside the model, including recurrent hidden states [11], Transformer-based history encoding and caching [16]–[18], state-space recurrent memory [19], [20], and multi-timescale memory [21]–[23]. Explicit methods store memory in external structures, including topological and scene graphs [24]–[26], metric or semantic maps [27]–[29], and waypoint-indexed episodic memory [30], [31]. These mechanisms are mainly used within a single episode, or accumulate maps with pose, and are not designed for memory-dependent tasks across episodes without a shared global pose. III. B ENCHMARK 
+
+A. Task Design 
+
+Mem-X groups navigation episodes into sessions. Agents accumulate experience during initial tasks and use it in subsequent tasks, whose instructions refer to previously encountered objects or traversed routes. We design three levels that progressively extend historical-object recall to cross-episode localization and historical-route reproduction. All levels provide drift-free poses derived from simulator ground truth. Level 1 uses a shared coordinate frame across episodes to isolate historical-object recall from cross-episode localization. Levels 2 and 3 instead express poses in episode-local frames obtained by resetting the simulator pose. Transformations between episode frames are withheld, requiring agents to establish spatial correspondence with historical observations. 
+
+Level 1: In-Trajectory Memory Recall. Each session consists of a base episode, Episode 0, followed by 1–4 memory-dependent tasks. These tasks start at the endpoint of the trajectory actually executed in Episode 0 or at a point sampled from its 75%–90% interval. The agent must identify and return to an object referenced through the preceding experience. By placing the start on the historical trajectory and providing a shared coordinate frame, this level focuses on memory construction and target recall while reducing the need for unexplored-region navigation. 
+
+Level 2: In-Memory Localization and Episodic Index-ing. Each session contains three episodes with separate local coordinate frames. Episode 0 provides the initial experience. Episode 1 starts 1.0–1.5 m from the start of the Episode 0 reference trajectory and requires the agent to revisit a target from Episode 0 before following a new navigation instruction. Episode 2 starts at the same position as Episode 1 and refers to a target encountered in Episode 1 but not Episode 0. The agent must relate its current observations to the visited region and retrieve the target associated with the relevant episode. 
+
+Level 3: Off-Memory Relocalization and Route Re-entry. Each session contains two base episodes whose ref-erence trajectories share a continuous segment, followed by a memory-dependent episode. All three episodes use separate local coordinate frames. The final episode starts outside historical observation coverage, requiring the agent to explore and establish correspondence with a previously visited region. It must then identify and reproduce a specified sub-path of the shared historical segment before completing the remaining instruction. Specifying a sub-path requires selecting the relevant portion of the historical route, beyond simply returning to a familiar region. This level evaluates off-memory relocalization and ordered historical-route repro-duction. Memory-related instructions refer to past experience with-out directly describing how to reach the target. Agents must visit the specified targets or follow the required historical routes, but may use any memory representation or navigation method. 
+
+B. Manual Trajectory Collection 
+
+We collect reference trajectories and their corresponding navigation instructions in HM3DSem scenes [32] using the Habitat simulator [33]. Collection is organized at the session level so that later tasks can refer to objects and routes encountered in earlier episodes. Collectors first familiarize themselves with the scene, then design the instructions and reference paths according to the level-specific requirements in Section III-A. They manually control the agent to exe-cute each planned route, producing paired instructions and trajectories. The agent’s forward step size is 0.25 m , and each turn is 
+
+15 ◦. The agent and the RGB-D sensor are both 1.2 m high. The image resolution is 960 ×720 , with a 90 ◦ horizontal field of view. During collection, we record the complete action sequence, 3D position, orientation, task start and end points, and the reference path. These recordings are used for data generation and cleaning in Section III-C. 
+
+C. Data Generation and Cleaning 
+
+Level 1: For each collected trajectory, we manually anno-tate visible and distinctive anchor objects along the route and use them as memory recall targets for subsequent episodes. 
+
+Level 2: To prevent the agent from directly discover-ing a target in the initial observation and bypassing self-localization and memory fusion, the respective recall targets of Episode 1 and Episode 2 are not visible at their starting points, and their shortest geodesic distances from the corre-sponding starting point are no less than 3.25 m. 
+
+Level 3: We keep Episode 0–1 pairs whose overlapping sub-paths have bidirectional coverage of at least 95% and bidirectional P95 and ordered discrete Fr´ echet distances of at most 1.2 m ; the 0.6 m neighborhoods of this overlap define the shared route. Episode 2 must follow that route: 95% of its points lie within 0.8 m of either memory trajectory, the P95 distance is at most 0.8 m , and the maximum deviation is at most 1.2 m . It starts at least 1.0 m geodesic from both. RGB-D replay of the first two episodes further removes starts observed in any historical frame. Finally, we manually review all samples and remove those that do not satisfy the task constraints or contain annotation errors to ensure the accuracy and reliability of the dataset. 
+
+D. Data Statistics 
+
+As shown in Table II, we construct a total of 710 sessions, among which Level 1, Level 2, and Level 3 contain 315, 238, and 157 sessions, respectively. The dataset contains                                   
+
+> TABLE II STATISTICS OF MEM -X BY LEVEL .Level Episodes Memory-Dependent Episodes Avg. path length Avg. steps L1 886 571 9.86 ±4.99 m60 L2 714 476 16 .52 ±6.00 m99 L3 471 157 20 .50 ±5.66 m106 All 2,071 1,204 14 .58 ±7.01 m84
+
+2,071 VLN trajectories in total, of which 1,204 are memory-dependent episodes, covering 34 scenes and 110 classes of memory recall targets. 
+
+E. Evaluation Protocol 
+
+We establish an evaluation protocol to systematically as-sess Mem-X. The protocol controls access to cross-episode coordinates (Section III-A): Level 1 shares a global frame, while Levels 2 and 3 provide only episode-local poses and withhold inter-episode transforms, so later tasks cannot be solved from a shared pose. Following common VLN settings [3], [11], we report Success Rate (SR) and Success weighted by Path Length (SPL) to measure task completion. Because these endpoint-based metrics cannot tell whether the agent used historical memory, we further propose metrics for memory-related capabilities, covering target recall, cross-episode localization, constrained completion, and historical-route reproduction. Because we cannot accurately measure whether the agent truly found the target object, we use Memory Recall Rate (MRR) as a coarse measure of memory-target recall accu-racy. A memory task is recalled if any actual state is within 
+
+1 m geodesic of the query target gi:
+
+MRR = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+I
+
+
+
+min  
+
+> t
+
+dgeo (st, g i) ≤ 1 m 
+
+
+
+. (1) For cross-episode localization at Level 2 and Level 3, we use Localization Success Rate (Loc-SR). The evaluated set includes Level 2 memory tasks and, at Level 3, both Episode 1 and the memory episode. Although Episode 1 is a base task, it still requires localization to align the current observation with historical memory. Let the pose estimate of the i-th evaluated task be Ti = ( pi, θ i) with Habitat ground-plane p = ( x, z ) in meters. The translation and heading errors are 
+
+E(i)trans =
+
+q
+
+(xi − xgt  
+
+> i
+
+)2 + ( zi − zgt  
+
+> i
+
+)2,E(i)rot = wrap( θi − θgt  
+
+> i
+
+) ,
+
+(2) where wrap(∆ θ) =  (∆ θ + π) mod 2 π − π and Erot ∈
+
+[0 , π ], i.e., [0 ◦, 180 ◦]. Tasks without a pose estimate are treated as localization failures. With threshold 0.25 m / 10 ◦,
+
+Loc -SR = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+I
+
+
+
+E(i)trans ≤ 0.25 m ∧ E(i)rot ≤ 10 ◦
+
+. (3) Mean errors are computed only on tasks that produce a pose estimate, L: ¯Etrans = 1
+
+> |L|
+
+P 
+
+> i∈L
+
+E(i)trans and ¯Erot =
+
+> 1
+> |L|
+
+P 
+
+> i∈L
+
+E(i)rot .Memory tasks at Level 2 and Level 3 require the agent to first recall the specified memory and then reach the final goal. We therefore define Constrained Success Rate (C-SR) and Constrained SPL (C-SPL): 
+
+C-SR = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+Ci, C-SPL = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+Ci
+
+LCi
+
+max( LCi , P i) .
+
+(4) Here Ci = 1 if the agent reaches the specified memory anchors in order and finally completes the task, and 0
+
+otherwise; Pi is the actual path length, and LCi is the shortest path length that satisfies the constraint. Level 3 further requires the agent to reproduce a historical overlapping route, not only to reach the referenced region. Following the standard nDTW definition [34], 
+
+nDTW( τ, τ ∗) = exp 
+
+
+
+− DTW( τ, τ ∗)
+
+|τ ∗| dth 
+
+
+
+,
+
+ST -nDTW = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+max  
+
+> k
+
+nDTW  τ rev  
+
+> i
+
+, τ ov 
+
+> i,k
+
+ ,
+
+(5) where τ is the query path, τ ∗ is the reference path, DTW is the dynamic time warping distance, and dth is the success-distance threshold. ST-nDTW is the mean, over Level 3 memory tasks, of the maximum nDTW between the revisit segment τ rev  
+
+> i
+
+and the GT overlapping sub-trajectories τ ov 
+
+> i,k
+
+of the preceding base episodes. It measures whether the agent completes the revisit along at least one historically overlapping route. IV. M EM BRIDGE 
+
+A. Episode-Level Memory Construction 
+
+As shown in Figure 2(a), MemBridge incrementally con-structs a semantic scene graph [35]–[38] within a single episode from the current RGB-D observation and the local pose. Keyframes are selected with DINOv3 [39] features when the similarity to the previous keyframe falls below a thresh-old. For each keyframe, SAM3 [40] detects and seg-ments objects, DINOv3 extracts region features, and three-dimensional positions are computed from depth and camera poses. Following INHerit-SG [38], a new observation is associated with existing nodes by visual-feature similarity, semantic consistency, and geometric distance; a matched instance is updated, otherwise a new node is created. Object nodes also store an episode index for later retrieval. 
+
+B. Cross-Episode Memory Localization 
+
+As shown in Figure 2(b), MemBridge first performs self-localization across episodes. The current observation is encoded with a DINOv3 [39] global feature, compared by cosine similarity to historical keyframes, and the top-k
+
+frames are selected. SuperPoint [41] and LightGlue [42] establish correspon-dences between the current RGB image and these k frames. Each match is back-projected from depth and projected onto the ground plane. RANSAC [43] then estimates a planar transform g ∈ SE(2) on each candidate. Because similar appearance at different places can make 
+
+g unreliable, we accept it as the unique valid transform only when the best candidate has at least 80 inliers and, if the second-best has at least 20 inliers, the best is still no less than 1.5× the second-best. A valid g warps the current observations into the historical scene-graph frame and updates the graph. If no unique g is found, a frontier on the agent’s occupancy map whose heading is most similar to a historical frame is selected, and self-localization is repeated every 1 m .
+
+C. Coarse-to-Fine Memory Retrieval 
+
+As shown in Figure 2(c), MemBridge uses coarse-to-fine two-stage retrieval over the scene graph. A VLM parses the instruction into segments and routes each segment to memory retrieval or the base VLN model. For a memory-recall segment, the coarse score of each object node is the maximum of label matching and text similarity to the target category. Nodes are ranked by this score, room consistency, and historical observation quality, and the Top-k candidates are kept. In the fine stage, the original instruction, these k candi-dates, and their historical keyframes are input to the VLM, which selects the target UID from appearance and scene context. If no suitable candidate exists, recall is rejected and the system falls back to the base VLN model. After a target is selected, its stored position is used for planning on the aligned occupancy map. V. E XPERIMENTS 
+
+A. Implementation Details 
+
+We conduct experiments on eight NVIDIA RTX 4090 GPUs. Instruction parsing and Top-k fine retrieval use Qwen-3.5-27B, with VLM fine-retrieval Top-k of 3 and historical-keyframe retrieval Top-k of 5. The keyframe-selection threshold for semantic-graph construction is 0.85, the visual-similarity threshold is 0.80, and the spatial-distance threshold is 1.5 m . The text encoder is all-MiniLM-L6-v2 [44]. All methods at Level 2 and Level 3 use simulator-obtained local poses. We evaluate four agents with different memory mecha-nisms. CMA [11] uses a recurrent GRU, ETPNav [24] uses a topological graph, JanusVLN [18] uses a Transformer history cache, and Uni-LaViRA [30] uses waypoint-indexed episodic memory. CMA’s GRU is cleared each episode, because car-rying the hidden state causes an immediate STOP. JanusVLN does not depend on pose, so its cache is retained at all three levels. ETPNav and Uni-LaViRA use position-dependent inputs: native memory is retained at Level 1, which uses a global frame, and is reset at Levels 2 and 3, which use episode-local frames, to avoid misaligned historical poses. 
+
+B. Results Analysis 
+
+As shown in Table III, the baseline results reveal dif-ferent limitations across agents. At Level 1, Uni-LaViRA achieves the highest baseline MRR of 41 .68% , compared L1: “ Go back through the area you explored earlier and find the basket from before. Stop beside it. ” 
+
+basket 
+
+L3: “ Use your memory of the previous two tasks to find the fireplace . After approaching it, follow the route common to both memories until you reach the refrigerator, which occurred in both tasks. Stop between it and the island. ” 
+
+destination 
+
+1
+
+L2: “ Proceed back to the bench in the kitchen you saw earlier. Pass between the cabinets, walk toward the fireplace, turn left, and stop beside the blanket on the sofa. ” 
+
+fireplace refrigerator 
+
+starting point anchor 1 anchor 2 wrong anchor 
+
+21
+
+Failure: “ Revisit the bin that you encountered earlier. Enter the passage to the left of the trash can into the kitchen area. Stop in front of the microwave. ” 
+
+basket 
+
+self-localization 
+
+bin 
+
++MemBridge Uni-LaViRA 
+
+1
+
+bench 
+
+1Fig. 3. Qualitative cases of Uni-LaViRA with and without MemBridge: one case for each of the three levels, plus a MemBridge failure case. Yellow denotes the native Uni-LaViRA trajectory, and blue denotes the Uni-LaViRA+MemBridge trajectory. TABLE III EXPERIMENTAL RESULTS OF FOUR METHODS ON MEM -X. E ACH METHOD AND ITS CORRESPONDING +M EM BRIDGE VARIANT SHARE THE SAME 
+
+BASIC RESULTS AND ARE COMPARED ONLY ON MEMORY TASKS . +M EM BRIDGE DENOTES THE PERCENTAGE -POINT IMPROVEMENT ON MEMORY TASKS AFTER INSERTING THE MEM BRIDGE MODULE .Method Level 1 Level 2 Level 3 SR ↑ SPL ↑ MRR ↑ SR ↑ SPL ↑ C-SR ↑ C-SPL ↑ MRR ↑ SR ↑ SPL ↑ C-SR ↑ C-SPL ↑ ST-nDTW ↑ MRR ↑
+
+CMA Basic 16.19% 15.51% – 29.41% 28.14% – – – 7.96% 7.58% – – – –Memory 18.91% 17.12% 8.93% 9.87% 9.44% 4.83% 4.66% 8.19% 3.82% 3.81% 0.00% 0.00% 9.14% 5.41% 
+
++MemBridge +48 .52% +43 .46% +53 .24% +6 .73% +5 .84% +6 .51% +6 .36% +14 .08% +7 .01% +5 .58% +5 .73% +5 .49% +4 .73% +9 .56% 
+
+ETPNav Basic 15.56% 13.18% – 57.98% 51.82% – – – 28.98% 25.58% – – – –Memory 19.96% 15.89% 12.78% 25.42% 21.49% 19.12% 16.01% 28.36% 10.19% 10.10% 0.00% 0.00% 13.14% 8.92% 
+
++MemBridge +48 .87% +46 .98% +50 .09% +9 .87% +9 .37% +10 .08% +10 .66% +7 .35% +16 .56% +9 .93% +10 .19% +7 .97% +5 .04% +23 .57% 
+
+JanusVLN Basic 49.21% 48.08% – 72.27% 70.33% – – – 63.69% 55.34% – – – –Memory 43.08% 37.11% 12.43% 34.87% 30.05% 14.08% 11.95% 18.28% 28.03% 24.64% 5.73% 5.67% 13.80% 19.43% 
+
++MemBridge +23 .65% +24 .25% +41 .16% +11 .13% +8 .90% +22 .48% +19 .10% +32 .14% +10 .82% +4 .36% +22 .93% +20 .36% +19 .34% +27 .07% 
+
+Uni-LaViRA Basic 36.51% 29.86% – 62.61% 47.89% – – – 36.62% 28.96% – – – –Memory 63.57% 48.38% 41.68% 33.61% 28.05% 14.50% 12.12% 19.54% 27.39% 21.23% 7.64% 6.80% 13.15% 20.38% 
+
++MemBridge +10 .51% +19 .81% +19 .44% +12 .40% +8 .03% +27 .73% +20 .63% +28 .78% +11 .46% +8 .13% +19 .11% +17 .73% +15 .75% +22 .30% 
+
+TABLE IV LOCALIZATION RESULTS OF MEM BRIDGE -AUGMENTED METHODS .Level 2 Level 3 Method Loc-SR ↑ Etrans ↓ Erot ↓ Loc-SR ↑ Etrans ↓ Erot ↓
+
+CMA +MemBridge 97.5% 0.037 m 0.78 ◦ 62.74% 0.181 m 2.26 ◦
+
+ETPNav +MemBridge 98.3% 0.026 m 0.34 ◦ 74.20% 0.122 m 0.93 ◦
+
+JanusVLN +MemBridge 99.2% 0.022 m 0.56 ◦ 92.36% 0.174 m 2.02 ◦
+
+Uni-LaViRA +MemBridge 98.1% 0.021 m 0.33 ◦ 70.70% 0.310 m 2.43 ◦
+
+with 12 .43% for JanusVLN and 12 .78% for ETPNav, even though JanusVLN is stronger on the base navigation tasks. At Levels 2 and 3, following the memory-handling proto-col in Section V-A, JanusVLN retains its history cache but still reaches only 5.73% C-SR at Level 3 against an SR of 
+
+28 .03% .Similar SR–C-SR gaps appear across agents. Reaching the destination does not guarantee visiting the required historical anchors in order. Adding MemBridge improves performance across the evaluated agents. At Level 3, C-SR increases from 5.73% 
+
+to 28 .66% for JanusVLN and from 7.64% to 26 .75% for Uni-LaViRA; ST-nDTW increases from 13 .80% to 33 .14% 
+
+and from 13 .15% to 28 .90% . Table IV reports localization on 476 Level 2 memory tasks and 314 Level 3 tasks. TABLE V ABLATION OF MEM BRIDGE COMPONENTS ON UNI -L AVIRA MEMORY TASKS .Method Level 1 Level 2 Level 3 SR ↑ SPL ↑ MRR ↑ SR ↑ SPL ↑ C-SR ↑ C-SPL ↑ MRR ↑ SR ↑ SPL ↑ C-SR ↑ C-SPL ↑ ST-nDTW ↑ MRR ↑                                                         
+
+> Uni-LaViRA +MemBridge 74.08% 68.19% 61.12% 46.01% 36.08% 42.23% 32.75% 48.32% 38.85% 29.36% 26.75% 24.53% 28.90% 42.68%
+> w/o VLM Top-kfine retrieval 63.40% 58.16% 52.71% 38.87% 30.50% 35.71% 27.66% 41.81% 28.66% 21.88% 19.75% 17.82% 21.30% 31.21% w/o cross-episode localization 61.82% 45.11% 39.93% 34.03% 29.66% 15.69% 13.41% 19.75% 26.11% 20.28% 7.52% 5.73% 11.90% 20.70% w/o frontier exploration 73.38% 66.74% 59.54% 44.11% 36.08% 40.76% 31.83% 45.80% 28.66% 21.96% 11.46% 10.32% 15.80% 24.52%
+
+Although Episode 1 at Level 3 is a base task, it still requires localization to align the current observation with historical memory. At Level 2, JanusVLN and Uni-LaViRA with MemBridge reach Loc-SR of 99 .2% and 98 .1% , while C-SR remains 36 .56% and 42 .23% , so spatial alignment alone is insufficient. 
+
+C. Ablation Study 
+
+We analyze the components of MemBridge to examine how different parts of the reference baseline contribute to performance on Mem-X. Table V reports the effects of re-moving VLM Top-k fine retrieval, cross-episode localization, and frontier exploration. Removing VLM Top-k fine retrieval reduces Level 1 SR from 74 .08% to 63 .40% and MRR from 61 .12% to 52 .71% .Level 2 and Level 3 also decline, but the largest drop is on Level 1, where the shared frame already isolates target recall from localization. Coarse scene-graph ranking is therefore insufficient when several candidates share a category. Removing cross-episode localization yields metrics close to Uni-LaViRA’s native Memory setting, effectively reducing the agent to in-episode memory. Frontier exploration is used only when the first observation does not yield a unique lock. Removing it leaves Level 1 and Level 2 largely unchanged, because Level 1 does not require cross-episode localization and Level 2 starts in a previously observed region. On Level 3, SR falls from 38 .85% to 
+
+28 .66% and C-SR from 26 .75% to 11 .46% , approaching the native Memory row. Off-memory relocalization therefore depends on exploring into historical coverage, not on a start-view match. 
+
+D. Qualitative Analysis 
+
+We select Uni-LaViRA, which has stronger overall perfor-mance, and analyze the four cases shown in Figure 3. The Level 1 case requires returning to a previously seen basket. Uni-LaViRA does not recall this object, and its trajectory misses the basket; after MemBridge is added, the agent stops beside it. The Level 2 case uses local coordinates and requires first returning to a previously seen bench, then stopping beside a blanket. Uni-LaViRA’s trajectory cuts directly toward the goal, with SR = 1 and C-SR = 0: the memory task is reduced to a final ordinary-navigation segment. MemBridge completes self-localization at the start and then visits the two anchors in order. The Level 3 case starts from a region not covered by his-tory. The instruction requires first finding a previously seen fireplace, then following the shared route of two memory segments to a refrigerator. Uni-LaViRA can approach the goal (SR = 1 ) but does not visit the anchors in order; ST-nDTW is near 0, and the shared route is barely reproduced. MemBridge first establishes spatial correspondence with the historical region during exploration, then visits the two anchors in sequence. The failure case requires first revisiting a trash bin, then entering the kitchen and stopping in front of a microwave. MemBridge has already locked the pose, but retrieves the instruction’s bin as a basket in the same scene, yielding C-SR = 0 .VI. C ONCLUSION 
+
+We propose Mem-X, a cross-episode memory-dependent VLN benchmark with explicit dependencies between tasks. We also introduce an evaluation protocol that measures memory-related capabilities beyond endpoint success. Mem-Bridge is a modular baseline that combines semantic scene memory, cross-episode localization, and coarse-to-fine re-trieval and can be integrated with existing VLN agents. Experiments with four VLN agents show that MemBridge improves memory-related metrics, but reaching the goal or aligning poses does not mean the agent used histori-cal memory. Even with MemBridge, Level 3 constrained success remains below 30% , leaving substantial room for improvement. The current dataset covers only single-floor environments, and the odometry is ground-truth from the simulator, which still differs from real settings. Future work can extend the benchmark to multi-floor episodes and more realistic task designs. REFERENCES [1] J. Krantz, S. Banerjee, W. Zhu, J. J. Corso, P. Anderson, S. Lee, and J. Thomason, “Iterative vision-and-language navigation,” in Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 14 921–14 930. [2] M. Khanna, R. Ramrakhya, G. Chhablani, S. Yenamandra, T. Gervet, M. Chang, Z. Kira, D. S. Chaplot, D. Batra, and R. Mottaghi, “GOAT-bench: A benchmark for multi-modal lifelong navigation,” in   
+
+> Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 16 373–16 383. [3] P. Anderson, Q. Wu, D. Teney, J. Bruce, M. Johnson, N. S¨ underhauf, I. Reid, S. Gould, and A. van den Hengel, “Vision-and-language nav-igation: Interpreting visually-grounded navigation instructions in real environments,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2018, pp. 3674–3683.
+
+[4] A. Ku, P. Anderson, R. Patel, E. Ie, and J. Baldridge, “Room-across-room: Multilingual vision-and-language navigation with dense spatiotemporal grounding,” in Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing , 2020, pp. 4392– 4412. [5] V. Jain, G. Magalhaes, A. Ku, A. Vaswani, E. Ie, and J. Baldridge, “Stay on the path: Instruction fidelity in vision-and-language naviga-tion,” in Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics , 2019, pp. 1862–1872. [6] J. Thomason, M. Murray, M. Cakmak, and L. Zettlemoyer, “Vision-and-dialog navigation,” in Proceedings of the Conference on Robot Learning , ser. Proceedings of Machine Learning Research, vol. 100, 2020, pp. 394–406. [7] Y. Qi, Q. Wu, P. Anderson, X. Wang, W. Y. Wang, C. Shen, and A. van den Hengel, “REVERIE: Remote embodied visual referring ex-pression in real indoor environments,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2020, pp. 9982–9991. [8] F. Zhu, X. Liang, Y. Zhu, Q. Yu, X. Chang, and X. Liang, “SOON: Scenario oriented object navigation with graph-based exploration,” in 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021, pp. 12 689–12 699. [9] H. Hong, Y. Qiao, S. Wang, J. Liu, and Q. Wu, “General scene adapta-tion for vision-and-language navigation,” in International Conference on Learning Representations , 2025. [10] A. Chang, A. Dai, T. Funkhouser, M. Nießner, M. Savva, S. Song, A. Zeng, and Y. Zhang, “Matterport3D: Learning from RGB-D data in indoor environments,” in Proceedings of the International Conference on 3D Vision , 2017, pp. 667–676. [11] J. Krantz, E. Wijmans, A. Majumdar, D. Batra, and S. Lee, “Beyond the nav-graph: Vision-and-language navigation in continuous environ-ments,” in Computer Vision–ECCV , 2020, pp. 104–120. [12] X. Song, W. Chen, Y. Liu, W. Chen, G. Li, and L. Lin, “Towards long-horizon vision-language navigation: Platform, benchmark and method,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025, pp. 12 078–12 088. [13] X. Wang, J. Dong, B. Liu, Q. Lyu, L. Liu, and Z. Han, “Lifelong em-bodied navigation learning,” in International Conference on Learning Representations , 2026. [14] S. Wang, B. Liu, Z. Gao, L. Ma, X. Wang, Y. Xie, and X. Tan, “Ex-plore with long-term memory: A benchmark and multimodal LLM-based reinforcement learning framework for embodied exploration,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2026, pp. 37 098–37 108. [15] K. Yadav, Y. Ali, G. Gupta, Y. Gal, and Z. Kira, “FindingDory: A benchmark to evaluate memory in embodied agents,” in Computer Vision–ECCV , 2026. [16] S. Chen, P.-L. Guhur, C. Schmid, and I. Laptev, “History aware mul-timodal transformer for vision-and-language navigation,” in Advances in Neural Information Processing Systems , vol. 34, 2021, pp. 5834– 5847. [17] C. Lin, Y. Jiang, J. Cai, L. Qu, G. Haffari, and Z. Yuan, “Multimodal transformer with variable-length memory for vision-and-language nav-igation,” in Computer Vision–ECCV , 2022, pp. 380–397. [18] S. Zeng, D. Qi, X. Chang, F. Xiong, S. Xie, X. Wu, S. Liang, M. Xu, and X. Wei, “JanusVLN: Decoupling semantics and spatiality with dual implicit memory for vision-language navigation,” in International Conference on Learning Representations , 2026. [19] S. Zhang, Y. Qiao, Q. Wang, Z. Yan, Q. Wu, Z. Wei, and J. Liu, “COSMO: Combination of selective memorization for low-cost vision-and-language navigation,” in Proceedings of the IEEE/CVF Interna-tional Conference on Computer Vision , 2025, pp. 5511–5522. [20] X. Yao, J. Gao, and C. Xu, “NavMorph: A self-evolving world model for vision-and-language navigation in continuous environments,” in 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , 2025, pp. 5536–5546. [21] M. Wei, C. Wan, X. Yu, T. Wang, Y. Yang, X. Mao, C. Zhu, W. Cai, H. Wang, Y. Chen, X. Liu, and J. Pang, “StreamVLN: Streaming vision-and-language navigation via SlowFast context modeling,” in 
+
+Proceedings of the IEEE International Conference on Robotics and Automation , 2026. [22] Y. Liu, S. Qian, T. Qu, M. Lin, Z. Wang, X. Wang, B. Yu, and J. Jia, “MemVLN: Episodic and procedural memory for vision-and-language navigation,” 2026, arXiv preprint arXiv:2607.23504. [23] J. Zhang, K. Wang, S. Wang, M. Li, H. Liu, S. Wei, Z. Wang, Z. Zhang, and H. Wang, “Uni-NaVid: A video-based vision-language-action model for unifying embodied navigation tasks,” in Proceedings of Robotics: Science and Systems , 2025. [24] D. An, H. Wang, W. Wang, Z. Wang, Y. Huang, K. He, and L. Wang, “ETPNav: Evolving topological planning for vision-language navi-gation in continuous environments,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 47, no. 7, pp. 5130–5145, 2025. [25] S. Chen, P.-L. Guhur, M. Tapaswi, C. Schmid, and I. Laptev, “Think global, act local: Dual-scale graph transformer for vision-and-language navigation,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022, pp. 16 537–16 547. [26] X. Zhou, T. Xiao, L. Liu, Y. Wang, M. Chen, X. Meng, X. Wang, W. Feng, W. Sui, and Z. Su, “FSR-VLN: Fast and slow reasoning for vision-language navigation with hierarchical multi-modal scene graph,” 2025, arXiv preprint arXiv:2509.13733. [27] Z. Wang, X. Li, J. Yang, Y. Liu, and S. Jiang, “GridMM: Grid memory map for vision-and-language navigation,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2023, pp. 15 625–15 636. [28] L. Zhang, X. Hao, Q. Xu, Q. Zhang, X. Zhang, P. Wang, J. Zhang, Z. Wang, S. Zhang, and R. Xu, “MapNav: A novel memory representa-tion via annotated semantic maps for vision-and-language navigation,” in Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics , 2025, pp. 13 032–13 056. [29] Z. Wang, X. Li, J. Yang, Y. Liu, and S. Jiang, “Sim-to-real transfer via 3d feature fields for vision-and-language navigation,” in Proceedings of the 8th Conference on Robot Learning , 2024, pp. 2982–2995. [30] H. Ding, S. Zhang, Z. Xu, J. Guo, H. Liu, X. Cheng, Z. Chen, H. Qi, D. Wang, H. Xu, J. Shi, Y. Zhang, J. Huo, J. Cheng, Y. Gao, and J. Luo, “Uni-LaViRA: Language-vision-robot actions translation for unified embodied navigation,” 2026, arXiv preprint arXiv:2605.27582. [31] Y. Xu, Y. Pan, and Z. Liu, “Dream to recall: Imagination-guided experience retrieval for memory-persistent vision-and-language nav-igation,” 2025, arXiv preprint arXiv:2510.08553. [32] K. Yadav, R. Ramrakhya, S. K. Ramakrishnan, T. Gervet, J. Turner, A. Gokaslan, N. Maestre, A. X. Chang, D. Batra, M. Savva, A. W. Clegg, and D. S. Chaplot, “Habitat-matterport 3d semantics dataset,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 4927–4936. [33] M. Savva, A. Kadian, O. Maksymets, Y. Zhao, E. Wijmans, B. Jain, J. Straub, J. Liu, V. Koltun, J. Malik, D. Parikh, and D. Batra, “Habitat: A platform for embodied AI research,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2019, pp. 9339–9347. [34] G. Ilharco, V. Jain, A. Ku, E. Choi, and J. Baldridge, “General evaluation for instruction conditioned navigation using dynamic time warping,” in NeurIPS Visually Grounded Interaction and Language (ViGIL) Workshop , 2019. [35] A. Werby, C. Huang, M. B¨ uchner, A. Valada, and W. Burgard, “Hierarchical open-vocabulary 3d scene graphs for language-grounded robot navigation,” in Proceedings of Robotics: Science and Systems ,2024. [36] J. Jiang, Y. Zhu, Z. Wu, and J. Song, “DualMap: Online open-vocabulary semantic mapping for natural language navigation in dynamic changing scenes,” 2025, arXiv preprint arXiv:2506.01950. [37] Q. Gu, A. Kuwajerwala, S. Morin, K. M. Jatavallabhula, B. Sen, A. Agarwal, C. Rivera, W. Paul, K. Ellis, R. Chellappa, C. Gan, C. M. de Melo, J. B. Tenenbaum, A. Torralba, F. Shkurti, and L. Paull, “ConceptGraphs: Open-vocabulary 3d scene graphs for perception and planning,” in Proceedings of the IEEE International Conference on Robotics and Automation , 2024, pp. 5021–5028. [38] Y. Fang, Z. Shi, J. Qiu, Z. Chen, J. Shi, H. Xu, J. Huo, and Y. Gao, “INHerit-SG: Incremental hierarchical semantic scene graphs with RAG-style retrieval,” 2026, arXiv preprint arXiv:2602.12971. [39] O. Sim´ eoni, H. V. Vo, M. Seitzer, F. Baldassarre, M. Oquab, C. Jose, V. Khalidov, M. Szafraniec, S. Yi, et al. , “DINOv3,” 2025, arXiv preprint arXiv:2508.10104. [40] N. Carion, L. Gustafson, Y.-T. Hu, S. Debnath, R. Hu, D. S. Coll-Vinent, C. Ryali, K. V. Alwala, H. Khedr, et al. , “SAM 3: Segment anything with concepts,” in International Conference on Learning Representations , 2026. [41] D. DeTone, T. Malisiewicz, and A. Rabinovich, “SuperPoint: Self-supervised interest point detection and description,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition Workshops , 2018, pp. 224–236. [42] P. Lindenberger, P.-E. Sarlin, and M. Pollefeys, “LightGlue: Local feature matching at light speed,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2023, pp. 17 627– 17 638. [43] M. A. Fischler and R. C. Bolles, “Random sample consensus: A paradigm for model fitting with applications to image analysis and automated cartography,” Communications of the ACM , vol. 24, no. 6, pp. 381–395, 1981. [44] W. Wang, F. Wei, L. Dong, H. Bao, N. Yang, and M. Zhou, “MiniLM: Deep self-attention distillation for task-agnostic compression of pre-trained transformers,” in Advances in Neural Information Processing Systems , vol. 33, 2020, pp. 5776–5788.
