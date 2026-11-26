@@ -1,0 +1,1253 @@
+TripleKV: Predict, Prefetch, Protect – KV Cache Management for
+AI Agents
+Shashwat Jaiswal
+University of Illinois
+Urbana-Champaign
+Urbana, Illinois, USA
+sj74@illinois.edu
+Chloe Alverti
+National Technical
+University of Athens
+Athens, Greece
+xalverti@cslab.ece.ntua.gr
+Mengmei Ye
+IBM Research
+Yorktown Heights, New
+York, USA
+mye@ibm.com
+Chen Wang
+IBM Research
+Yorktown Heights, New
+York, USA
+chen.wang1@ibm.com
+Hubertus Franke
+IBM Research
+Yorktown Heights, New
+York, USA
+frankeh@us.ibm.com
+Fan Lai
+University of Illinois
+Urbana-Champaign
+Urbana, Illinois, USA
+fanlai@illinois.edu
+Tianyin Xu
+University of Illinois
+Urbana-Champaign
+Urbana, Illinois, USA
+tyxu@illinois.edu
+Josep Torrellas
+University of Illinois
+Urbana-Champaign
+Urbana, Illinois, USA
+torrella@illinois.edu
+Abstract
+LLM agents alternate between inference and tool execution, re-
+peatedly reusing their growing context across calls. Under high
+concurrency, their combined key-value (KV) cache working set can
+reach hundreds of GiB, far exceeding GPU memory capacity. As
+idle KV cache blocks are evicted to slower storage tiers, returning
+agents incur expensive retrievals that stall inference.
+To address this problem, we present TripleKV, a three-tier KV
+cache management system that hides the delays of these retrievals.
+In agentic workloads, the KV blocks needed by the next inference
+request are known in advance; only the time of their reuse is uncer-
+tain. TripleKV uses a tool-aware latency predictor to estimate when
+each tool call will complete and prefetches the required KV blocks
+from SSD into host DRAM ahead of time. Unlike GPU prefetching,
+this avoids reserving scarce GPU memory and interfering with con-
+current inference requests. To further improve DRAM utilization,
+TripleKV eliminates duplication of GPU-resident blocks in DRAM,
+and introduces a victim-cache mechanism that refills blocks from
+SSD upon their eviction from GPU memory.
+Across data, web, and coding agents, TripleKV reduces the frac-
+tion of requests requiring critical-path SSD reads from 45–76% to
+under 10%. It also reduces P95 time to first token (TTFT) by up to
+49% compared with vLLM extended with DRAM and SSD KV-cache
+tiers, and achieves 1.5-7× lower P95 TTFT than recent agent-aware
+systems.
+Keywords
+LLM Serving, KV Cache, Agentic AI, Memory Tiering, Prefetching
+1
+Introduction
+LLM agents have fundamentally changed the workloads handled by
+inference servers, with ReAct (Reasoning and Action) [37] emerg-
+ing as the de facto standard for AI agents solving complex tasks.
+ReAct-style agents alternate between LLM inference and tool calls
+(e.g., web searches, page visits, and shell commands), submitting
+their growing context as part of each new inference prompt (Fig. 1).
+As a result, agent contexts can grow to tens of thousands of to-
+kens. To avoid recomputing these tokens, inference engines retain
+previously computed tokens in key-value (KV) caches, and reuse
+them across inference calls through prefix caching [17]. For Qwen3-
+30B-A3B [28], a popular 30B-parameter mixture-of-experts model,
+the KV cache requires approximately 96 KiB per token. A single
+50K-token agent context therefore occupies 4.6 GiB. On an NVIDIA
+H100 NVL, model weights and runtime overhead leave roughly 32
+GiB for KV caching, enough for only about six such contexts. Bal-
+ancing KV cache reuse against GPU memory utilization is therefore
+critical to serving performance.
+Figure 1: The ReAct agent loop.
+Figure 2: Memory hierarchy in LLM inference servers with
+measured KV cache transfer latency and bandwidth.
+While an agent executes a tool call, its previously computed KV
+cache blocks may remain idle in GPU memory up to 100 seconds
+or more, awaiting the next inference request. Meanwhile, other
+agents compete for the same limited memory capacity, forcing
+serving engines to evict cached blocks, either discarding them or
+offloading them to host DRAM and potentially to slower storage
+tiers [19, 24, 27] (Fig 2).
+Many KV cache management systems rely on Least Recently
+Used (LRU) policies for eviction. However, as we will show, LRU is
+poorly suited to agentic workloads even under moderate system
+load. Long tool execution intervals expose an agent’s idle KV blocks
+to memory pressure from other agents’ inference requests, likely
+evicting them before the agent resumes inference. In our experi-
+ments, up to 76% of inference requests find their previously cached
+blocks already evicted to slower tiers or discarded entirely. When
+the agent resumes inference, these blocks must either be retrieved
+from slower storage, potentially taking several seconds for a 50K-
+token context, or recomputed through an expensive prefill phase
+1
+arXiv:2611.25112v2  [cs.DC]  21 Nov 2026
+
+
+Jaiswal et al.
+if discarded. Both introduce substantial delays, with recomputa-
+tion additionally consuming GPU compute resources that could
+otherwise serve other agents.
+Recent proposals explore different agent-aware strategies to
+manage KV caches. Continuum [18] pins KV cache blocks in GPU
+memory throughout tool execution. This approach avoids reloads
+but occupies scarce GPU memory and limits throughput. Token-
+Cake [6] instead offloads KV blocks to host DRAM during tool
+execution. Later, it prefetches them back into GPU memory based
+on predicted tool latency. However, our observations show that
+prefetching into the GPU can be counterproductive: it competes
+with inference requests for GPU memory, increasing queueing de-
+lays. Further, mispredictions waste precious GPU memory capacity
+on blocks that are not reused. Finally, while vLLM [17] is not agent-
+aware, it is worth mentioning because it is popular. vLLM supports
+SSD-backed KV caching to extend capacity beyond GPU and host
+memory. This avoids nearly all recomputation, as SSD is typically
+larger than the working set. However, retrieving evicted blocks from
+SSD can place storage I/O on the critical path of inference. Overall,
+existing approaches trade GPU memory capacity for reuse, risk
+contention and wasted GPU memory capacity through prefetching,
+or incur costly on-demand retrieval from slower tiers.
+This paper approaches agent-aware KV cache management as
+a classical multi-level caching problem, where GPU HBM, host
+DRAM, and SSD are the three levels of the KV cache hierarchy. Our
+proposal is called TripleKV. TripleKV relies on timely prefetching
+of KV cache blocks from SSDs to host DRAM. TripleKV includes
+three mechanisms: Predict, Prefetch, and Protect. First, a tool latency
+predictor estimates when each tool call will complete and schedules
+prefetching ahead of time to hide the expected storage read latency.
+Second, a prefetch engine transfers the agent’s KV blocks from SSD
+to DRAM, using lower priority than read requests from inference
+calls. Finally, a prefetch-aware cache replacement policy protects
+prefetched blocks in host DRAM from premature eviction.
+TripleKV is built on top of vLLM [17]. It does not prefetch directly
+into GPU memory because doing so introduces contention and
+queueing delays. Instead, when an agent resumes inference, vLLM’s
+existing request admission mechanism retrieves the prefetched KV
+blocks from DRAM. TripleKV relies on tool call information to
+timely prefetch KV cache blocks before an agent’s next inference
+request. Traditional hardware prefetchers must predict both what
+data will be accessed and when. In agentic workloads, the next
+data to access is known; what is not known is when a tool call will
+complete. Hence, TripleKV uses predictors. We find that tool calls
+are typically long enough to hide SSD reads.
+We evaluate TripleKV on four recent agentic benchmarks: Deep-
+Research Bench (DRB) [9], GAIA [22], Terminal-Bench 4.0 (TB4) [21],
+and Browse Comp-Plus (BC+) [8]. We run up to 20 concurrent
+agents on an NVIDIA H100 GPU. TripleKV reduces the fraction of
+requests requiring critical-path SSD reads from 45–76% to under
+10%. It also reduces P95 time to first token (TTFT) by up to 49%
+compared with vLLM extended with DRAM and SSD KV cache
+tiers, and achieves 1.5-7× lower P95 TTFT than recent agent-aware
+systems. Finally, it approaches the performance of an oracle with
+perfect knowledge of tool call completion times.
+This paper makes four contributions:
+• The TripleKV agent-aware KV cache management system that
+relies on predicting tool latencies and prefetching required KV
+cache blocks to host DRAM.
+• Characterization of KV cache behavior during agentic inference.
+• KV cache block prefetching into host DRAM rather than GPU
+memory, combined with agent-aware cache eviction and replace-
+ment policy to prevent premature eviction.
+• Evaluation of TripleKV, comparing to state of the art agent-aware
+baselines on latency, throughput, and cache metrics.
+2
+Background
+2.1
+Agents Reuse Context at Every Step
+ReAct-style agents exhibit substantial context reuse across consecu-
+tive inference requests (Fig. 1). In all the representative benchmarks
+we study (Sections 3, 6.1) prompts can reach 100K tokens, and a
+single task can involve up to 100 LLM calls. Yet, each turn typically
+adds only 1.0K–2.5K new tokens. Thus, consecutive requests from
+the same agent share nearly their entire prefix, making KV cache
+reuse particularly important for efficient inference serving.
+Serving engines exploit this reuse through prefix caching [30].
+Popular engines such as vLLM [17] and SGLang [42] store previ-
+ously computed attention keys and values (KV cache) in fixed-size
+blocks, identified by hashes that incorporate both their contents and
+preceding prefix. When a new request arrives, the engine reuses
+matching blocks from the beginning of the prompt, computing only
+the remaining uncached suffix. In agentic workloads, 84.6–99.5% of
+input tokens hit the prefix cache when capacity is sufficient [39],
+while studies of multi-turn chat report that up to 99% of prefill work
+involves previously processed context [11]. In ReAct-style execu-
+tion, each subsequent inference request follows the completion of
+a tool call, making tool completion the event that triggers reuse of
+the agent’s existing context.
+Observation 1. Agent inference requests repeatedly reuse large, con-
+tiguous KV cache prefixes. The blocks required by an agent’s next re-
+quest are largely known in advance, and their reuse is triggered by the
+completion of its current tool call
+2.2
+The KV Hierarchy
+By default, vLLM stores KV cache blocks only in GPU memory.
+When a request completes, its blocks are placed on a free list but
+retain their contents and identities for future reuse. New allocations
+reclaim blocks from this list in Least Recently Used (LRU) order,
+effectively using available GPU memory as a cache of previously
+computed prefixes.
+vLLM also supports tiered KV caching, extending GPU memory
+(L1) with host DRAM (L2) and external storage (L3). The hierarchy
+follows a write-through policy: completed KV blocks are copied
+to lower tiers while retaining their copies in faster memory. We
+use SSD as the external tier, with several terabytes of capacity,
+effectively eliminating L3 evictions. This three-tier hierarchy serves
+as our baseline (Table 1). Both GPU memory and DRAM use LRU
+replacement. When an inference request arrives, vLLM first checks
+for reusable blocks in GPU memory, retrieving missing blocks from
+DRAM or SSD as needed. SSD-resident blocks must first be loaded
+into DRAM before being transferred to GPU memory over PCIe.
+2
+
+
+TripleKV: Predict, Prefetch, Protect – KV Cache Management for AI Agents
+Table 1: vLLM’s tiered KV cache in cache terms.
+Cache Term
+In vLLM’s tiered KV offload (our baseline)
+L1
+GPU HBM
+L2
+CPU DRAM
+L3
+SSD or any external storage
+Line
+A KV cache block (order of MiBs)
+Tag
+A hash of the token prefix
+Hit
+Block found in HBM (L1) or DRAM (L2) upon request
+admission
+Miss
+Block read from L3
+MSHRs [16]
+The engine’s queue of outstanding L3 reads
+Compulsory/cold miss
+Tokens never computed before, always prefilled
+Replacement
+LRU, separately in each tier
+Associativity
+Full: any block can take any slot (no conflict misses)
+Figure 3: Timeline of one agent turn in various systems.
+Although GPUDirect Storage [23] can bypass this intermediate
+host-memory transfer, it cannot eliminate SSD read latency.
+Unlike conventional processor caches, KV cache blocks are enor-
+mous. In our setup, each 64-token block occupies 6 MiB. Thus,
+retrieving a long prefix from SSD can take seconds. Moreover, pre-
+fix caching requires a contiguous sequence of available blocks; if a
+block is missing from all tiers, subsequent blocks cannot be reused
+as part of that prefix and must be recomputed. vLLM retrieves
+blocks on demand, only after the inference request arrives, without
+exploiting information about the agent’s ongoing tool execution.
+Observation 2. From the GPU’s perspective, KV cache storage forms
+a three-level cache hierarchy, with GPU HBM as L1, host DRAM as L2,
+and SSD storage as L3.
+2.3
+Agent-aware KV Cache Management Systems
+In this subsection, we discuss existing agent-aware KV cache man-
+agement systems. We also include vLLM as it is very popular.
+While an agent executes a tool, its KV cache sits idle, and serving
+systems must decide where to keep it until the agent returns. Exist-
+ing systems make one of three choices. vLLM [17] evicts the idle KV
+to DRAM or SSD and reloads it on demand once the next request
+arrives. TokenCake [6] offloads it to DRAM and reloads it into GPU
+memory ahead of the agent’s predicted return. Continuum [18]
+Figure 4: KV cache data of active agents per GPU.
+keeps it pinned in GPU memory. Each choice trades GPU memory
+against reload latency in a different way.
+Fig. 3 illustrates these trade-offs for a single turn of an agent A
+while a second agent, B, competes for the GPU. Agent A issues call
+k and then executes a tool. Meanwhile, agent B arrives. In vLLM
+(second row), A’s idle KV cache data is evicted during the tool call.
+Both requests first wait in the GPU queue, and then read their KV
+cache context from the SSD into host DRAM, and from DRAM
+to GPU. Each pays the full SSD latency after admission. Because
+each request reserves GPU memory while its KV loads, the queue
+lengthens for every request behind it.
+TokenCake (third row) offloads A’s KV cache blocks to the DRAM
+and reloads them into the GPU before A’s predicted return. Note
+that reloading into the GPU takes a long time because prefetches
+wait for empty GPU blocks and queue with other inference requests.
+A starts on time, but the GPU memory reserved for A blocks B until
+A finishes. At that point B can proceed.
+Continuum (fourth row) pins A’s KV cache blocks in GPU mem-
+ory for the whole tool call. A skips the queue when it resumes, but
+B waits for the pinned space to be freed before starting. The fifth
+row (TripleKV) will be explained in Section 4.
+3
+Motivation
+To characterize the performance of tiered KV cache offloading in
+agentic workloads, we deploy vLLM using the system setup in
+Table 1 and the configuration in Table 3 (Section 6.1). We serve the
+Qwen3-30B-A3B model on an NVIDIA H100 NVL GPU, which has
+32 GiB of GPU memory available for KV caching after accounting
+for model weights. We evaluate four benchmarks, DeepResearch
+Bench, GAIA, Terminal-Bench 4.0, and BrowseComp-Plus (Table 4),
+under increasing system load, varying the number of concurrently
+executing agents.
+3.1
+Memory Limits the Number of Agents a
+GPU Serves
+Figure 4 shows how the aggregate KV cache working set grows
+with agent concurrency. We define the working set as the total
+KV cache state of all agents with unfinished tasks, including those
+waiting for tool calls. At 20 concurrent agents, it reaches 127 GiB,
+nearly 4× the 32 GiB of GPU HBM available for KV caching. With
+each agent contributing up to 8 GiB, the working set grows approx-
+imately linearly with concurrency. Because DRAM serves as an
+inclusive cache, retaining the entire working set without accessing
+SSD requires sufficient DRAM capacity to accommodate all KV
+3
+
+
+Jaiswal et al.
+Figure 5: Percentage of agents in different phases of execu-
+tion on average.
+Figure 6: Source of each prompt token’s KV in vLLM with
+external tier.
+blocks, including those also resident in GPU memory. The horizon-
+tal dotted line marks a reference capacity of 128 GiB of host DRAM
+per GPU, illustrating how quickly increasing agent concurrency
+can exhaust this capacity.
+Figure 5 shows the fraction of agents in different execution phases as
+we increase agent concurrency. Regardless of the number of active
+agents, the GPU executes only 4–9 inference requests concurrently,
+largely constrained by the number of contexts that fit in its HBM.
+The remaining agents must wait their turn, often requiring their
+evicted KV cache blocks to be restored from DRAM or slower tiers
+before resuming inference. At high concurrency, up to 14 agents are
+waiting to execute, with 54-74% of them waiting for their KV cache
+data to be loaded. Overall, up to 50% of active agents, on average,
+are stalled waiting for KV cache restoration in the vLLM baseline.
+These results highlight that, as the aggregate KV cache working
+set exceeds GPU memory capacity, efficiently moving KV blocks
+between memory tiers becomes critical to serving performance.
+One approach to avoid KV cache restoration is to retain idle
+contexts in GPU memory. Continuum [18] follows this approach,
+pinning an agent’s KV cache for a time-to-live (TTL) estimated from
+tool latencies. While this avoids reloading the context when the
+agent returns, it reduces GPU memory available to other requests.
+We evaluate this tradeoff further in Section 6.
+Observation 3. GPU memory capacity limits the number of concur-
+rently executing inference requests, while the aggregate KV cache work-
+ing set far exceeds available HBM. Consequently, KV cache restoration
+becomes a major source of agent waiting time, limiting how quickly the
+GPU can serve new requests.
+3.2
+L3 Reads in Critical Path
+Fig. 6 shows the average distribution of requested KV cache blocks
+(per prompt) across cache tiers in our vLLM baseline. Only 2–33% of
+tokens are served from GPU memory and 0–28% from host DRAM,
+while up to 78% must be retrieved from SSD after request admission.
+In addition to the results shown in the figure, we observe that up
+to 76% of inference requests stall waiting for SSD reads before
+generating their first token. These delays are substantial; retrieving
+a 5 GiB context from SSD takes approximately 1–2.5 seconds in
+our setup under average load. The numbers above the bars in Fig. 6
+report the average time each request spends waiting for its KV
+cache blocks to be loaded.
+The figure also shows that the fraction of recomputed KV blocks
+increases with the number of agents. As concurrency grows, more
+requests transfer KV cache data between SSD and GPU, increasing
+pressure on host DRAM as well as the interconnect bandwidth. In
+vLLM’s inclusive cache hierarchy, DRAM must retain copies of GPU-
+resident blocks while also accommodating in-flight transfers to and
+from SSD. Under high contention, insufficient DRAM capacity can
+prevent some transfers from completing. When a retrieval exceeds
+vLLM’s timeout, the engine abandons the transfer and recomputes
+the missing KV blocks instead. Consequently, higher load can lead
+to more recomputation, even when the required KV blocks remain
+available on SSD.
+Figure 7: Hits and Misses.
+Fig. 7 breaks down KV cache misses by their underlying cause.
+For this analysis, we define a cache hit as finding the required KV
+block in either HBM or DRAM, and a miss as requiring access
+to SSD or recomputation. Following classical cache replacement-
+policy studies [12, 29], we compare LRU against Belady’s optimal
+replacement policy, MIN [5], and distinguish four types of misses:
+• Cold Miss: The required KV block has never been computed.
+• Capacity Miss: Even MIN misses when HBM and DRAM are
+treated as a single exclusive cache, indicating that their combined
+capacity is insufficient.
+• Inclusion Miss: MIN hits with an exclusive cache hierarchy but
+misses with an inclusive DRAM tier, as duplicate copies reduce
+the effective cache capacity.
+• Replacement Miss: LRU misses while MIN hits under the same
+inclusive hierarchy, indicating a suboptimal eviction decision.
+We observe that avoidable inclusion and replacement misses dom-
+inate, with their combined percentages shown above each bar in
+Fig. 7. To further investigate replacement misses, we measure the
+average time an idle KV block remains in the L1 and L2 tiers under
+LRU. Fig. 8 shows that tool execution times are typically much
+longer than this cache residency time, causing KV blocks to be
+evicted before their agents resume inference. As other agents com-
+pete for cache capacity during tool execution, LRU evicts the idle
+agent’s blocks before they can be reused.
+4
+
+
+TripleKV: Predict, Prefetch, Protect – KV Cache Management for AI Agents
+Figure 8: An idle block’s lifespan under LRU in L1 and L2
+compared to tool latencies.
+Observation 4. Most KV cache misses are avoidable. LRU is suboptimal
+for agentic workloads because tool execution times are often longer than
+the time KV blocks remain cached, leading to eviction before reuse.
+3.3
+What, When and Where to Prefetch?
+The above findings suggest that retaining every agent’s KV cache
+in fast memory is impractical, but retrieving evicted blocks only
+after the next inference request arrives is expensive. Instead, we
+investigate whether tool execution provides an opportunity to bring
+the required KV blocks back before they are needed. This raises
+three questions: what, when, and where to prefetch?
+Figure 9: Tool Latency (left) and Prediction Error (right).
+What to Prefetch? Traditional hardware prefetchers must predict
+both what data to fetch and when. For ReAct-style agents, the
+first question is largely resolved: an agent’s next inference request
+reuses its existing KV cache prefix, which is known in advance.
+Only the timing remains uncertain, as reuse follows the completion
+of the tool call. This resembles informed prefetching [26], where
+applications disclose future data accesses.
+When to Prefetch? Fig. 9 (left) shows that tool execution times
+provide sufficient time windows for prefetching. Median tool laten-
+cies reach up to 10 seconds, while retrieving a 5 GiB context from
+SSD at 2–5 GB/s takes approximately 1–2.5 seconds. Accurately pre-
+dicting tool completion times is though important, as prefetching
+too early wastes cache capacity, while prefetching too late leaves
+data retrieval on the inference request’s critical path. Concurrent
+work, TokenCake [6], uses moving averages of past tool latencies
+to predict completion times. As shown in Fig. 9 (right), fewer than
+50% of TokenCake’s predictions fall within ±1 second of actual
+completion. However, we find that incorporating tool-specific char-
+acteristics, such as tool inputs, and tailoring predictors to individual
+tools improves this accuracy to over 90% of calls. We describe these
+predictors in Section 5.1. Even imperfect predictions can be useful,
+as partial prefetching can reduce the several-second KV-loading
+delays observed under high concurrency (Fig. 6).
+Where to Prefetch? TokenCake [6] offloads idle KV cache blocks
+to host DRAM and prefetches them back into GPU memory ahead
+of predicted tool completion. This hides the DRAM-to-GPU transfer
+but requires scarce HBM capacity before the request can execute.
+With GPU memory accommodating only 5–7 average agent con-
+texts, prefetches compete with inference requests for free GPU mem-
+ory, increasing queueing delays. We evaluate this effect in Section 6.
+Moreover, SSD-to-DRAM transfers are significantly slower than
+DRAM-to-GPU transfers (Fig. 2). This suggests that prefetching
+into DRAM can hide the dominant transfer cost without reserving
+GPU memory in advance.
+Observation 5. An agent’s reusable KV cache blocks are known in
+advance, and tool completion times can be accurately predicted to de-
+termine when they will be needed. Prefetching into DRAM hides the
+dominant storage latency without competing with inference requests
+for scarce GPU memory.
+4
+TripleKV Overview
+Guided by the observations in Section 2, TripleKV introduces a
+KV cache management system that uses prefetching to hide the
+latency of data movement across memory tiers. TripleKV builds
+on vLLM’s three-level KV cache hierarchy, with GPU HBM, host
+DRAM, and SSD serving as L1, L2, and L3, respectively (Observa-
+tion 2). It breaks the inclusive property of the L2 tier in vLLM and
+makes it a non-inclusive tier to fit more blocks in faster tiers. L3
+remains inclusive and every block that is generated in the GPU is
+written to it asynchronously. It preserves vLLM’s existing demand
+path, where KV blocks are loaded into GPU memory only after re-
+quest admission, while extending L2 cache management to support
+prefetching. TripleKV introduces three mechanisms:
+• Predict: A tool latency predictor in the agent harness estimates
+when each tool call will complete and schedules prefetching
+ahead of that time.
+• Prefetch: A prefetch engine in vLLM asynchronously retrieves
+the agent’s KV blocks from L3 into L2.
+• Protect: A prefetch-aware cache eviction and replacement policy
+retains prefetched blocks until they are reused to avoid premature
+eviction.
+TripleKV makes two key design choices. First, it never prefetches
+into L1, avoiding contention for scarce GPU memory (Observation
+3 and 5). Instead, prefetched blocks remain in L2 until the request
+is admitted, when vLLM transfers them into L1 over PCIe. This
+transfer remains on the critical path but is relatively inexpensive
+(≈200 ms). Second, TripleKV does not predict which KV blocks
+will be accessed. The agent’s existing context identifies the required
+blocks (Observation 1), which are located using the same token-
+based hashes as vLLM’s prefix caching. Thus, only the timing of
+the prefetch must be predicted (Observation 5).
+Fig. 10 illustrates TripleKV’s operation during one turn of agent
+A in detail. While A executes a tool call, competing requests may
+evict its KV blocks from L1 and L2, leaving their copies in L3. The
+predictor estimates when the tool will complete 1a and schedules
+a prefetch request containing the agent’s context 1b . The prefetch
+engine then initiates the required reads 2a , transferring A’s blocks
+5
+
+
+Jaiswal et al.
+Figure 10: TripleKV Control Flow (top) and KV Cache Data Movement (bottom).
+from L3 into L2 2b . These blocks remain protected from eviction
+until they are reused or their protection expires
+3 . When A’s next
+request is admitted, vLLM retrieves the blocks from L2 into L1 and
+prefills only the new tokens from the prompt
+4 . If the prefetch
+does not finish before the request arrives, the request stalls for
+only the remaining transfer. However, this happens rarely in our
+experiments, for less than 10% of the requests even under high load.
+In contrast, baseline vLLM initiates the SSD reads only after request
+admission, forcing the request to wait for their completion (Fig. 10,
+bottom).
+TripleKV is more efficient than existing agent-aware KV cache
+management systems. Going back to Fig. 3 (fifth row), we see how
+both agents A and B finish their requests faster. TripleKV predicts
+when A’s tool will finish and prefetches A’s KV cache blocks from
+SSD into DRAM during the tool call. The SSD read overlaps the tool
+call and A’s queueing delay. As a result, after admission, A pays
+only the short DRAM-to-GPU load. Since TripleKV neither reserves
+nor pins GPU memory, its queuing delays are shorter. Therefore, B
+is admitted after a shorter queuing delay.
+Protection in L2. TripleKV modifies vLLM’s cache replacement
+and eviction policy for the L2 tier to prevent prefetched blocks from
+being prematurely evicted (Observation 4). Instead of using naive
+LRU, we manage L2 using a multi-queue [43] replacement policy
+that uses three queues with different eviction priorities. Prefetched
+blocks enter the queue with the lowest eviction priority and stay
+protected until their request is admitted to HBM (or until a TTL
+expires). We explain this in detail in Section 5.3.
+When L2 needs space, the ordinary cached block queue evicts
+first, in LRU order. Protected blocks are evicted only when necessary,
+starting with those whose protection expires soonest. Protection
+ends when a block is reused or its timeout expires, limiting the
+impact of inaccurate predictions. To preserve normal cache opera-
+tions, protected blocks remain evictable under memory pressure.
+Thus, prefetching cannot prevent critical path reads or writes from
+completing.
+5
+Design
+TripleKV has three phases: predict, prefetch and protect.
+5.1
+Predict: When Will the Tool Return?
+The tool latency predictor (Fig 11) predicts the time when the tool
+call is expected to end. It runs in the agent harness, which sees
+each tool call start, its arguments, and its output as it arrives. Like
+a branch predictor that keeps a history per branch, it keeps a short
+history per tool, including the latencies of that tool’s recently fin-
+ished invocations. Prior works [6, 18] also maintain estimates per
+tool, but they predict from durations alone. TripleKV’s estimates
+also read the call’s input arguments and its live output (if available),
+and their form differs between different kinds of tool types. The
+top ten most popular tools and their predictors are described in
+Table 2. Across all 18.5K tool calls, TripleKV’s predictors have an
+MAE (Mean Absolute Error) of 1.1 s versus 7.6 s for TokenCake’s
+predictors, and a MAPE (Mean Absolute Percentage Error) of 21%
+versus 117%. Fig 9 (right) visualizes this error distribution.
+Table 2: The top 10 most popular tools and their latency
+prediction technique in TripleKV.
+Tool type
+Signal
+Predicted tool time
+Web search
+Number of queries in
+the call
+Queries × median per-query latency,
+plus median overhead
+Page fetch
+Payload size
+Linear predictor plus median
+overhead
+Page summary (LLM)
+Live cue: the last
+page’s summary
+begins
+That moment, plus a conservative
+estimate of the time left
+Scholarly search
+Tool name
+Median recent latency of the tool
+Code interpreter
+Tool name
+Median recent latency of the tool
+File parser
+Tool name
+Median recent latency of the tool
+Terminal command
+Wait time the agent
+requests
+Requested wait, plus this task’s
+recent extra delay
+Terminal turn
+without a command
+None
+This task’s recent delay (no wait
+requested)
+New terminal task
+No history for this task
+yet
+Requested wait, plus other tasks’
+usual extra delay
+Python interpreter
+Command name
+Median recent latency of the
+command
+The prefetch is scheduled to be issued with just enough time
+left to load the blocks before the request is to be scheduled as
+described in Equation 1. If the tool returns before the prefetch was
+issued, the harness recalculates the prefetch issue time based on
+the observed tool latency. A prefetch that is issued early keeps its
+6
+
+
+TripleKV: Predict, Prefetch, Protect – KV Cache Management for AI Agents
+Figure 11: The Tool Latency Predictor.
+blocks protected in L2 for longer. One that is issued late leaves part
+of the KV read on the request’s critical path.
+Fig 11 illustrates the tool latency predictor. The control plane
+is shown on the left, and the data flow of one tool call is shown
+on the right, on a single time axis running downward. It predicts
+each tool’s end from the tool type, its arguments, recent latencies
+and live cues. The prefetch is issued before the tool ends, such that
+the KV cache loading finishes before request k+1 is admitted to be
+scheduled and may start without blocking.
+With an estimate of when the tool ends, the best time to issue
+the prefetch is the latest instant that still completes the read by the
+time the request is admitted:
+𝑡issue = 𝑡end + 𝑞−𝑅−𝜖,
+𝑅= 𝑆3
+𝐵,
+(1)
+where 𝑡end is the time the tool ends, 𝑞is the current queueing delay
+of the system (read live from vLLM’s counters), 𝑅is the time to
+read the part of the agent’s context held only in L3, 𝑆𝐿3 is the size
+of that part, 𝐵is the SSD bandwidth available to prefetches, and 𝜖
+is a small constant lead for safety. Issuing a prefetch earlier than
+𝑡issue only keeps blocks protected for longer.
+In TripleKV, we observe that only less than 9% of the KV cache
+data read from L3 lies on the critical path of the request on average.
+In contrast, with vLLM it is up to 74%. On the other hand, early
+prefetching is also rare in TripleKV and costs little. In our exper-
+iments, less than 8% of prefetches finish more than 1 s before the
+request is admitted.
+5.2
+Prefetch: Moving Data from L3 to L2
+The harness sends a prefetch as one API call to vLLM, with the
+token IDs of the agent’s context and a timeout. vLLM hashes the
+tokens into 64-token block keys exactly as it would for a prompt,
+and the prefetch engine walks the blocks in order. The engine runs
+inside vLLM’s scheduler loop. Between engine steps, it claims the
+blocks already in L2, and then performs lookups and reads in L3
+which go through the same path that serves requests, at prefetch
+priority. A prefetch stops at the first block missing from every tier,
+since the request must recompute everything after it anyway.
+Every L3 access goes through one of the three FIFO queues as
+shown in Fig 12. The miss queue holds reads that are in the critical
+path of a waiting request. The prefetch queue holds prefetch and
+refill reads. A refill also fetches a block from L3 into L2. It is issued
+when L1 evicts a watched block. When a block to be prefetched is
+Figure 12: Read and Write Queues between L2 and L3.
+Figure 13: KV Cache Block State Diagram.
+found to be in L1, TripleKV adds its hash to a watch list instead
+of prefetching it into L2, to avoid redundancy. If the block in L1 is
+evicted before the request can use it, the watch list adds it to the
+prefetch queue as a refill read so that it can be loaded into L2. This
+mechanism behaves like a victim cache [13].
+The store queue holds the write-through stores of new blocks.
+Each 6 MiB block is one data movement task, so the reads of one
+context spread over many threads. Two groups of threads drain the
+queues in different orders. The read-priority threads take misses
+first, then prefetches, then stores, so no thread starts a prefetch
+read while a miss is waiting. The write-priority threads take stores
+first, then misses, then prefetches, so the write-through keeps mov-
+ing under heavy read load and neither direction starves. When a
+request arrives while its own prefetch is still queued, those tasks
+are promoted to the miss queue and are read as misses.
+5.3
+Protect: Eviction and Replacement for L2
+A prefetch helps only if its blocks are still in L2 when the request
+arrives. In order to ensure this, TripleKV uses a prefetch-aware
+cache eviction and replacement policy for L2. This is inspired from
+a multi-queue replacement policy [43] that uses three queues with
+different eviction priorities.
+Each L2 block lives in one of the following three classes (and
+their corresponding LRU queues). Fig 13 shows the state diagram.
+• PREFETCHED: A prefetched block that L1 does not hold.
+• BACKUP: An L2 copy of a block that L1 still holds.
+• CACHED: All other blocks.
+7
+
+
+Jaiswal et al.
+The eviction priority is CACHED > BACKUP > PREFETCHED.
+Within each queue, LRU is followed with entering the queue count-
+ing as a use. This is done to ensure that PREFETCHED blocks
+are evicted as the oldest prefetched first (same for BACKUP). A
+BACKUP is promoted to a PREFETCHED block when L1 evicts its
+copy, because L2 then holds the only fast copy.
+Protection ends in one of two ways, either when a request uses
+the block or when its timeout expires unused (120s in our runs). In
+either case, it joins the CACHED queue.
+Protection is considered a priority, but the blocks are not pinned.
+If a demand read or a store finds no unprotected block to evict, it
+evicts a protected one. A wrong or excessive prefetch therefore
+degrades L2 toward basic LRU instead of blocking demand traffic.
+Moreover, a small amount of reserve space (256 blocks or 1.5 GiB
+in our runs) is kept free on the L2 for blocks in flight between tiers.
+5.3.1
+Refill: Watching Blocks Still in L1. When a prefetch is issued,
+part of the agent’s context may still be in L1. In our experiments,
+we see that up to 30% of prompt tokens may be resident in L1 when
+the corresponding prefetch is issued. Those blocks are useful only
+while L1 keeps them, and L1 may evict them to admit other requests
+before this agent uses them. TripleKV introduces a watch list to
+solve this problem (Fig 12). Each block of the prefix that is in L1 but
+not in L2 is added to a watch list. When a watched block is evicted
+and no other GPU block holds the same content, TripleKV reads it
+from L3 into a protected L2 slot. A watch ends either when (1) the
+request uses the block in L1, (2) the L1 block is evicted and refill
+is issued, or (3) the TTL expires. This behaves like a victim cache
+mechanism [13].
+5.4
+Implementation and Overheads
+TripleKV extends vLLM’s offloading connector, which already puts
+a CPU tier and may be configured to put a file-system tier behind
+the GPU as write-through storage. We add protection classes to
+the CPU tier, the prefetch engine and watch list to the tier man-
+ager, the three-queue thread pool to the file-system tier, and a
+/kv_cache/prefetch endpoint to the server. This is about 3000
+lines of code. The predictor is implemented in the agentic harness.
+It is under 300 lines of Python code, and issues one prefetch call
+per tool call. Our runs use 64-token offload blocks (6 MiB) and 64
+GiB of L2 per GPU (about 10,900 blocks) with a 120s timeout.
+TripleKV’s costs fall outside the critical path. It reserves no GPU
+memory and adds no GPU work, since blocks reach L1 through
+vLLM’s existing loads from L2. A prefetch call is asynchronous and
+its reads have lower priority than block reads on the critical path
+of requests. The bookkeeping is a few table entries per protected
+or watched block that adds up to a few thousand entries at most in
+total.
+6
+Evaluation
+We compare TripleKV with the systems mentioned in Section 6.1.3,
+namely, vLLM (with L3), TokenCake, Continuum (with LMCache)
+and Oracle on the four workloads described in Section 6.1.2, at 12,
+16 and 20 concurrent agent threads per GPU. A thread picks up a
+task from the benchmark, runs its agentic loop (with inference and
+tools) until completion. It picks up a new task from the benchmark
+once its previous task finishes.
+6.1
+Evaluation Methodology
+6.1.1
+Platform. Every experiment run uses one GPU for one serv-
+ing engine, with the three KV tiers. The SSD tier is large enough
+and never evicts. The setup serves a 30B mixture-of-experts model.
+Table 3 lists the hardware and software configurations.
+Table 3: Platform and engine configuration.
+Component
+Configuration
+GPU
+NVIDIA H100 NVL, 94 GB HBM
+Model
+Qwen3-30B-A3B [28] (60 GiB in BF16)
+L1: HBM
+32 GiB after the model weights
+L2: DRAM tier
+64 GiB
+L3: SSD tier
+1 TiB hardware RAID of SSDs read with O_DIRECT
+Host
+Intel Xeon Platinum 8592+ (64 cores), Ubuntu 24.04
+Software
+vLLM v0.24 (June 2026), PyTorch 2.11, CUDA 13.0
+In our evaluations, we assign 64 GiB of DRAM for the KV cache.
+We think this size is reasonable for two reasons. First, we want to
+emulate a highly utilized system, with many agents, their tools, and
+processes. In our experiments, a 50 agent session generates 200–500
+GiB of context, which is significantly more than the available host
+memory. Moreover, the tools and processes also use a significant
+amount of host memory. Second, we use sparse models, which use
+less memory per token of context. A comparable-sized dense model
+would require up to three times the KV Cache space to store the
+same context, which would make the system much more loaded. We
+limit host memory to 64 GiB to keep the observations representative
+for a variety of models and higher load.
+6.1.2
+Benchmarks. We use four agent benchmarks as shown in
+Table 4. Their agents use vastly different tools, so their tool latencies
+(Fig 9) differ. Their input and output lengths (Fig 14) differ as well.
+The workload is input-heavy, as is typical of agentic tasks.
+As LLMs can be irregular and multiple runs of the same task
+can take different trajectories and use different tools, we generate
+traces for each benchmark. Each trace comes from a live run of the
+benchmark on vLLM and holds 50 random tasks. We then replay
+these recorded traces to evaluate our system and baselines fairly to
+ensure a consistent input size, output size, and tool latency.
+Table 4: Workloads.
+Benchmark
+Agent harness
+Tools
+Tasks
+DRB [9]
+Tongyi ReAct
+Web search, page
+visits, page
+summaries
+Open-ended
+research
+questions
+GAIA [22]
+Tongyi ReAct
+Web search, page
+visits, Python
+sandbox
+Everyday,
+multi-step web
+skills
+TB4 [21]
+terminus-2 in
+Harbor
+Shell commands
+Software tasks in
+a terminal
+BC+ [8]
+Tongyi ReAct
+Local search,
+document reads
+Hard multi-hop
+questions
+6.1.3
+Baselines. We evaluate TripleKV against recent state of the
+art baselines:
+(1) vLLM [17] with L3: vLLM has become the de facto standard
+for LLM inference serving. We configure it to use an inclusive,
+write-through L3 disk tier for KV Cache offloading in our fork.
+8
+
+
+TripleKV: Predict, Prefetch, Protect – KV Cache Management for AI Agents
+Figure 14: Input and Output Length Distribution
+(2) TokenCake [6]: TokenCake on vLLM with its agent-aware sched-
+uling and CPU-saving techniques from its public artifact.
+(3) Continuum [18] + LMCache [19]: Continuum on vLLM with
+LMCache for KV Cache management on DRAM from its public
+artifact.
+(4) Oracle: TripleKV’s mechanism with oracle tool latencies from
+the trace instead of predictions.
+We keep the L2 KV Cache tier fixed at 64 GiB of host DRAM for
+all the baselines.
+6.2
+Latency and Throughput
+Figure 15: Median and tail TTFT.
+Time to First Token (TTFT). TripleKV has the lowest tail (P95)
+TTFT on all benchmarks at every degree of concurrency (Figure 15).
+Against vLLM with L3 it cuts p95 TTFT by up to 35%, 49%, 23%
+and 33% on DRB, GAIA, TB4 and BC+ respectively. The gains are
+largest where vLLM reads the most from L3. The median latency
+on the other hand, remains either comparable or up to 32% lower
+across the four benchmarks. This is because the well-performing
+requests tend to find their KV Cache data on L1 or L2 more often,
+in the case of vLLM.
+TripleKV’s latency always remains within 5% of the Oracle,
+where we use the actual tool latencies from the trace instead of
+predicting them. This shows TripleKV’s predictors are accurate
+enough and that the design tolerates the prediction errors in Fig 9.
+At a few points TripleKV is marginally below the Oracle, which we
+attribute to SSD read queuing and run-to-run noise.
+TokenCake performs worse than TripleKV on every benchmark,
+both at median and tail, except for TB4 at median. This is because
+TB4 has smaller input sizes for most requests (Fig 14) and the
+median request doesn’t need to use L3 at all. Thus, TripleKV’s
+prefetching isn’t able to help at the median. However, TripleKV
+beats TokenCake by up to 77% consistently at the tail. This is be-
+cause TokenCake sacrifices the tail performance and queuing to
+optimize for shorter requests that need less KV cache.
+Continuum, on the other hand, consistently proved to be com-
+parable to or better than TripleKV at the median, but sacrifices the
+tail completely. This is because it pins the KV cache in the GPU
+memory for running agents. Thus, some agents don’t wait at all
+(thereby improving the median) whereas other wait for very long
+durations. Therefore, TripleKV beats it by up to 86%.
+Figure 16: Steady State Request Throughput.
+Throughput. TripleKV serves at least as many requests per sec-
+ond as every baseline at every point, as shown in Fig 16. In fact,
+against vLLM with L3, it serves up to 18% more on DRB, up to
+40% more on GAIA, up to 31% more on BC+, and the same on TB4.
+TokenCake observes up to 2.9× smaller request throughput against
+TripleKV consistently on all four benchmarks. This is because it
+induces long delays in the system due to prefetch requests con-
+tending with inference requests for empty KV Cache blocks on the
+GPU memory. Continuum also observes up to 3.5× lower request
+throughput than TripleKV on every benchmark as it prioritizes cer-
+tain agents by pinning their KV Cache in the GPU memory while
+neglecting others and forcing them to wait.
+Fig 17 shows the prefill and decode throughput of the systems.
+This is measured in tokens per second instead of requests per second.
+Prefill counts every prompt token the engine processed, whether
+its KV cache came from a tier or was computed. Decode counts
+every output token.
+The trends remain similar. Against vLLM with L3, TripleKV
+prefills and decodes up to 40% more tokens per second across the
+four benchmarks. Against TokenCake and Continuum, TripleKV
+9
+
+
+Jaiswal et al.
+Figure 17: Prefill and Decode Throughput.
+Figure 18: Average Request Delay.
+prefills and decodes up to 3.5× as many tokens per second across
+our benchmarks. We also see that the throughput remains relatively
+stable as the degree of concurrency increases. Moreover, TripleKV
+performs within 5% of Oracle in throughput as well.
+Request Delay. Fig 18 splits the mean time a request waits before
+its prefill starts into three parts: queueing for the GPU, reading its
+KV Cache from L3, and recomputing context it lost due to evictions.
+At 20 agents, TripleKV’s requests wait up to 78% less than what they
+wait on vLLM (with L3). The latter spends up to 1.6 s per request
+on average, just reading from L3 whereas TripleKV spends at most
+0.05 s up to 16 agents and at most 0.45 s at 20, due to its prefetching.
+All systems suffer from queuing. However, by Kingman’s for-
+mula [15], the mean queueing delay grows with the mean request
+service time, so the time a request holds GPU memory while loading
+its KV lengthens the queue for every request behind it. Therefore,
+as TripleKV holds the GPU for the shortest time, it has the least
+amount of queuing. It is also within 0.5 s of Oracle.
+TokenCake recomputes for at most 1.9 s per request, but the
+recompute occupies the GPU. Therefore, its queue blows up and is
+up to 11× TripleKV’s at 20 concurrent agents. Continuum spends
+the least time on KV loading as it pins it in the GPU. However, its
+requests queue the longest, up to 15× TripleKV’s in some cases.
+The agents whose KV it pins in the GPU memory skip the reload,
+and the rest of the agents wait behind them, thereby increasing the
+queuing delay.
+TripleKV sees a relatively smaller improvement against the base-
+lines on BC+. This is because the benchmark has long input sizes
+(Fig 14) and short tool calls (Fig 9), thereby keeping many large
+contexts in flight at once and increasing queuing for all systems.
+6.3
+Cache Metrics
+We evaluate TripleKV’s prefetching with standard cache metrics
+like coverage, precision and timeliness.
+Figure 19: Cache Coverage.
+Cache Coverage. We define cache coverage as the share of the KV
+cache data a request loads from below L1 that it finds in DRAM (L2),
+thereby avoiding reads from SSD (L3) at admission. Fig 19 shows
+that TripleKV’s coverage is 96–100% at every point except GAIA 20
+(87%) and BC+ 20 (60%). This is because, at these two points, the
+contexts TripleKV protects outgrow the available DRAM capacity.
+Prefetched blocks are then evicted before their request arrives, 13%
+of them on GAIA 20 and 38% on BC+ 20, and the request reads them
+again from SSD at admission. Below capacity, almost no prefetched
+block is lost, and coverage stays near 100%. For comparison, vLLM
+with L3 finds only 5–39% of this KV in DRAM.
+Figure 20: Cache Precision.
+Cache Precision. Precision is the share of the blocks a prefetch
+moved from SSD to DRAM that its request needed. TripleKV’s
+precision is 97–100% at every point, including the two points where
+coverage dropped. This is shown in Fig 20.
+However, we observe that there can be two kinds of prefetched
+blocks that remain unneeded. First, the end of the previous prompt.
+The very last block of a prompt may not be full, and the next request
+may append to it, thus modifying its hash. Therefore, it will identify
+10
+
+
+TripleKV: Predict, Prefetch, Protect – KV Cache Management for AI Agents
+as a new block and not match with the old prefetched block. Second,
+context the agent summarized. Agents can occasionally summarize
+their context as it grows past a certain threshold to save tokens.
+After summarization, the entire context must be prefilled again,
+and the old context’s KV Cache is no longer useful. Despite this,
+precision remains close to 100%.
+Timeliness. A prefetch is timely if it finishes before its request is
+admitted to be scheduled on the GPU. This is when the scheduler
+reads the KV Cache. TripleKV’s prefetches are timely for 96–100%
+of requests at every point as shown in Fig 21. The predicted tool
+end is late enough to keep protection short, and early enough to
+hide the L3 read from the request’s critical path. We also observe
+TripleKV’s timeliness remains within 1% of that of the Oracle runs,
+which know each tool’s end time exactly (not shown).
+Figure 21: Prefetch Timeliness (requests whose prefetch fin-
+ished before they were admitted).
+Figure 22: Prefetched memory demand. Above each bar, the
+share of prefetched blocks evicted before use.
+Cache Capacity. Protected demand is the DRAM needed to hold
+every prefetched context from its prefetch until it can be used.
+TripleKV’s demand grows with the number of concurrent agents
+running in the system, from 4–23 GiB at 12 agents to 27–83 GiB
+at 20 as shown in Fig 22. It touches the 64 GiB of DRAM that is
+available in the system at GAIA 20 (64 GiB) and BC+ 20 (83 GiB). As
+mentioned earlier, about 2 GiB space is kept reserved for in-flight
+blocks between L1 and L3 and cannot be used to store prefetched
+blocks. Thus, in these two experiments, we observe some prefetched
+blocks getting evicted before their request is admitted. This is about
+13% and 38% of the blocks, respectively, as shown on top of the
+bars in Fig 22. These evictions cause the drop in cache coverage
+illustrated earlier.
+6.4
+Ablation Study
+Fig 23 shows the ablation study when we incrementally add the
+three components of TripleKV. We start from a basic vLLM (with
+L3) design and add prefetching to this. Here, the prefetches are
+issued naively as soon as the tool starts. Next, we add the protect
+component to it that makes sure that the prefetches stay on L2 until
+Figure 23: Ablation Study with 20 Concurrent Agents
+they are used. Finally, we add the Predict component that issues
+the prefetches exactly when they are needed.
+The top figure shows the fraction of request that need to read
+from L3 in their critical path. We observe that with every added
+component, the share drops. Naive prefetching still leaves 21–45%
+of requests reading from L3 on their critical path as the prefetched
+blocks get evicted before the request arrives. Adding the protect
+component helps, but protecting too many blocks too early reduces
+the available DRAM space for other requests. Finally, adding the
+predict component prefetches when blocks are needed and pro-
+tects them in DRAM only for the required time. The tail latency
+(bottom) also follows similar trend and improves with every added
+component.
+7
+Related Work
+Agent-aware KV management. Systems handle an idle agent’s KV
+in three ways. (1) Prefetching: TokenCake [6] reloads stalled agents
+from DRAM into HBM before predicted completion. Its predictions
+are based on a moving average of the tool latency and developer
+hints. KVFlow [25], PBKV [41] and CacheScout [40] prefetch the
+context of the agents that is predicted to run next, without consid-
+ering when it will run. (2) Retention: Continuum [18] pins KV in
+HBM for a time-to-live determined by reload and queueing costs.
+InferCept [1] keeps, swaps or recomputes paused requests’ KV
+to minimize idle memory waste, and MORI [34] keeps only busy
+agents in HBM based on their recent idleness. (3) Application cues:
+SYMPHONY [2] and Nalar [3] act on application hints and Ask-the-
+Tool [20] on tool-reported progress to perform KV cache movement
+between DRAM and GPU. These require reprogramming the appli-
+cation or its tools, which is a significant overhead. TripleKV adds a
+predictor only to the agent harness and works with existing tools or
+the application. It prefetches KV cache blocks into the host DRAM
+and protects prefetched blocks to prevent premature eviction.
+Hierarchical KV caching. CachedAttention [11] and Strata [36]
+fetch KV from disk into DRAM after the requests have been queued,
+and CachedAttention exempts its look-ahead window from evic-
+tion. LMCache [19], Mooncake [27], SGLang [42], HiCache [35]
+and Dynamo KVBM [24] extend the cache to storage. HiCache
+fetches into host memory after the request is known once its prefix
+match passes a threshold. Pensieve [38] swaps multi-turn chat state
+between GPU and CPU ahead of time. DualPath [33] finds agen-
+tic inference storage-bound and proposes reading the KV cache
+through two network paths instead of one. These system start read-
+ing once the request is known. TripleKV reads the offloaded KV
+11
+
+
+Jaiswal et al.
+cache before the agent resumes and hides the read latency during
+the tool execution phase.
+Informed prefetching and integrated caching. TIP [26] prefetches
+from disclosed future accesses and bounds how far ahead to issue
+them. The Aggressive and Conservative policies [7] set rules for
+when to prefetch and what to evict. Reverse Aggressive [14] extends
+them to parallel disks, and LP-based schedules [4] minimize stall
+time optimally. TripleKV’s prefetching is a deadline form of TIP’s
+horizon, with a tool predictor in place of disclosure.
+Prefetch-aware replacement and exclusive hierarchies. TripleKV’s
+Protect follows prefetch-aware replacement in CPU caches [32, 43]
+and GPU unified memory [10]; like MIN-based policies [5, 12, 29].
+It uses knowledge of future reuse. The watch list resembles victim
+caching [13] and DEMOTE-style exclusive caching [31], but it refills
+evicted blocks from the lower tier instead of capturing them on
+eviction, to avoid stalling the GPU on each eviction.
+8
+Conclusion
+This paper presented TripleKV, a novel agent-aware KV cache man-
+agement framework. TripleKV predicts when each tool will finish,
+prefetches the agent’s KV blocks from SSD into DRAM before the
+next request, and protects them there until they are used. Across
+four agentic benchmarks, TripleKV reduces the fraction of requests
+requiring critical-path SSD reads from 45–76% to under 10%. It also
+reduces P95 TTFT by up to 49% compared with vLLM extended
+with DRAM and SSD KV-cache tiers, and achieves 1.5-7× lower P95
+TTFT than recent agent-aware systems.
+References
+[1] Reyna Abhyankar, Zijian He, Vikranth Srivatsa, Hao Zhang, and Yiying Zhang.
+2024. InferCept: Efficient Intercept Support for Augmented Large Language
+Model Inference. In Proceedings of the 41st International Conference on Machine
+Learning (ICML). 81–95.
+[2] Saurabh Agarwal, Bodun Hu, Anyong Mao, Aditya Akella, and Shivaram
+Venkataraman. 2026. SYMPHONY: Enabling Compute-Memory Disaggrega-
+tion in LLM Serving Systems. In Proceedings of the 23rd USENIX Symposium on
+Networked Systems Design and Implementation (NSDI).
+[3] Saurabh Agarwal, Marco Laju, Donghyun Son, Nitin Kedia, Myungjin Lee,
+Jayanth Srinivasa, and Aditya Akella. 2026. Nalar: Workflow-Aware Management
+of Agentic Applications. arXiv:2601.05109 [cs.DC] https://arxiv.org/abs/2601.
+05109
+[4] Susanne Albers, Naveen Garg, and Stefano Leonardi. 2000. Minimizing Stall
+Time in Single and Parallel Disk Systems. J. ACM 47, 6 (2000), 969–986. doi:10.
+1145/355541.355542
+[5] L. A. Belady. 1966. A Study of Replacement Algorithms for a Virtual-Storage
+Computer. IBM Systems Journal 5, 2 (1966), 78–101.
+[6] Zhuohang Bian, Feiyang Wu, Zhuoran Li, Teng Ma, and Youwei Zhuo. 2027.
+TokenCake: A KV-Cache-centric Serving Framework for LLM-based Multi-Agent
+Applications. In Proceedings of the 22nd European Conference on Computer Systems
+(EuroSys). To appear. arXiv:2510.18586.
+[7] Pei Cao, Edward W. Felten, Anna R. Karlin, and Kai Li. 1995. A Study of Integrated
+Prefetching and Caching Strategies. In Proceedings of the 1995 ACM SIGMETRICS
+Joint International Conference on Measurement and Modeling of Computer Systems.
+188–197.
+[8] Zijian Chen, Xueguang Ma, Shengyao Zhuang, Ping Nie, Kai Zou, Andrew Liu,
+Joshua Green, Kshama Patel, Ruoxi Meng, Mingyi Su, Sahel Sharifymoghad-
+dam, Yanxi Li, Haoran Hong, Xinyu Shi, Xuye Liu, Nandan Thakur, Crystina
+Zhang, Luyu Gao, Wenhu Chen, and Jimmy Lin. 2025. BrowseComp-Plus: A
+More Fair and Transparent Evaluation Benchmark of Deep-Research Agent.
+arXiv:2508.06600 [cs.CL] https://arxiv.org/abs/2508.06600
+[9] Mingxuan Du, Benfeng Xu, Chiwei Zhu, Xiaorui Wang, and Zhendong Mao.
+2025. DeepResearch Bench: A Comprehensive Benchmark for Deep Research
+Agents. arXiv:2506.11763 [cs.CL] https://arxiv.org/abs/2506.11763
+[10] Debashis Ganguly, Ziyu Zhang, Jun Yang, and Rami Melhem. 2019. Interplay
+between Hardware Prefetcher and Page Eviction Policy in CPU-GPU Unified
+Virtual Memory. In Proceedings of the 46th International Symposium on Computer
+Architecture (ISCA ’19). 224–235. doi:10.1145/3307650.3322224
+[11] Bin Gao, Zhuomin He, Puru Sharma, Qingxuan Kang, Djordje Jevdjic, Junbo
+Deng, Xingkun Yang, Zhou Yu, and Pengfei Zuo. 2024. Cost-Efficient Large
+Language Model Serving for Multi-turn Conversations with CachedAttention.
+In Proceedings of the 2024 USENIX Annual Technical Conference (ATC). 111–126.
+[12] Akanksha Jain and Calvin Lin. 2016. Back to the Future: Leveraging Belady’s
+Algorithm for Improved Cache Replacement. In Proceedings of the 43rd Annual
+International Symposium on Computer Architecture (ISCA). 78–89.
+[13] Norman P. Jouppi. 1990. Improving Direct-Mapped Cache Performance by the
+Addition of a Small Fully-Associative Cache and Prefetch Buffers. In Proceedings
+of the 17th Annual International Symposium on Computer Architecture (ISCA ’90).
+[14] Tracy Kimbrel and Anna R. Karlin. 2000.
+Near-Optimal Parallel Prefetch-
+ing and Caching.
+SIAM J. Comput. 29, 4 (2000), 1051–1082.
+doi:10.1137/
+S0097539797326976
+[15] J. F. C. Kingman. 1961. The Single Server Queue in Heavy Traffic. Mathematical
+Proceedings of the Cambridge Philosophical Society 57, 4 (1961), 902–904.
+[16] David Kroft. 1981. Lockup-Free Instruction Fetch/Prefetch Cache Organiza-
+tion. In Proceedings of the 8th Annual International Symposium on Computer
+Architecture (ISCA). 81–87.
+[17] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng,
+Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. 2023. Efficient
+Memory Management for Large Language Model Serving with PagedAttention.
+In Proceedings of the 29th ACM Symposium on Operating Systems Principles (SOSP).
+611–626.
+[18] Hanchen Li, Qiuyang Mang, Runyuan He, Qizheng Zhang, Huanzhi Mao, Xi-
+aokun Chen, Hangrui Zhou, Alvin Cheung, Joseph E. Gonzalez, and Ion Stoica.
+2026. Continuum: Efficient and Robust Multi-Turn LLM Agent Scheduling with
+KV Cache Time-to-Live. In ICLR 2026 Workshop on Lifelong Agents: Learning,
+Aligning, Evolving. https://openreview.net/forum?id=sVzK0LC9pn
+[19] Yuhan Liu, Yihua Cheng, Jiayi Yao, Yuwei An, Xiaokun Chen, Shaoting Feng,
+Yuyang Huang, Samuel Shen, Rui Zhang, Kuntai Du, and Junchen Jiang. 2025.
+LMCache: An Efficient KV Cache Layer for Enterprise-Scale LLM Inference.
+arXiv:2510.09665
+[20] Yipeng Liu, Yingqiang Zhang, Feifei Li, and Huanchen Zhang. 2026. Ask the
+Tool, Don’t Guess: Agent Tool Calls Hold Their Progress, and the Serving System
+Should Read It. arXiv:2609.18849
+[21] Ryan Marten. 2026. Terminal-Bench 4.0: Calibrating Task Resources, Fixing
+Tasks, and Removing Saturated Tasks. Terminal-Bench blog.
+Retrieved No-
+vember 16, 2026 from https://www.tbench.ai/news/terminal-bench-4-0 Dataset
+terminal-bench/terminal-bench@4.0.0 (66 tasks) on the Harbor Hub.
+[22] Grégoire Mialon, Clémentine Fourrier, Craig Swift, Thomas Wolf, Yann LeCun,
+and Thomas Scialom. 2024. GAIA: A Benchmark for General AI Assistants. In
+The Twelfth International Conference on Learning Representations (ICLR). https:
+//openreview.net/forum?id=fibxvahvs3
+[23] NVIDIA. [n. d.]. NVIDIA GPUDirect Storage Overview Guide. NVIDIA Documen-
+tation. https://docs.nvidia.com/gpudirect-storage/overview-guide/index.html,
+accessed Nov. 2026.
+[24] NVIDIA. 2026. NVIDIA Dynamo: KV Block Manager (KVBM). https://docs.
+nvidia.com/dynamo/v1.1.1/design-docs/component-design/kvbm-design.
+[25] Zaifeng Pan, Ajjkumar Patel, Zhengding Hu, Yipeng Shen, Yue Guan, Wan-Lu
+Li, Lianhui Qin, Yida Wang, and Yufei Ding. 2025. KVFlow: Efficient Prefix
+Caching for Accelerating LLM-Based Multi-Agent Workflows. In Advances in
+Neural Information Processing Systems 38 (NeurIPS).
+[26] R. Hugo Patterson, Garth A. Gibson, Eka Ginting, Daniel Stodolsky, and Jim
+Zelenka. 1995. Informed Prefetching and Caching. In Proceedings of the 15th
+ACM Symposium on Operating Systems Principles (SOSP). 79–95.
+[27] Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang,
+Yongwei Wu, Weimin Zheng, and Xinran Xu. 2025. Mooncake: Trading More
+Storage for Less Computation — A KVCache-centric Architecture for Serving
+LLM Chatbot. In Proceedings of the 23rd USENIX Conference on File and Storage
+Technologies (FAST).
+[28] Qwen Team. 2025. Qwen3-30B-A3B. https://huggingface.co/Qwen/Qwen3-30B-
+A3B. Model card and configuration. Accessed 2026-11-14.
+[29] Ishan Shah, Akanksha Jain, and Calvin Lin. 2022. Effective Mimicry of Belady’s
+MIN Policy. In Proceedings of the 28th IEEE International Symposium on High-
+Performance Computer Architecture (HPCA). 558–572.
+[30] vLLM Team. 2025. Automatic Prefix Caching. https://docs.vllm.ai/en/latest/
+design/prefix_caching.html.
+[31] Theodore M. Wong and John Wilkes. 2002. My Cache or Yours? Making Storage
+More Exclusive. In Proceedings of the 2002 USENIX Annual Technical Conference
+(USENIX ATC ’02). 161–175.
+[32] Carole-Jean Wu, Aamer Jaleel, Margaret Martonosi, Simon C. Steely Jr., and Joel
+Emer. 2011. PACMan: Prefetch-Aware Cache Management for High Performance
+Caching. In Proceedings of the 44th Annual IEEE/ACM International Symposium
+on Microarchitecture (MICRO-44). 442–453.
+[33] Yongtong Wu, Shaoyuan Chen, Yinmin Zhong, Rilin Huang, Yixuan Tan, Wentao
+Zhang, Liyue Zhang, Shangyan Zhou, Yuxuan Liu, Shunfeng Zhou, Mingxing
+Zhang, Xin Jin, and Panpan Huang. 2026. DualPath: Breaking the Storage Band-
+width Bottleneck in Agentic LLM Inference. arXiv:2602.21548. arXiv:2602.21548
+12
+
+
+TripleKV: Predict, Prefetch, Protect – KV Cache Management for AI Agents
+[34] Tian Xia, Hanchen Li, Zhifei Li, Xiaokun Chen, Hao Kang, Yifan Qiao, Yi Xu,
+and Ion Stoica. 2026. Idleness is Relative: Exploiting Tool-Call Idle Windows for
+Offloading in Agentic Systems with MORI. arXiv:2606.00866
+[35] Zhiqiang Xie. 2025. SGLang HiCache: Fast Hierarchical KV Caching with Your
+Favorite Storage Backends. LMSYS Org blog, https://lmsys.org/blog/2025-09-10-
+sglang-hicache.
+[36] Zhiqiang Xie, Ziyi Xu, Mark Zhao, Yuwei An, Vikram Sharma Mailthody, Scott
+Mahlke, Michael Garland, and Christos Kozyrakis. 2026. Strata: Hierarchical
+Context Caching for Long Context Language Model Serving. In Proceedings of
+the 20th USENIX Symposium on Operating Systems Design and Implementation
+(OSDI).
+[37] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan,
+and Yuan Cao. 2023. ReAct: Synergizing Reasoning and Acting in Language Mod-
+els. In Proceedings of the 11th International Conference on Learning Representations
+(ICLR).
+[38] Lingfan Yu, Jinkun Lin, and Jinyang Li. 2025. Stateful Large Language Model
+Serving with Pensieve. In Proceedings of the Twentieth European Conference on
+Computer Systems (EuroSys ’25). doi:10.1145/3689031.3696086
+[39] Yichao Yuan, Ankita Nayak, Souvik Kundu, and Nishil Talati. 2026. Agentic AI
+Workload Characteristics. In Proceedings of the IEEE International Symposium on
+Workload Characterization (IISWC). arXiv:2605.26297.
+[40] Rui Zhang, Chaeeun Kim, Shaoting Feng, Kuntai Du, Yuhan Liu, Yi Zhong, Cheng-
+Wei Ching, Junchen Jiang, and Liting Hu. 2026. Learning Agent Execution for
+KV-Cache Management in Agentic Serving. arXiv:2608.14624. arXiv:2608.14624
+[41] Haoyu Zheng, Fangcheng Fu, Jia Wu, Binhang Yuan, Yongqiang Zhang, Hao
+Wang, Yuanyuan Zhu, Xiao Yan, and Jiawei Jiang. 2026.
+Efficient Serving
+for Dynamic Agent Workflows with Prediction-based KV-Cache Management.
+arXiv:2605.06472 [cs.LG] https://arxiv.org/abs/2605.06472
+[42] Lianmin Zheng, Liangsheng Yin, Zhiqiang Xie, Chuyue Sun, Jeff Huang,
+Cody Hao Yu, Shiyi Cao, Christos Kozyrakis, Ion Stoica, Joseph E. Gonzalez,
+Clark Barrett, and Ying Sheng. 2024. SGLang: Efficient Execution of Structured
+Language Model Programs. In Advances in Neural Information Processing Systems
+37 (NeurIPS).
+[43] Yuanyuan Zhou, James F. Philbin, and Kai Li. 2001. The Multi-Queue Replacement
+Algorithm for Second Level Buffer Caches. In Proceedings of the 2001 USENIX
+Annual Technical Conference. USENIX Association, Boston, MA, 91–104.
+13

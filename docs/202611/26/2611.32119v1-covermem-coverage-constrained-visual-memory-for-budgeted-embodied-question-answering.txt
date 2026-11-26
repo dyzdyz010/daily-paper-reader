@@ -1,0 +1,3593 @@
+CoverMem: Coverage-Constrained Visual Memory for Budgeted Embodied
+Question Answering
+Ruijie Ma1
+Haoyue Liu1
+Mingda Zhang2
+Dongxu Yue3
+Xiaoying Tang1,4,5,*
+1School of Science and Engineering, The Chinese University of Hong Kong, Shenzhen
+2School of Artificial Intelligence, The Chinese University of Hong Kong
+3Tsinghua University, China
+4Shenzhen Future Network of Intelligence Institute (FNii-Shenzhen)
+5Guangdong Provincial Key Laboratory of Future Networks of Intelligence, CUHK(SZ)
+ruijiema@link.cuhk.edu.cn
+tangxiaoying@cuhk.edu.cn
+*Corresponding author.
+(a) Observation History
+···
+···
+···
+···
+···
+000
+599
+Frame 240
+Small & Truncated
+What tables are in the 
+lounge’s seating areas?
+(c) Budgeted EQA
+Frame 340
+Frame 440
+A round high table and 
+a table in front of the sofa.
+Frame 340
+Clearer & Complete
+Frame 390
+Truncated & Repeated
+Frame 400
+Truncated
+Frame 440
+Complete & Clearer
+(b) CoverMem Visual Memory
+Frame 000
+Frame 140
+Frame 340
+Frame 440
+Frame 500
+Frame 590
+Coverage-
+constrained 
+Memory 
+Construction
+Coverage-
+preserving 
+Incremental 
+Maintenance
+Complementary 
+Frame Selection
+(Budget: K = 3)
+Figure 1. Overview of CoverMem. (a) Historical lounge observations differ in object visibility and completeness. (b) Reusable full-frame
+memory retains object details and scene context. (c) Complementary source frames provide evidence for budgeted question answering.
+Abstract
+Episodic-memory embodied question answering enables
+agents to answer questions based on previously recorded
+visual observations of the surrounding scenes. However,
+growing observation histories, varying observation qual-
+ity across viewpoints, and limited computational resources
+make it challenging to construct and maintain compact vi-
+sual memories while retrieving sufficient evidence for ques-
+tion answering. To address these challenges, we introduce
+CoverMem, which incorporates three key components: (1)
+a coverage-constrained memory construction method that
+selects a compact set of informative full frames satisfying
+object-quality and representative-scene coverage require-
+ments; (2) a coverage-preserving incremental maintenance
+strategy that locally reselects only the affected frames to
+satisfy updated coverage requirements as observations ar-
+rive; and (3) a budgeted complementary frame selection
+method that balances question relevance, additional sup-
+port for question requirements, and redundancy with se-
+lected frames within a fixed budget. Experimental results on
+three benchmarks covering diverse environments and ques-
+tion types demonstrate that CoverMem improves question-
+answering performance under limited visual budgets.
+1
+arXiv:2611.32119v1  [cs.AI]  24 Nov 2026
+
+
+1. Introduction
+Vision-language models (VLMs) [16, 19] enable agents
+to answer questions about objects, locations, states, and
+spatial relations using historical visual observations [26].
+Episodic-memory embodied question answering (EM-
+EQA) depends both on model reasoning and on the abil-
+ity to retain and retrieve useful visual evidence from grow-
+ing observation histories, often by compressing observa-
+tions and retrieving a few relevant frames per question. Yet
+memory construction must select observations before fu-
+ture questions are known, whereas answering requires suffi-
+cient evidence under a limited source-frame budget. Conse-
+quently, excessive compression may discard critical details,
+while retaining more observations does not ensure effective
+use of the available answering budget.
+Existing research addresses this challenge through visual
+memory organization and evidence retrieval. The former
+organizes observations using view-based memories, object-
+or relation-centric structures, and reconstructed 3D repre-
+sentations [14, 17, 20, 25, 30, 40], supported by aggrega-
+tion and incremental updates [12, 14, 40]. The latter uses
+semantic similarity, object- or location-guided search, and
+relevance-diversity selection [18, 28, 29], sometimes inter-
+leaving retrieval and reasoning [2, 12]. However, retaining
+an object’s presence does not ensure a sufficiently informa-
+tive observation, since views differ in sharpness, visibility,
+and detail. Moreover, high-quality views of individual ob-
+jects may lack the layout or contextual information needed
+to answer questions. During memory updates, new obser-
+vations may show one object more clearly but miss other
+objects or scene context in earlier frames, so direct replace-
+ment can discard useful information. At question time, rel-
+evance or visual diversity alone may yield overlapping ev-
+idence for some question aspects, leaving others underrep-
+resented despite useful observations remaining in memory.
+Figure 1 provides a lounge example for discussing mem-
+ory retention and question-time frame selection. For “What
+tables are in the lounge’s seating areas?”, high question-
+relevance scores may cause retrieval to favor repeated views
+of the round high table (frame 340), overlooking the table
+in front of the sofa (frame 440). We consider two related
+but distinct design questions. Before a question is known,
+memory construction must retain informative object obser-
+vations together with scene context, and maintenance must
+avoid losing useful information as observations arrive. Af-
+ter the question is given, evidence selection must choose an
+informative set of frames to answer the question accurately
+within the available visual input budget.
+We introduce COVERMEM, a visual memory frame-
+work that combines coverage preservation before ques-
+tions are known with complementary evidence selection
+within the available input image budget. Before questions
+are known, CoverMem constructs a compact memory that
+meets object-quality thresholds relative to historical best
+observations while covering representative scenes. As new
+observations arrive, CoverMem locally reselects affected
+frames while keeping unaffected frames fixed, then verifies
+that the memory satisfies both constraints. For each ques-
+tion, CoverMem evaluates each candidate’s additional sup-
+port for question-derived requirements relative to selected
+evidence, alongside relevance and visual redundancy.
+Experiments on three QA benchmarks with two answer-
+ing models evaluate answer quality under limited source-
+frame budgets, while component analyses examine memory
+quality, maintenance cost, and frame selection.
+Our contributions are summarized as follows:
+• We propose compact memory construction under object-
+quality and representative-scene coverage constraints,
+with per-object thresholds relative to historical best ob-
+servations and at least one frame per representative scene.
+• We enable incremental memory maintenance that locally
+reselects affected frames under updated constraints, keeps
+unaffected frames fixed, and verifies that the resulting
+memory satisfies all updated constraints.
+• We develop complementary frame selection under a fixed
+image budget, combining question relevance, additional
+support for question-derived requirements relative to se-
+lected evidence, and visual redundancy.
+2. Related work
+Embodied question answering. EQA with episodic mem-
+ory [26] answers questions by retrieving relevant stored
+views [26, 40], while active EQA navigates and explores for
+question-relevant evidence [7, 10, 12, 13, 32, 33, 42]. We
+maintain full-frame episodic memory and select a limited
+number of source frames for answering.
+Memory construction and maintenance. Image memo-
+ries retain detail and context [18, 40], while object-centric
+structures support retrieval and relational reasoning but may
+omit appearance and context [12, 14]. Reconstructed 3D ge-
+ometry and appearance support spatial reasoning and novel-
+view rendering [22, 23, 25, 41]. Methods integrate struc-
+tured and visual evidence for question answering [25, 33],
+while 3D-Mem updates memory incrementally [40]. Cover-
+Mem enforces object-quality and representative-scene cov-
+erage and uses local reselection for updates, fixing unaf-
+fected frames and verifying both constraints.
+Evidence retrieval and selection.
+Before answering,
+OpenEQA samples frames uniformly [26], while question-
+conditioned selection uses semantic similarity and ques-
+tion cues [18, 28, 37, 41] or balances relevance and diver-
+sity [24]. Others interleave retrieval and reasoning [2, 11,
+35, 36], with GraphPad editing scene graphs [1]. To limit
+evidence overlap, CoverMem combines relevance, visual
+redundancy, and additional requirement support relative to
+selected frames under a source-frame budget.
+2
+
+
+0.51
+0.50
+/
+/
+0.81
+0.87
+/
+/
+0.83
+0.81
+0.76
+/
+0.42
+0.55
+0.73
+0.65
+New Observations 
+Keep
+Remove
+Add
+Scoring with 
+MCQ
+Segmentation,
+Merging
+Image Feature
+Extraction
+Frame-Scene Associations
+Scene Groups
+Frame-Object 
+Associations
+Related Memory 
+Coverage
+Constrained  
+Selection
+𝓐𝒕
+𝒐𝒃𝒋𝒆𝒄𝒕
+𝓐𝒕
+𝒔𝒄𝒆𝒏𝒆
+𝓜𝒕
+𝒌𝒆𝒆𝒑
+𝓛𝒕+𝟏
+···
+𝓗𝒕
+···
+···
+Object-Quality Coverage
+Representative-Scene Coverage
+Incremental Maintenance
+CoverMem 𝓜𝒕+𝟏
+𝓗𝒕+𝟏
+Figure 2. Memory construction and maintenance. Object-quality and representative-scene coverage guide compact memory construc-
+tion. Accumulated observations trigger local reselection of related frames while unaffected frames remain fixed and coverage is preserved.
+Local candidates include new frames and memory frames sharing objects or representative scenes with them. Illustrative example.
+3. Method
+From observation history Ht collected by time t, Cover-
+Mem constructs reusable visual memory independently of
+questions, with active memory Mt ⊆Ht.
+To support
+this process as new observations accumulate, each retained
+frame’s associations with detected object instances and rep-
+resentative scene groups enable coverage evaluation and the
+identification of related frames during incremental main-
+tenance. Given a question q, CoverMem selects at most
+K distinct source frames Sq ⊆Mt for answering. We
+first define the coverage constraints in Section 3.1, then de-
+scribe incremental maintenance through local reselection in
+Section 3.2, and finally introduce budgeted complementary
+frame selection in Section 3.3.
+3.1. Coverage-constrained memory construction
+As illustrated in Figure 2, CoverMem constructs compact
+memory under object-quality and representative-scene cov-
+erage constraints. The former retain quality-qualified object
+views, while the latter retain broader scene context.
+Object-quality coverage.
+Let Ot denote the objects
+recorded up to time t.
+Coverage requires at least one
+quality-qualified observation for each o ∈Ot. To compare
+observations linked across frames by object associations,
+the multi-cue observation-quality (MCQ) score Q(o, f) for
+object o in frame f combines six cues: sharpness, ob-
+ject area, boundary truncation, detection confidence, depth-
+based visibility, and text readability. A weighted geometric
+mean aggregates these cues:
+Q(o, f) =
+6
+Y
+k=1
+˜xk(o, f)wk.
+(1)
+Here, ˜xk(o, f) ∈(0, 1] are normalized cues, with wk ≥0
+and P6
+k=1 wk = 1. Appendix A.2 details cue definitions,
+normalization, and weights. For historical frames Ht(o)
+linked to o, the object-specific quality threshold is set rel-
+ative to the object’s best historical observation:
+θt(o) = ρ max
+f∈Ht(o) Q(o, f),
+ρ ∈(0, 1].
+(2)
+With ρ fixed across objects, an associated frame qualifies
+for o when Q(o, f) ≥θt(o), although it may not qualify
+for other objects. Frame–object associations are given by
+Aobject
+t
+⊆Ht × Ot, where (f, o) ∈Aobject
+t
+indicates that
+object o is linked to frame f. An association contributes to
+object-quality coverage only if the corresponding observa-
+tion meets the quality threshold for the associated object.
+Representative-scene coverage. Let Gt denote the scene
+groups recorded up to time t. To complement object-level
+observations with broader context, memory retains at least
+one frame associated with each g ∈Gt. These groups are
+formed by visual similarity using global image features, es-
+tablishing the frame–scene connections in Figure 2. Each
+group uses its first frame’s feature as a fixed representa-
+tive. An incoming frame joins every group whose repre-
+sentative matches its feature under a fixed cosine-similarity
+threshold, or creates a new group if none matches. Once
+established, these associations remain fixed, and groups
+may overlap. The frame–scene associations are Ascene
+t
+⊆
+Ht × Gt, where (f, g) ∈Ascene
+t
+indicates that frame f is
+associated with the representative scene group g.
+Together, the two association types determine which
+coverage constraints each candidate frame can meet. For
+selection, all historical frames are candidates, Ct = Ht. Let
+Rt collect the object-quality and representative-scene cov-
+erage constraints as distinct types, and let Rt(f) ⊆Rt con-
+3
+
+
+4.6 A5: Budget 
+Sensitivity and 
+Computational Cost
+CoverMem 𝓜𝒕
+Question 
+What is located between 
+the sofa and the chair?
+𝐪
+Budget K=3
+Input
+Question Relevance𝒓𝒒𝒇
+𝒔𝒒𝒇, 𝒅
+Requirement Support
+d₂
+d₃
+d₁
+d₂: attribute
+e.g., target appearance
+d₃: relation
+e.g., between
+e.g., sofa, chair
+d₁: object
+Requirements 𝓓𝒒
+Parse & Score
+>
+>
+>
+>
+>
+>
+Update
+𝐒, 𝒖𝐪,𝒅𝑺
+Select Next Frame
+𝜱𝒒𝒇∣𝑺= 𝛂𝒓𝒒𝒇
++ 𝟏−𝜶𝜟𝒒𝒇∣𝑺−𝛌𝒅𝒒𝒇, 𝑺
+𝒇⋆= 𝐚𝐫𝐠𝒎𝒂𝒙
+𝒇∈𝓜𝒕\𝑺𝜱𝒒𝒇∣𝑺
+Visual Redundancy 𝒅𝒒𝒇, 𝑺
+d₂
+d₃
+d₁
+Current Support 𝒖𝐪,𝒅𝑺
+𝜟𝒒𝒇∣𝑺
+Additional Support 
+d₂
+d₃
+d₁
+Complementary Selection
+Output
+A backpack.
+VLM
+Question 𝐪
+𝐒𝐪
+Current Selected Set 𝐒
+Final Selected
+Set 
+Stop→𝐒𝐪
+Figure 3. Budgeted complementary frame selection. Question-derived requirements guide source-frame selection. Each step selects
+a frame using question relevance, additional requirement support, and visual redundancy, then updates the selected set and requirement
+support until the budget is reached, candidates are exhausted, or no score reaches the threshold. Illustrative example.
+tain those met by frame f under the quality and association
+rules above. The objective minimizes memory size subject
+to all constraints:
+min
+M⊆Ct |M|
+s.t.
+[
+f∈M
+Rt(f) = Rt.
+(3)
+With the quality thresholds and scene associations fixed,
+greedy set cover [8, 38] approximates this objective. At
+each step, the frame meeting the most unmet constraints is
+selected until all are met. Redundant frames are removed
+only if the remaining set meets every constraint. The result-
+ing memory meets all constraints, although greedy selection
+does not guarantee a globally optimal memory.
+3.2. Coverage-preserving incremental maintenance
+Motivated by dynamic set cover [15], CoverMem maintains
+coverage through local reselection when accumulated ob-
+servations introduce new objects or scene groups, or pro-
+vide clearer views of previously recorded objects.
+At update t + 1, let Bt+1 = Ht+1 \ Ht contain frames
+collected since the previous update at t. Their object qual-
+ities and scene associations extend existing records, updat-
+ing historical bests without altering previous scores or asso-
+ciations. Improved historical bests raise observed objects’
+thresholds and may disqualify earlier object–frame pairs,
+while thresholds for absent objects remain unchanged. To
+limit reselection cost, Lt+1 includes Bt+1 and frames in
+Mt sharing an object or representative scene with any new
+frame, using recorded associations before quality filtering.
+The remaining frames stay fixed as Mkeep
+t
+= Mt \ Lt+1.
+Since affected frames may also cover other objects or
+scenes, local reselection must meet the updated constraints
+left unmet by the fixed memory:
+Rres
+t+1 = Rt+1 \
+[
+f∈Mkeep
+t
+Rt+1(f).
+(4)
+Greedy selection and redundancy removal from Section 3.1
+satisfy these residual constraints within Lt+1. The selected
+frames and Mkeep
+t
+form Mt+1, whose coverage is verified
+against all updated constraints for objects and scenes.
+3.3. Budgeted complementary frame selection
+At answering time, CoverMem selects complementary
+frames within the image budget, as illustrated in Figure 3.
+Selection combines relevance to the complete question, ad-
+ditional support for question-derived visual requirements,
+and visual redundancy with the frames already selected.
+Question-derived visual requirements. Each question q
+is first parsed into a nonempty set of visual requirements
+D(q), specifying the objects, attributes, or relations needed
+for answering, with the complete question used as a sin-
+gle requirement if parsing fails. For each candidate frame
+f
+∈Mt, relevance rq(f) ∈[0, 1] matches the com-
+plete question against global image features [31], while re-
+quirement support sq(f, d) ∈[0, 1] combines global image
+matching with the strongest regional evidence from object
+crops and region descriptions, using global matching alone
+when no regions are available (Appendix A.2).
+Additional visual support. To assess evidence beyond se-
+lected frames, let S denote the selected frame set, initial-
+ized as S = ∅. Its current support for requirement d is
+uq,d(S) = maxg∈S sq(g, d), with uq,d(∅) = 0. A candi-
+4
+
+
+date’s additional support is measured against this baseline:
+∆q(f | S) =
+1
+|D(q)|
+X
+d∈D(q)
+[sq(f, d) −uq,d(S)]+ ,
+(5)
+where [x]+ = max(x, 0) ensures that only improvements
+over current requirement support contribute to the gain.
+This gain differs from visual diversity because it mea-
+sures requirement support relative to selected evidence: a
+visually different frame may add no support, whereas a sim-
+ilar frame may reveal a needed detail more clearly. To bal-
+ance such gains with question relevance and visual overlap,
+candidates are ranked by combining these three terms, fol-
+lowing the relevance–redundancy principle [5]:
+Φq(f | S) = αrq(f) + (1 −α)∆q(f | S)
+−λdq(f, S),
+(6)
+where α ∈[0, 1], λ ≥0, and dq(f, S) is the maximum
+normalized pairwise global visual similarity between f and
+the currently selected frames, with dq(f, ∅) = 0.
+At each step, CoverMem selects the highest-scoring uns-
+elected frame until the budget is reached, candidates are ex-
+hausted, or the best remaining score Φq(f | S) falls below
+the stopping threshold. As S grows, additional support and
+redundancy change while rq(f) and sq(f, d) remain fixed,
+allowing candidate rankings to change after each selection.
+Upon stopping, the selected full frames Sq and complete
+question are passed to the answering model without feed-
+ing intermediate answer reasoning back into selection. The
+frame budget, however, does not guarantee sufficient visual
+support for every question requirement at answering time.
+4. Experiments
+We evaluate CoverMem through five research questions.
+Q1: How does CoverMem compare with existing meth-
+ods across benchmarks and answering models? (Sec. 4.2)
+Q2: How do coverage constraints and observation-quality
+scoring affect memory quality and answering performance?
+(Sec. 4.3) Q3: Can local maintenance preserve coverage
+while reducing maintenance cost?
+(Sec. 4.4) Q4: How
+do selection components and candidate pools affect answer
+quality? (Sec. 4.5) Q5: How does the frame budget affect
+answer quality, and what are the costs of memory construc-
+tion and question-time API usage? (Sec. 4.6)
+4.1. Experimental setup
+Datasets.
+Experiments use OpenEQA, EXPRESS, and
+ScanQA [3, 21, 26]. The fixed OpenEQA subset, denoted
+OpenEQA ScanNet, contains 616 questions from 51 obser-
+vation histories across 43 scenes. EXPRESS contains 2,044
+questions from 777 histories across 174 scenes, while the
+ScanQA validation subset contains 4,675 questions from 71
+histories and scenes. OpenEQA ScanNet and ScanQA share
+the ScanNet [9] visual source but offer complementary eval-
+uations through distinct question–answer annotations.
+Metrics and protocol. We report LLM-Match for answer
+quality, the retained-frame ratio (Ret. Ratio) for memory
+size, and the mean number of distinct source frames sup-
+plied for answering (Avg.
+Frames).
+For methods with
+explicit frame budgets, input is capped at K = 3 source
+frames, while other methods retain their input procedures.
+Collage frames are counted before composition. Memory
+analyses report the quality-qualified object ratio (Qual. ob-
+jects) and relative quality retention (Rel. quality), measur-
+ing quality-threshold satisfaction and retained quality rel-
+ative to each object’s best historical observation, respec-
+tively. Both metrics are computed per history and averaged
+equally across histories, with definitions and implementa-
+tion details in Appendix A.1.
+Baselines. We compare with caption-based scene repre-
+sentations (ConceptGraphs Captions [14] and Sparse Voxel
+Map Captions [26]), visual memory and retrieval methods
+(3D-Mem [40], MemTree3D [18], VLM-Grounder [39],
+QCA [29], WFS-SB [6], and ToolMerge [34]), and uniform-
+sampling and blind baselines.
+All methods in the main
+comparison are rerun with Qwen3.8-27B to generate an-
+swers, which GPT-6 Luna evaluates under the same proto-
+col. CoverMem parses questions with Qwen3.5-35B-A3B
+and is also evaluated with Gemini 3.5 Flash-Lite for answer-
+ing. Each answering model is paired with uniform sampling
+of up to K distinct frames from the original history, while
+the blind baseline receives only the question.
+The following analyses of coverage constraints, memory
+maintenance, frame selection, and computational cost use
+the same fixed OpenEQA ScanNet evaluation subset.
+4.2. A1: Comparison with existing methods
+Comparison with existing methods. CoverMem achieves
+the highest LLM-Match scores among the Qwen3.8-27B
+configurations on all three benchmarks (Table 1). Its ad-
+vantage over caption-based methods supports retaining vi-
+sual evidence, while comparisons with visual memory and
+retrieval methods highlight the importance of evidence re-
+tention and selection. CoverMem addresses these stages
+by preserving coverage before questions are known and se-
+lecting complementary evidence once a question arrives.
+VLM-Grounder uses more frames but scores lower through-
+out.
+CoverMem retains more frames than 3D-Mem on
+OpenEQA ScanNet but fewer on EXPRESS and ScanQA,
+while scoring higher on all three. These comparisons sug-
+gest that memory size alone does not determine answer
+quality. ToolMerge is the strongest competing Qwen3.8-
+27B baseline, with CoverMem improving by 4.14, 1.03,
+and 6.66 points on OpenEQA ScanNet, EXPRESS, and
+ScanQA, respectively. The smaller margin on EXPRESS
+5
+
+
+Table 1. Comparison across benchmarks and answering models. LLM-Match: answer quality; Ret. Ratio: retained-frame ratio; Avg.
+Frames: mean number of answer-input frames. ↑/ ↓: higher/lower is better; “—”: not applicable; 100∗: full candidate-pool retention.
+Methods
+OpenEQA ScanNet
+EXPRESS
+ScanQA
+LLM-Match ↑
+Ret. Ratio
+(%) ↓
+Avg.
+Frames ↓
+LLM-Match ↑
+Ret. Ratio
+(%) ↓
+Avg.
+Frames ↓
+LLM-Match ↑
+Ret. Ratio
+(%) ↓
+Avg.
+Frames ↓
+Caption-based methods
+ConceptGraphs [14]
+36.97
+—
+—
+36.61
+—
+—
+39.78
+—
+—
+Sparse Voxel Map [26]
+44.60
+—
+—
+43.29
+—
+—
+48.85
+—
+—
+Memory methods and visual retrieval
+3D-Mem [40]
+62.05
+27.54
+2.68
+65.58
+33.51
+3.00
+57.53
+43.75
+2.84
+MemTree3D [18]
+64.65
+100*
+2.89
+67.39
+100*
+2.84
+65.71
+100*
+3.00
+VLM-Grounder [39]
+68.91
+100*
+20.09
+69.84
+100*
+7.22
+66.07
+100*
+15.29
+QCA [29]
+69.56
+100*
+3.00
+73.67
+100*
+3.00
+69.45
+100*
+3.00
+WFS-SB [6]
+61.53
+100*
+3.00
+76.35
+100*
+3.00
+66.87
+100*
+3.00
+ToolMerge [34]
+79.46
+100*
+3.00
+77.96
+100*
+3.00
+73.02
+100*
+3.00
+CoverMem and reference baselines
+Answering model: Qwen3.8-27B
+Blind (question only)
+36.61
+—
+—
+45.66
+—
+—
+36.76
+—
+—
+Uniform sampling
+59.13
+—
+3.00
+61.57
+—
+3.00
+50.22
+—
+3.00
+CoverMem
+83.60 (+24.47)
+36.05
+2.62
+78.99 (+17.42)
+24.94
+2.51
+79.68 (+29.46)
+22.40
+3.00
+Answering model: Gemini 3.5 Flash-Lite
+Uniform sampling
+62.30
+—
+3.00
+72.35
+—
+3.00
+53.67
+—
+3.00
+CoverMem
+87.38 (+25.08)
+36.05
+2.62
+79.68 (+7.33)
+24.94
+2.51
+78.99 (+25.32)
+22.40
+3.00
+and larger margin on ScanQA show that the gains vary
+across benchmarks under the same answering model. All
+three improvements remain statistically significant after
+Holm correction (adjusted p ≤0.03; Appendix B.2).
+Performance across answering models. CoverMem im-
+proves over paired uniform sampling with both answer-
+ing models using at most three source frames (Table 1).
+Since memory construction and selection precede answer
+generation, selected evidence is supplied through the same
+question-and-image interface.
+Its consistent advantage
+across the evaluated model–benchmark combinations sug-
+gests that the benefit of the evidence pipeline extends be-
+yond a single answering model.
+Absolute scores reflect
+overall answer quality, whereas paired gains measure im-
+provement over each model’s uniform baseline. On EX-
+PRESS, Gemini 3.5 Flash-Lite has a higher absolute score
+but a smaller paired gain than Qwen3.8-27B, owing to its
+stronger uniform baseline. Thus, higher absolute perfor-
+mance does not imply a larger benefit from CoverMem.
+Performance across question types. CoverMem improves
+over uniform sampling in seven categories under the same
+three-frame budget (Figure 4). The largest gains occur in
+world knowledge and function reasoning, reaching 33.75
+and 31.18 LLM-Match points, respectively. These improve-
+ments indicate that CoverMem’s benefits extend across
+question types under a fixed input budget. The contribu-
+tions of memory retention and complementary selection are
+examined separately in the following ablations. State recog-
+nition has the strongest uniform baseline at 72.61 but the
+50
+60
+70
+80
+90
+LLM-Match
+Attribute recognition (n=90)
+Function reasoning (n=85)
+Object localization (n=92)
+Object recognition (n=90)
+State recognition (n=94)
+Spatial understanding (n=85)
+World knowledge (n=80)
+62.50
+85.28
+57.35
+88.53
+59.78
+88.32
+55.28
+79.44
+72.61
+83.24
+49.12
+71.18
+55.63
+89.38
+Uniform sampling
+CoverMem
+Figure 4. Performance across question types. Connected mark-
+ers compare uniform sampling (green) and CoverMem (orange).
+Labels show LLM-Match scores; n denotes question counts.
+smallest gain of 10.63 points. Spatial understanding im-
+proves by 22.06 points yet remains lowest at 71.18, sug-
+gesting that spatial relations remain challenging even with
+retained object views and representative scene context.
+4.3. A2: Coverage constraints and quality design
+Replacing object-quality coverage with basic object cover-
+age reduces memory size but also lowers observation qual-
+ity and answer accuracy (Table 2). The quality-qualified
+object ratio falls from 100% to 86%, showing that retaining
+an object’s presence does not ensure an informative view.
+Representative-scene coverage contributes beyond object-
+quality coverage.
+Without this constraint, the quality-
+6
+
+
+Table 2.
+Memory construction ablations.
+Uniform memory
+matches per-history size and uses CoverMem’s selection.
+Configuration
+Ret. Ratio
+(%) ↓
+Qual. objects
+(%) ↑
+Rel. quality
+(%) ↑
+LLM-
+Match ↑
+w/o quality
+26.80
+86.00
+90.12
+80.24
+w/o scene
+30.56
+100.00
+97.31
+77.03
+Uniform memory
+36.05
+83.85
+88.97
+76.10
+CoverMem
+36.05
+100.00
+98.49
+83.60
+Table 3. Memory maintenance. Means over 51 cached histories.
+Maintenance
+Reselection ratio
+(%) ↓
+Time / history
+(s) ↓
+Global
+100.00
+3.763
+Local
+49.30
+1.958
+qualified object ratio remains at 100%, yet LLM-Match falls
+from 83.60 to 77.03 (Table 2). This variant achieves higher
+relative quality retention than removing object-quality cov-
+erage but answers less accurately, supporting broader scene
+context alongside object-level evidence. However, meeting
+quality thresholds for recorded objects does not ensure cov-
+erage of relevant unrecorded objects, visible details, or spa-
+tial relations needed for future questions.
+Since removing either constraint also changes memory
+size, these ablations reflect quality–compactness trade-offs.
+At matched per-history sizes, CoverMem outperforms Uni-
+form memory under the same downstream selection and
+answering settings, supporting coverage-guided retention
+for observation and answer quality. The 7.50-point LLM-
+Match gain at identical per-history frame counts links the
+observed answer quality to the choice of retained observa-
+tions at a fixed memory size. This gain is significant after
+Holm correction (adjusted p ≤0.03; Appendix B.2).
+With a source-frame budget of K = 3, we compare
+quality-scoring strategies (Figure 5). Confidence-only uses
+detector confidence as an observation-quality proxy, while
+sharpness–area assesses visual clarity and object scale.
+Equal-weight aggregation of all six cues improves over
+sharpness–area by 2.39 LLM-Match points, and the default
+weights add 2.11 points. The default MCQ configuration
+achieves the highest LLM-Match among the evaluated vari-
+ants under the same source-frame budget.
+4.4. A3: Analysis of incremental maintenance
+Local maintenance and global reselection produce identical
+final memory frame sets, per-question answers, and evalu-
+ation scores on the evaluated histories (83.60 LLM-Match;
+Table 3). To quantify the update scope, the reselection ra-
+tio is rt+1 = |Lt+1|/|Mt ∪Bt+1|, where Lt+1 is the lo-
+cal candidate set from Section 3.2, reconsidered from t to
+t + 1, and the denominator includes existing memory and
+newly collected frames. Global reselection corresponds to
+Table 4.
+Ablation of frame selection.
+Support: requirement
+support, dynamic unless marked Static. Regions: regional evi-
+dence added to global matching. Redundancy: visual redundancy
+penalty. Relevance: complete-question relevance.
+Selection Configuration
+LLM-Match ↑
+Support
+Regions
+Redundancy
+Relevance
+✓
+76.54
+✓
+✓
+✓
+80.97
+✓
+✓
+79.95
+Static
+✓
+✓
+81.17
+Static
+✓
+✓
+✓
+81.86
+✓
+✓
+✓
+✓
+83.60
+Figure 5. Observation-quality design. LLM-Match with at most
+K = 3 source frames per question.
+100%. This ratio measures the local update scope relative
+to current memory and newly collected frames, whereas re-
+tention is measured against the original observation history.
+Ratios are averaged within each history and then equally
+across histories. By keeping unaffected frames fixed, local
+maintenance reconsiders 49.30% of the candidates and re-
+duces average maintenance time from 3.763 to 1.958 sec-
+onds per history, a 48.0% decrease.
+Local maintenance
+achieves these savings while preserving memory frame sets
+and answering outcomes on the evaluated histories. These
+timings exclude raw perception and API response waiting.
+4.5. A4: Complementary frame selection
+Relevance-only evaluates frames against the complete ques-
+tion, reaching 76.54 LLM-Match (Table 4).
+Adding re-
+quirement support provides a 4.43-point gain, while adding
+the redundancy penalty yields 3.41 points. Their combina-
+tion performs best, with a 7.06-point gain. These results fa-
+vor combining additional support for question requirements
+with visual diversity within the source-frame budget.
+Requirement support, regional matching, and dynamic
+updating are compared with memory, answering settings,
+redundancy penalty, and source-frame budget fixed. With
+relevance and redundancy retained, adding static global
+support for parsed requirements raises LLM-Match from
+79.95 to 81.17. Adding regional matching increases it to
+81.86.
+With requirements and support scores fixed, dy-
+7
+
+
+Table 5. Memory construction time per history.
+Construction Component
+Time (s)
+Share of Total
+Object detection, segmentation, and
+geometric processing
+17.80
+40.2%
+Mask generation for region
+descriptions
+8.78
+19.8%
+Region description generation
+6.99
+15.8%
+Feature extraction, cross-frame
+association, quality computation, and
+related operations
+10.72
+24.2%
+Total of listed components
+44.29
+100%
+Table 6. Construction time and API tokens. Time: cumula-
+tive s/history. Tokens: rounded means/question. Parsing includes
+ToolMerge planning. “—”: no call.
+Metric
+Uniform
+ToolMerge
+CoverMem
+Construction time (s) ↓
+0.46
+33.74
+44.29
+API tokens per question
+Parsing
+Input
+—
+1,732
+415
+Output
+—
+182
+35
+Answer
+Input
+2,545
+2,545
+2,184
+Output
+99
+100
+101
+Evaluation
+Input
+238
+237
+233
+Output
+44
+49
+41
+namic updating reaches 83.60 by assessing additional sup-
+port relative to selected evidence. The respective gains of
+1.22, 0.69, and 1.74 points favor all three steps, with dy-
+namic updating yielding the largest gain.
+Figure 6 compares two pipelines: full history or com-
+pressed memory, followed by frame selection and an-
+swering under the same model, evaluation protocol, and
+source-frame budget. Complementary selection improves
+LLM-Match over relevance-only selection by 6.98 and 7.06
+points, respectively, favoring it within both pipelines. Full
+history scores higher under either selection rule, while com-
+pressed memory retains 63.95% fewer frames with score
+decreases below one point.
+Compressed memory with
+complementary selection also outperforms the full-history
+relevance-only pipeline by 6.08 points. More candidates
+therefore do not necessarily yield better answers, highlight-
+ing the trade-off between memory size and answer quality.
+4.6. A5: Budget sensitivity and cost
+CoverMem outperforms uniform sampling and ToolMerge
+across all evaluated source-frame budgets (Figure 7). Gains
+from additional frames diminish beyond three: four frames
+provide no improvement, while five yield the highest score,
+only 0.49 points above the three-frame result. The margin
+over ToolMerge narrows from 4.14 points at three frames to
+1.66 at five, suggesting that additional inputs help the base-
+line close the gap. Three frames therefore remain a practical
+operating point for budgeted question answering.
+Memory construction takes longer with CoverMem than
+with the compared alternatives (Tables 5 and 6). This cost
+Relevance only
+Complementary
+CoverMem memory
+36.05% retained
+Full history
+100% retained
+76
+78
+80
+82
+84
+86
+LLM-Match
+76.54
+77.52
+83.60
+84.50
++7.06
++6.98
+Figure 6. Frame selection across candidate pools. OpenEQA
+ScanNet, Qwen3.8-27B, three-frame budget. For comparison, re-
+tention is measured relative to the original observation history.
+1
+2
+3
+4
+5
+Answer-input source-frame budget K
+50
+60
+70
+80
+90
+LLM-Match
+78.33
+82.75
+83.60
+83.56
+84.09
+63.92
+65.87
+79.46
+79.46
+82.43
+48.09
+50.93
+59.13
+60.59
+60.39
+default
+CoverMem
+ToolMerge
+Uniform
+Figure 7.
+Source-frame budget.
+LLM-Match on OpenEQA
+ScanNet for CoverMem, ToolMerge, and uniform sampling.
+includes perception, cross-frame association, quality esti-
+mation, and feature processing needed to build reusable
+memory from observation histories.
+Detection, segmen-
+tation, and geometric processing form the largest compo-
+nent, accounting for 40.2% of the reported total construc-
+tion time. At question time, CoverMem uses fewer parsing
+and answer-input tokens than ToolMerge, with similar mean
+answer-output token counts (Table 6). Uniform sampling
+requires no parsing or selection but uses more answer-input
+tokens than CoverMem. After parsing, candidate matching
+and complementary selection run locally without requiring
+any further language-model API calls.
+5. Conclusion
+CoverMem constructs compact full-frame memory for bud-
+geted embodied question answering under object-quality
+and representative-scene coverage constraints. It preserves
+relatively high-quality object observations and scene con-
+text before receiving questions. Incremental maintenance
+locally reselects affected frames as observations arrive, pre-
+serving coverage.
+Complementary frame selection com-
+bines question relevance, additional requirement support,
+and visual redundancy for question-specific evidence un-
+der a fixed budget. Experiments on three benchmarks with
+two answering models show improved performance using
+at most three source frames; component analyses show high
+relative quality retention and reduced maintenance time.
+8
+
+
+LLM Usage Statement
+OpenAI’s ChatGPT (GPT) was used solely for language
+polishing of the manuscript, including grammar, word-
+ing, and readability.
+The authors reviewed all sug-
+gested text and take full responsibility for the research de-
+sign, implementation, data analysis, figures, experimen-
+tal results, and all scientific claims presented in the pa-
+per.
+References
+[1] Muhammad Qasim Ali, Saeejith Nair, Alexander Wong,
+Yuchen Cui, and Yuhao Chen. Graphpad: Inference-time 3d
+scene graph updates for embodied question answering. arXiv
+preprint arXiv:2506.01174, 2025. 2
+[2] Abrar Anwar, John Welsh, Joydeep Biswas, Soha Pouya, and
+Yan Chang. Remembr: Building and reasoning over long-
+horizon spatio-temporal memory for robot navigation.
+In
+2025 IEEE International Conference on Robotics and Au-
+tomation (ICRA), pages 2838–2845. IEEE, 2025. 2
+[3] Daichi Azuma, Taiki Miyanishi, Shuhei Kurita, and Motoaki
+Kawanabe. Scanqa: 3d question answering for spatial scene
+understanding.
+In 2022 IEEE/CVF Conference on Com-
+puter Vision and Pattern Recognition (CVPR), pages 19107–
+19117. IEEE, 2022. 5
+[4] Francis Bach. Learning with submodular functions: A con-
+vex optimization perspective. Now Publishers, 2013. 18
+[5] Jaime G Carbonell and Jade Goldstein.
+The use of mmr,
+diversity-based reranking for reordering documents and pro-
+ducing summaries. In SIGIR, pages 290941–291025, 1998.
+5
+[6] Wang Chen, Yuhui Zeng, Yongdong Luo, Tianyu Xie, Lu-
+ojun Lin, Jiayi Ji, Yan Zhang, and Xiawu Zheng. Wavelet-
+based frame selection by detecting semantic boundary for
+long video understanding. arXiv preprint arXiv:2603.00512,
+2026. 5, 6
+[7] Kai Cheng, Zhengyuan Li, Xingpeng Sun, Byung-Cheol
+Min, Amrit Singh Bedi, and Aniket Bera. Efficienteqa: An
+efficient approach to open-vocabulary embodied question an-
+swering. In 2025 IEEE/RSJ International Conference on In-
+telligent Robots and Systems (IROS), pages 20357–20364.
+IEEE, 2025. 2
+[8] Vasek Chvatal. A greedy heuristic for the set-covering prob-
+lem.
+Mathematics of operations research, 4(3):233–235,
+1979. 4, 18
+[9] Angela Dai, Angel X Chang, Manolis Savva, Maciej Hal-
+ber, Thomas Funkhouser, and Matthias Nießner.
+Scan-
+net: Richly-annotated 3d reconstructions of indoor scenes.
+In 2017 IEEE conference on computer vision and pattern
+recognition (CVPR), pages 2432–2443. IEEE, 2017. 5, 11
+[10] Abhishek Das, Samyak Datta, Georgia Gkioxari, Stefan Lee,
+Devi Parikh, and Dhruv Batra. Embodied question answer-
+ing.
+In 2018 IEEE/CVF Conference on Computer Vision
+and Pattern Recognition Workshops (CVPRW), pages 2135–
+213509. IEEE, 2018. 2
+[11] Yue Fan, Xiaojian Ma, Rongpeng Su, Jun Guo, Rujie Wu, Xi
+Chen, and Qing Li. Embodied videoagent: Persistent mem-
+ory from egocentric videos and embodied sensors enables
+dynamic scene understanding. In 2025 IEEE/CVF Interna-
+tional Conference on Computer Vision (ICCV), pages 6342–
+6352. IEEE, 2025. 2
+[12] Muhammad Fadhil Ginting, Dong-Ki Kim, Xiangyun Meng,
+Andrzej Reinke, Bandi Jai Krishna, Navid Kayhani, Ori-
+ana Peltzer, David D Fan, Amirreza Shaban, Sung-Kyun
+Kim, et al. Enter the mind palace: Reasoning and planning
+for long-term active embodied question answering.
+arXiv
+preprint arXiv:2507.12846, 2025. 2
+[13] Daniel Gordon, Aniruddha Kembhavi, Mohammad Raste-
+gari, Joseph Redmon, Dieter Fox, and Ali Farhadi.
+Iqa:
+Visual question answering in interactive environments. In
+2018 IEEE/CVF Conference on Computer Vision and Pat-
+tern Recognition, pages 4089–4098. IEEE, 2018. 2
+[14] Qiao Gu, Ali Kuwajerwala, Sacha Morin, Krishna Murthy
+Jatavallabhula,
+Bipasha Sen,
+Aditya Agarwal,
+Corban
+Rivera, William Paul, Kirsty Ellis, Rama Chellappa, et al.
+Conceptgraphs: Open-vocabulary 3d scene graphs for per-
+ception and planning. In 2024 IEEE International Confer-
+ence on Robotics and Automation (ICRA), pages 5021–5028.
+IEEE, 2024. 2, 5, 6, 11
+[15] Anupam Gupta, Ravishankar Krishnaswamy, Amit Kumar,
+and Debmalya Panigrahi. Online and dynamic algorithms for
+set cover. In Proceedings of the 49th Annual ACM SIGACT
+Symposium on Theory of Computing, pages 537–550, 2017.
+4
+[16] Yining Hong, Haoyu Zhen, Peihao Chen, Shuhong Zheng,
+Yilun Du, Zhenfang Chen, and Chuang Gan. 3d-llm: In-
+jecting the 3d world into large language models. Advances
+in Neural Information Processing Systems, 36:20482–20494,
+2023. 2
+[17] Chenguang Huang, Oier Mees, Andy Zeng, and Wolfram
+Burgard. Visual language maps for robot navigation. In 2023
+IEEE International Conference on Robotics and Automation
+(ICRA), pages 10608–10615. IEEE, 2023. 2
+[18] Hsiang-Wei Huang, Fu-Chen Chen, Li-Wu Tsao, Cheng-
+Han Lee, Che-Chun Su, Lu Xia, Ronghui Peng, Jenq-Neng
+Hwang, Min Sun, and Cheng-Hao Kuo. Memory tree guided
+key frame querying for efficient 3d question answering. In
+European Conference on Computer Vision, pages 337–354.
+Springer, 2026. 2, 5, 6
+[19] Jiangyong Huang, Silong Yong, Xiaojian Ma, Xiongkun
+Linghu, Puhao Li, Yan Wang, Qing Li, Song-Chun Zhu,
+Baoxiong Jia, and Siyuan Huang. An embodied generalist
+agent in 3d world. arXiv preprint arXiv:2311.12871, 2023.
+2
+[20] Krishna Murthy Jatavallabhula, Alihusein Kuwajerwala,
+Qiao Gu, Mohd Omama, Tao Chen, Alaa Maalouf, Shuang
+Li, Ganesh Iyer, Soroush Saryazdi, Nikhil Keetha, et al.
+Conceptfusion: Open-set multimodal 3d mapping.
+arXiv
+preprint arXiv:2302.07241, 2023. 2
+[21] Kaixuan Jiang, Yang Liu, Weixing Chen, Jingzhou Luo, Zil-
+iang Chen, Ling Pan, Guanbin Li, and Liang Lin. Beyond
+the destination: A novel benchmark for exploration-aware
+embodied question answering. In 2025 IEEE/CVF Interna-
+tional Conference on Computer Vision (ICCV), pages 9091–
+9101. IEEE, 2025. 5
+9
+
+
+[22] Bernhard Kerbl, Georgios Kopanas, Thomas Leimkühler,
+George Drettakis, et al. 3d gaussian splatting for real-time
+radiance field rendering. ACM Trans. Graph., 42(4):139–1,
+2023. 2
+[23] Justin Kerr, Chung Min Kim, Ken Goldberg, Angjoo
+Kanazawa, and Matthew Tancik. Lerf: Language embed-
+ded radiance fields. In 2023 IEEE/CVF International Con-
+ference on Computer Vision (ICCV), pages 19672–19682.
+IEEE, 2023. 2
+[24] Kaname Kitamura and Asako Kanezaki. Informative view-
+point selection for episodic-memory embodied question an-
+swering using omnidirectional images.
+arXiv preprint
+arXiv:2609.33288, 2026. 2
+[25] Yiren Lu, Yi Du, Disheng Liu, Yunlai Zhou, Chen Wang, and
+Yu Yin. Gsmem: 3d gaussian splatting as persistent spatial
+memory for zero-shot embodied exploration and reasoning.
+arXiv preprint arXiv:2603.19137, 2026. 2
+[26] Arjun Majumdar, Anurag Ajay, Xiaohan Zhang, Pranav
+Putta, Sriram Yenamandra, Mikael Henaff, Sneha Silwal,
+Paul Mcvay, Oleksandr Maksymets, Sergio Arnaud, et al.
+Openeqa: Embodied question answering in the era of foun-
+dation models.
+In 2024 IEEE/CVF Conference on Com-
+puter Vision and Pattern Recognition (CVPR), pages 16488–
+16498. IEEE, 2024. 2, 5, 6, 11
+[27] George L Nemhauser, Laurence A Wolsey, and Marshall L
+Fisher. An analysis of approximations for maximizing sub-
+modular set functions—i. Mathematical programming, 14
+(1):265–294, 1978. 20
+[28] Hyobin Ong and Minsu Jang. R-eqa: Retrieval-augmented
+generation for embodied question answering.
+In Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit. Workshops
+(CVPRW), pages 1–3, 2025. 2
+[29] Jun Peng, Baiyang Song, Jie Li, Hui Li, Yiyi Zhou, Ron-
+grong Ji, and Yonghong Tian.
+Qca: Query-and content-
+aware keyframe selection for long video understanding. In
+European Conference on Computer Vision, pages 18–35.
+Springer, 2026. 2, 5, 6
+[30] Songyou
+Peng,
+Kyle
+Genova,
+Chiyu
+Jiang,
+Andrea
+Tagliasacchi, Marc Pollefeys, and Thomas Funkhouser.
+Openscene: 3d scene understanding with open vocabularies.
+In 2023 IEEE/CVF Conference on Computer Vision and Pat-
+tern Recognition (CVPR), pages 815–824. IEEE, 2023. 2
+[31] A Radford. Learning transferable visual models from natu-
+ral language supervision. arXiv preprint arXiv:2103.00020,
+2021. 4
+[32] Allen Z Ren, Jaden Clark, Anushri Dixit, Masha Itkina,
+Anirudha Majumdar, and Dorsa Sadigh. Explore until confi-
+dent: Efficient exploration for embodied question answering.
+arXiv preprint arXiv:2403.15941, 2024. 2
+[33] Saumya Saxena, Blake Buchanan, Chris Paxton, Peiqi
+Liu, Bingqing Chen, Narunas Vaskevicius, Luigi Palmieri,
+Jonathan Francis, and Oliver Kroemer. Grapheqa: Using 3d
+semantic scene graphs for real-time embodied question an-
+swering. arXiv preprint arXiv:2412.14480, 2024. 2
+[34] Michal Shlapentokh-Rothman,
+Prachi Garg,
+Yu-Xiong
+Wang, and Derek Hoiem. Decomposing queries into tool
+calls for long-video keyframe retrieval.
+arXiv preprint
+arXiv:2605.23826, 2026. 5, 6
+[35] Tin Stribor Sohn, Maximilian Dillitzer, Jason J Corso, and
+Eric Sax.
+R4: Retrieval-augmented reasoning for vision-
+language models in 4d spatio-temporal space. In Proceed-
+ings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, pages 38711–38721, 2026. 2
+[36] Xiaohan Wang, Yuhui Zhang, Orr Zohar, and Serena Yeung-
+Levy.
+Videoagent: Long-form video understanding with
+large language model as agent. In European Conference on
+Computer Vision, pages 58–76. Springer, 2024. 2
+[37] Ziyang Wang, Shoubin Yu, Elias Stengel-Eskin, Jaehong
+Yoon, Feng Cheng, Gedas Bertasius, and Mohit Bansal.
+Videotree: Adaptive tree-based video representation for llm
+reasoning on long videos. In 2025 IEEE/CVF Conference
+on Computer Vision and Pattern Recognition (CVPR), pages
+3272–3282. IEEE, 2025. 2
+[38] Laurence A Wolsey. An analysis of the greedy algorithm for
+the submodular set covering problem. Combinatorica, 2(4):
+385–393, 1982. 4, 18
+[39] Runsen Xu, Zhiwei Huang, Tai Wang, Yilun Chen, Jiang-
+miao Pang, and Dahua Lin.
+Vlm-grounder:
+A vlm
+agent for zero-shot 3d visual grounding.
+arXiv preprint
+arXiv:2410.13860, 2024. 5, 6
+[40] Yuncong Yang, Han Yang, Jiachen Zhou, Peihao Chen,
+Hongxin Zhang, Yilun Du, and Chuang Gan. 3d-mem: 3d
+scene memory for embodied exploration and reasoning. In
+2025 IEEE/CVF Conference on Computer Vision and Pat-
+tern Recognition (CVPR), pages 17294–17303. IEEE, 2025.
+2, 5, 6, 11
+[41] Kim Yu-Ji, Dahye Lee, Kim Jun-Seong, Nam Hyeon-Woo,
+GeonU Kim, Yongjin Kwon, Yu-Chiang Frank Wang, Jae-
+sung Choe, and Tae-Hyun Oh.
+Splatreasoner: Enhancing
+embodied reasoning and grounding by novel view synthesis.
+In European Conference on Computer Vision, pages 133–
+151. Springer, 2026. 2
+[42] Haochen Zhang, Nirav Savaliya, Faizan Siddiqui, and Enna
+Sachdeva. Fast-eqa: Efficient embodied question answering
+with global and local region relevancy. In 2026 IEEE/CVF
+Winter Conference on Applications of Computer Vision
+(WACV), pages 1664–1673. IEEE, 2026. 2
+10
+
+
+CoverMem: Coverage-Constrained Visual Memory for Budgeted Embodied
+Question Answering
+Supplementary Material
+This supplement details the evaluation protocol, implemen-
+tation, component analyses, streaming behavior, mathemat-
+ical properties, and qualitative results of CoverMem, distin-
+guishing reusable memory construction before a question is
+known from evidence allocation after the question is avail-
+able.
+A. Evaluation and implementation details
+A.1. Evaluation protocol and metrics
+All comparisons use the fixed subsets described in the main
+paper. OpenEQA ScanNet and ScanQA share ScanNet [3]
+visual observations but use different question–answer anno-
+tations, providing complementary evaluations.
+Models and inputs. The main comparison uses Qwen3.8-
+27B for answering, Qwen3.5-35B-A3B for question pars-
+ing, and GPT-6 Luna for evaluation.
+The additional
+answering-model comparison pairs CoverMem with uni-
+form sampling using Gemini 3.5 Flash-Lite; external meth-
+ods are compared under the main answering model. The
+default budget is at most K = 3 distinct source frames.
+Answer evaluation.
+The evaluator receives the ques-
+tion, reference answer, and predicted answer. We use the
+OpenEQA LLM-Match rating and conversion [5] with the
+evaluator above, selecting the corresponding template when
+additional valid answers are available. For N questions with
+integer ratings ri ∈{1, 2, 3, 4, 5},
+LLM-Match = 25
+N
+N
+X
+i=1
+(ri −1).
+Scores average questions rather than equally weight-
+ing question categories. ScanQA results here use LLM-
+Match rather than native EM@1.
+Technical failures are
+recorded separately; main-paper comparisons use the same
+fixed question sets without technical exclusions. Evalua-
+tor choice affects the resulting scores. The independent au-
+tomatic semantic and evidence assessments below provide
+diagnostic measurements, rather than human ground-truth
+annotations.
+The main-model comparisons are reported in main-paper
+Table 1.
+Memory metrics. Retained-frame ratio divides the retained
+source-frame count by the original historical count within
+the specified scope. Mean input frames average the number
+of distinct source frames supplied per question. Let Q∗
+h(o)
+and QM
+h (o) be the best historical and retained quality of ob-
+ject o in history h, with retained quality zero when no ob-
+Table A1. Fixed evaluation subsets.
+Benchmark
+Questions
+Histories
+Scenes
+OpenEQA ScanNet
+616
+51
+43
+EXPRESS
+2044
+777
+174
+ScanQA
+4675
+71
+71
+servation remains. Both object metrics use equal weighting
+of histories after averaging objects within each history:
+Qualified(M) = 100
+|H|
+X
+h∈H
+nqual
+h
+|Oh| .
+Here
+nqual
+h
+counts
+objects
+satisfying
+QM
+h (o)
+≥
+0.7Q∗
+h(o). Relative quality is
+RelQuality(M) = 100
+|H|
+X
+h∈H
+1
+|Oh|
+X
+o∈Oh
+QM
+h (o)
+Q∗
+h(o) .
+Positive cue floors keep the historical reference positive
+for recorded objects. All cue-removal rows use this same
+complete six-cue reference and the fixed 0.7 qualification
+threshold for evaluation.
+A.2. CoverMem implementation
+Representations. Full images and rectangular object crops
+use OpenCLIP ViT-L/14 with its OpenAI checkpoint. Re-
+gion descriptions use sentence-t5-xl. These representations
+are 768-dimensional and unit-normalized. Questions and
+requirement search phrases use the corresponding CLIP text
+encoder for image matching and sentence-t5-xl for descrip-
+tion matching. Raw scores are cosine similarities.
+Crop coordinates are integer-clamped to image bounds.
+DAM-3B generates question-independent region descrip-
+tions from the full RGB image and binary region
+mask using focal prompting.
+Descriptions are en-
+coded in the template an object that looks like
+<description>. Crops and descriptions serve retrieval,
+while the answering model receives the selected full im-
+ages.
+Association
+interface.
+Following
+3D-Mem
+[8]
+and
+ConceptGraphs
+[4],
+we
+use
+YOLO-World
+(yolov8x-world.pt) with the ScanNet200 vocab-
+ulary for object detection and SAM ViT-L (sam_l.pt)
+for box-prompted instance segmentation. Object regions
+11
+
+
+are projected into world coordinates using provided
+depth maps, camera intrinsics, and poses.
+Cross-frame
+association combines 3D point-cloud overlap and CLIP
+ViT-B/32 appearance cosine similarity. Observations with
+a combined matching score above 1.2 are merged into
+existing instances, with point clouds fused and appearance
+features updated; otherwise, new instances are created.
+Periodic deduplication further merges redundant instances.
+No ground-truth instance IDs or separate video trackers
+are used. Depth and camera parameters are provided by
+the dataset or simulator.
+Coverage is defined over the
+resulting recorded object identifiers rather than all physical
+instances. Within each benchmark, CoverMem ablations
+share observations and preprocessed object associations,
+except in the explicit association-perturbation tests.
+The
+streaming
+evaluation
+operates
+on
+cached
+association
+records, with previously established associations held fixed
+during memory replay.
+Question parsing. The parser receives question text with-
+out images or reference answers, using temperature zero,
+disabled thinking, and a 1,024-token output limit.
+The
+JSON object contains requirements, with one to three
+entries. Each entry contains nonempty answer, scope,
+and retrieval_query fields. The first describes the re-
+quested unknown information, the second its visual scope,
+and the last the neutral search phrase used for matching.
+Object modifiers and spatial conditions are preserved with-
+out guessing answer values or adding unasked attributes.
+Figure 3 illustrates possible types of visual evidence rather
+than literal parser outputs; in implementation, attributes are
+included only when requested by the question, without in-
+ferring unknown target attributes. Requirement count fol-
+lows question content rather than a fixed count for identity,
+list, or counting questions.
+Validation accepts JSON with or without a code fence,
+limits each field to 800 characters, and rejects duplicate
+search phrases after trimming whitespace and ignoring case.
+Invalid outputs use the complete question as one require-
+ment. This fallback is distinct from correctly extracting one
+requirement.
+Quality
+aggregation.
+Observation
+quality
+is
+Q(o, f)
+=
+Q6
+k=1 ˜xk(o, f)wk,
+with
+threshold
+θt(o)
+=
+ρ maxf∈Ht(o) Q(o, f).
+RGB images are re-
+sized to a longest side of 512 pixels using bilinear
+interpolation; masks use nearest-neighbor interpolation.
+Write c(z) = min(1, max(0, z)).
+Sharpness uses grayscale values in [0, 1], a 3 × 3 Gaus-
+sian filter with standard deviation 0.8, and a 3×3 Laplacian.
+The mask is eroded by a 3 × 3 kernel, reverting to the orig-
+inal mask if fewer than 16 pixels remain. The statistic and
+normalized cue are
+Table A2. Quality cues, weights, and positive floors.
+Cue
+Weight
+Floor
+Definition
+Sharpness
+0.25
+0.25
+Log Laplacian-to-image
+variance ratio, calibrated and
+clipped
+Object area
+0.25
+0.05
+Saturating square-root mask
+area
+Boundary
+quality
+0.125
+0.5
+Penalty near an image
+boundary
+Detection
+confidence
+0.125
+10−6
+Detector confidence with a
+positive floor
+Depth
+visibility
+0.125
+0.5
+Penalty for nearer non-object
+pixels inside the box
+Text
+readability
+0.125
+0.8
+Candidate height, contrast,
+and sharpness
+b = log
+
+1 +
+Var(∇2I)
+Var(I) + 10−4
+
+,
+˜x1 = 0.25 + 0.75c(b/bref).
+The calibration takes the first six histories in calibra-
+tion metadata order and the first four available grounding
+records per history in filename order. It pools valid object
+measurements, requires at least 20 measurements, and fixes
+their 90th percentile as the reference. Questions and an-
+swers are not used. Unavailable sharpness takes the floor
+0.25.
+For resized mask area a and minimum box-to-image-
+boundary distance m,
+˜x2 = 0.05 + 0.95 min(1,
+p
+a/1024),
+˜x3 = 1 −0.5c(1 −m/4),
+˜x4 = max(10−6, p).
+Depth is valid between 0.1 and 10 meters.
+Visibility
+requires at least 16 valid pixels and 25% valid depth in
+both mask and box.
+With median object depth z, δ =
+max(0.05, 2 MAD), and fraction v of valid box pixels out-
+side the mask whose depth is below z−δ, use ˜x5 = 1−0.5v;
+unavailable visibility takes 0.5.
+MSER candidates have heights of 4–64 pixels, width-to-
+height ratios of 0.1–5, fill ratios of 0.1–0.9, and at least half
+of their pixels inside the object mask. MSER uses delta 5,
+area 5–4096, maximum variation 0.25, and minimum di-
+versity 0.2. Candidate height, grayscale 90th-minus-10th
+percentile contrast, and sharpness are denoted by hj, kj, bj:
+˜x6 = 0.8 + 0.2 max
+j
+
+c
+hj −4
+12
+
+c
+ kj
+0.5
+
+c
+ bj
+bref
+1/3
+.
+12
+
+
+The maximum is zero without a valid candidate. This
+cue estimates readability rather than recognizing text se-
+mantics.
+Scene groups. A group uses its creating frame’s unit global
+feature as a fixed representative. An incoming frame joins
+every group with cosine similarity at least η, creating a
+group only if none matches. Memberships are fixed and
+may overlap. Coverage retains at least one associated frame
+per group; the creating frame need not remain. There are no
+centroid updates or periodic regrouping.
+Construction and local maintenance.
+Frames are pro-
+cessed in recorded order, one incoming frame per up-
+date. Greedy selection first maximizes newly covered con-
+straints, then auxiliary retention utility, then source-frame
+ID. The utility averages best retained-to-historical ratios
+over recorded object and scene entries; scene entries use
+unit quality. This bookkeeping differs from the object-only
+evaluation in Section A.1.
+The local pool includes incoming frames and memory
+frames sharing raw object or scene associations with them,
+before quality filtering. Other memory frames remain fixed.
+Local selection covers every constraint unmet by the fixed
+set. Pruning considers locally selected frames only, pre-
+ferring smaller utility loss and then source-frame ID, and
+preserves complete coverage at every removal. The final
+memory is checked against all updated constraints. For the
+maintenance comparison, global reselection operates on the
+full update pool Mt ∪Bt+1, whereas local maintenance
+reselects only affected frames while keeping the remain-
+ing memory fixed.
+This full-pool baseline differs from
+reconstruction over the entire observation history Ht+1.
+Equation (3) defines the full-history construction objective,
+whereas streaming maintenance operates on Mt ∪Bt+1.
+The incremental procedure guarantees coverage feasibility
+under updated constraints, rather than global memory-size
+optimality over the full history.
+Matching and normalization. Global, crop, and descrip-
+tion similarities are independently min–max normalized
+over the initial candidate pool of each selection run; ranges
+at most 10−8 map to 0.5. These normalized scores remain
+fixed throughout greedy selection. With regions B(f),
+ex(f) = 1
+2bgx(f) + 1
+2 max
+b∈B(f)
+bcx(b) + bℓx(b)
+2
+.
+Without regions, ex(f) = bgx(f). Relevance uses the
+complete question, rq(f) = bgq(f); requirement support is
+sq(f, d) = ed(f). Both are fixed within a selection run.
+Current support and additional support are
+uq,d(S) = max
+g∈S sq(g, d),
+We initialize uq,d(∅) = 0.
+Table A3. Default coverage and selection parameters.
+ρ
+η
+α
+λ
+τ
+K
+0.70
+0.80
+0.50
+0.10
+0.05
+3
+∆q(f | S) =
+1
+|D(q)|
+X
+d∈D(q)
+[sq(f, d) −uq,d(S)]+.
+Φq(f | S) = αrq(f) + (1 −α)∆q(f | S) −λdq(f, S).
+Pairwise cosine similarities of global features are clipped
+to [0, 1], shifted by the minimum over distinct candidate
+pairs, and divided by their range with a 10−8 floor. Redun-
+dancy is the maximum normalized similarity to a selected
+frame and is zero for an empty set. Normalization statistics
+are computed at the start of each selection run using its ini-
+tial candidate pool and the corresponding similarity scores.
+They remain fixed throughout greedy selection and are not
+recomputed after each frame is selected. The subscript q
+identifies the selection instance; the pairwise redundancy
+computation itself does not use question text.
+Scores are rounded to 12 decimals before source-frame-
+ID tie-breaking.
+Selection stops when the best score is
+strictly below τ, when the budget is reached, or when can-
+didates are exhausted. Equality to τ does not stop selection.
+Only current support and redundancy change across steps;
+answering-model reasoning does not feed back into selec-
+tion.
+Static-support controls replace ∆q(f | S) by ∆q(f | ∅)
+while still updating redundancy, and the fixed-three-frame
+control disables only score-based stopping.
+A.3. Fair comparison with existing methods
+We ensure fair reproduction through fixed evaluation sub-
+sets, a shared answering backbone and evaluator, and
+preservation of each method’s defining representation and
+retrieval mechanism. All compared baselines use their best
+verified configurations under the common evaluation proto-
+col.
+Methods with an explicit frame-budget interface use at
+most three source frames. Other methods retain their in-
+put procedures and report actual source-frame counts. Cap-
+tion methods supply scene text; this does not imply zero
+visual preprocessing. VLM-Grounder uses collages whose
+constituent source frames determine its visual input count.
+The main table’s 100%∗entries denote complete candidate-
+pool availability. Uniform sampling takes distinct frames
+from the original history without CoverMem filtering or rel-
+evance ranking; Blind receives question text only.
+13
+
+
+A.4. Computational cost, timing, and storage scope
+The construction-stage breakdown is reported in main-
+paper Table 5.
+Construction stages use NVIDIA L20 GPUs, with one
+GPU per computational stage; parsing, answering, and eval-
+uation use remote APIs. Construction time is cumulative
+across the listed stages. Maintenance uses cached inputs
+and excludes raw perception and API waiting, with two
+runs per history and maintenance rule over 51 histories.
+These measurements distinguish reusable preprocessing, in-
+cremental maintenance, and question-time operations. Al-
+though CoverMem reduces answer-input tokens relative to
+uniform sampling, its additional parsing calls make total
+question-time API-token usage slightly higher; the token
+advantage is instead observed relative to ToolMerge.
+The retained-frame ratio measures active source-frame
+counts rather than total storage: features, descriptions, as-
+sociations, and preprocessing artifacts also occupy space.
+Cached maintenance time is not end-to-end query latency,
+and cumulative construction time is not simultaneous per-
+GPU utilization. History, frame, and region IDs bind caches
+to observations; file checksums and fixed configurations
+support reuse. Reference answers are excluded from con-
+struction and selection.
+B. Additional experiments and analyses
+B.1. Parameter sensitivity and quality design
+Unless stated otherwise, supplementary analyses use the
+616 OpenEQA ScanNet questions, main answering and
+evaluation models, and K = 3. One parameter varies at
+a time (Figure B1).
+Changing ρ or η rebuilds memory,
+whereas changing selection weights or stopping reuses the
+default memory. Default hyperparameters were fixed based
+on methodological considerations before the main evalua-
+tion, without using evaluation-set QA performance for pa-
+rameter selection. The same default configuration is applied
+across all three benchmarks without benchmark-specific
+tuning. The one-factor sensitivity analyses are conducted
+post hoc to examine robustness and performance–efficiency
+trade-offs, rather than to optimize the default configuration.
+Increasing ρ from 0.5 to 0.7 raises answer quality along-
+side retention; further increases retain more frames with-
+out a corresponding QA improvement. Setting η = 0.85
+slightly exceeds the default score but uses more memory.
+The defaults balance quality and compactness rather than
+maximizing every isolated score.
+Moderate α balances question relevance and new sup-
+port. Setting α = 1 both changes the relevance scaling and
+disables requirement support; therefore, it is not equivalent
+to every separately defined support ablation. Setting λ = 0
+reproduces the main-paper no-redundancy score of 80.97.
+Excessive redundancy penalties can suppress similar views
+Table B1. Construction-parameter sensitivity.
+Parameter
+Value
+LLM-Match
+Retained (%)
+ρ
+0.50
+81.45
+29.43
+ρ
+0.60
+82.55
+32.46
+ρ
+0.70
+83.60
+36.05
+ρ
+0.80
+83.52
+39.77
+ρ
+0.90
+83.32
+44.16
+η
+0.70
+81.57
+31.23
+η
+0.75
+82.87
+33.66
+η
+0.80
+83.60
+36.05
+η
+0.85
+83.73
+40.11
+η
+0.90
+83.52
+46.09
+Table B2. Selection-parameter sensitivity.
+Parameter
+Value
+LLM-Match
+Input frames
+α
+0
+80.36
+2.54
+α
+0.25
+82.55
+2.59
+α
+0.50
+83.60
+2.62
+α
+0.75
+82.43
+2.76
+α
+1
+79.71
+2.88
+λ
+0
+80.97
+2.77
+λ
+0.05
+83.12
+2.70
+λ
+0.10
+83.60
+2.62
+λ
+0.20
+82.55
+2.43
+τ
+0
+83.73
+2.94
+τ
+0.025
+83.69
+2.80
+τ
+0.05
+83.60
+2.62
+τ
+0.10
+82.43
+2.31
+that still reveal useful details.
+Lowering τ increases actual input size: τ = 0 reaches
+83.73 using 2.94 frames on average, compared with 83.60
+and 2.62 at the default. Section B.3 separately reports a
+fixed-three-frame control. Nearby parameter settings have
+comparable performance, while stricter memory constraints
+increase resource use.
+Effect of source-frame budget. The non-monotonic trends
+in main-paper Figure 7 reflect that additional visual inputs
+do not necessarily improve answer quality.
+For uniform
+sampling, increasing the budget may introduce redundant
+or distracting observations, potentially affecting VLM re-
+sponses.
+ToolMerge exhibits a sharp improvement from
+K = 2 to K = 3, consistent with the possibility that an ad-
+ditional frame supplies complementary evidence for multi-
+part questions. These observations suggest a nonlinear re-
+lationship between visual input budgets and answer quality,
+rather than guaranteed monotonic improvements.
+Individual cue removal. For each cue k, set wk = 0 and
+14
+
+
+0.5
+0.6
+0.7
+0.8
+0.9
+79
+81
+83
+85
+LLM-Match
+ρ
+0.7
+0.75
+0.8
+0.85
+0.9
+79
+81
+83
+85
+η
+0
+0.25
+0.5
+0.75
+1
+79
+81
+83
+85
+α
+0
+0.05
+0.1
+0.2
+79
+81
+83
+85
+LLM-Match
+λ
+0
+0.025 0.05
+0.1
+79
+81
+83
+85
+τ
+LLM-Match
+Resource use
+Default setting
+Resource axis: retention for ρ, η
+Mean frames for α, λ, τ
+32
+40
+32
+40
+48
+2.6
+2.8
+Mean frames
+2.4
+2.6
+2.8
+2.4
+2.8
+Mean frames
+Figure B1. One-factor sensitivity of five parameters. Orange denotes LLM-Match, and blue denotes resource use (retained frames for ρ, η;
+input frames for α, λ, τ). Dashed vertical lines mark default settings.
+renormalize the remaining weights by wj/(1 −wk). Re-
+compute qualities, historical thresholds, and memory while
+keeping downstream selection and budget fixed. Qualified-
+object ratio and relative quality always use the original full
+six-cue score with the common 0.7 evaluation threshold.
+As shown in Figure B2, removing area or sharpness
+causes the largest decreases, consistent with object scale
+and clarity being prominent quality factors here. Boundary
+and visibility cues help distinguish truncated and occluded
+observations, while confidence adds a smaller gain. Remov-
+ing readability changes QA from 83.60 to 83.64, about one
+rating-unit step on this subset. The small change indicates a
+limited marginal QA contribution on this subset.
+The four configurations in main-paper Figure 5 compare
+different quality-scoring strategies, among which the de-
+fault MCQ achieves the highest score. The leave-one-cue-
+out experiments in Table B3 examine individual cue contri-
+butions separately; removing readability yields a negligible
+0.04-point difference, indicating limited sensitivity to this
+cue on the evaluated subset.
+B.2. Statistical significance
+We retain the archived main-paper comparisons in Ta-
+ble B4. Differences are CoverMem minus the compara-
+tor. We use 10,000 paired scene-bootstrap resamples for
+95% percentile confidence intervals and 100,000 two-sided
+paired permutations that swap method labels jointly within
+each physical scene. Holm correction is applied across the
+four comparisons. Questions from different histories of the
+same scene remain grouped.
+All four archived intervals are above zero and adjusted
+p-values are at most 0.03, matching the main-paper state-
+ment. EXPRESS has a smaller effect than the other bench-
+marks. The uncertainty analysis conditions on the existing
+answer–judge outputs and sampled scenes; it does not esti-
+mate variability from repeated parsing, answering, or eval-
+uation API calls. Statistical inference remains tied to these
+specific comparisons and resampling units.
+B.3. Parser reliability and evidence adequacy
+Format and semantic consistency. Format checks use the
+parser schema. A separate semantic consistency checker
+using GPT-6 Luna sees only the original question and ex-
+tracted requirements, not selected images, method scores,
+or downstream answers. It checks preservation of requested
+information, modifiers, and relations, and flags unasked
+content or guessed answer values.
+The 580 passed questions score 85.86, whereas the 36
+flagged questions score 47.22, aggregating to 83.60 over the
+full subset. Since question difficulty may differ between
+groups, this split describes association rather than a causal
+effect of parsing errors.
+Parser corrections restore information already specified
+by the question without supplying unknown answer values.
+Description corrections use region appearance. These inter-
+ventions are separate and their gains are not added. Cor-
+15
+
+
+Table B3. Leave-one-cue-out construction ablations under a common full-quality evaluation.
+Configuration
+LLM-Match
+Retained (%)
+Qualified (%)
+Rel. quality (%)
+Input frames
+Full six cues
+83.60
+36.05
+100
+98.49
+2.62
+No sharpness
+81.74
+33.55
+96.84
+96.72
+2.65
+No area
+81.29
+34.15
+96.08
+96.11
+2.67
+No boundary quality
+82.67
+35.12
+98.23
+97.65
+2.63
+No confidence
+83.00
+35.48
+98.56
+97.91
+2.62
+No visibility
+82.39
+34.75
+97.41
+97.32
+2.64
+No readability
+83.64
+35.92
+99.67
+98.37
+2.62
+0
+1
+2
+LLM-Match decrease after cue removal (points)
+Object area
+Sharpness
+Depth visibility
+Boundary quality
+Detection confidence
+Text readability
++2.31
++1.86
++1.21
++0.93
++0.60
+-0.04
+Full six-cue model: 83.60
+Figure B2. LLM-Match decrease after removing each quality cue, relative to the full six-cue configuration (83.60). Negative values indicate
+an improvement.
+Table B4. Archived significance results for the main-paper con-
+trasts. Confidence intervals are unadjusted; p-values are Holm-
+adjusted across four comparisons.
+Benchmark
+Reference
+∆
+95% CI
+Holm p
+OpenEQA
+ScanNet
+ToolMerge
++4.14
+[+1.50, +6.80]
+0.006
+EXPRESS
+ToolMerge
++1.03
+[+0.15, +1.90]
+0.030
+ScanQA
+ToolMerge
++6.66
+[+3.80, +9.50]
+0.0015
+OpenEQA
+ScanNet
+Size-matched
+Uniform
+memory
++7.50
+[+4.80,
++10.20]
+0.0004
+recting parser issues improves QA by approximately 0.61
+points; recognition and relation interpretation can remain
+difficult afterward.
+Independent evidence assessment. Information needs are
+extracted once from the original question alone, before any
+images are evaluated, and fixed across all methods and
+pipeline stages. GPT-6 Luna then independently assesses
+each image set without access to method names, selector
+scores, or answering-model outputs. Counting, lists, and
+Table B5. Parsing diagnostics on all 616 questions. Requirement
+counts include whole-question fallbacks.
+Diagnostic
+Count
+Percent
+Schema-valid outputs
+613
+99.51
+Fallbacks
+3
+0.49
+Final one requirement
+216
+35.06
+Final two requirements
+271
+43.99
+Final three requirements
+129
+20.94
+Automatic semantic check passed
+580
+94.16
+Table B6. Primary automatically flagged semantic issue, assigning
+one category per flagged question.
+Primary issue
+Count / 36
+Omitted requested information
+14
+Weakened relation or modifier
+11
+Added unasked information
+7
+Guessed answer value
+4
+16
+
+
+Table B7. Separate parser and description interventions with mem-
+ory and visual features fixed.
+Intervention
+LLM-
+Match
+Original pipeline
+83.60
+Correct only automatically identified parser issues
+84.21
+Correct only automatically identified description
+issues
+83.97
+Table B8. Selection and independent evidence diagnostics on the
+same default memory.
+Selection
+LLM-
+Match
+ReqCov
+(%)
+Set
+adequate
+(%)
+Input
+frames
+Relevance only
+76.54
+65.10
+59.74
+2.73
+Static requirement
+support
+81.86
+72.08
+67.69
+2.69
+Dynamic residual
+support
+83.60
+76.30
+72.56
+2.62
+Dynamic support,
+exactly three
+frames
+83.73
+77.11
+73.05
+3.00
+relations may require joint evidence. For knowledge ques-
+tions, the visual assessment concerns their visual premises
+rather than requiring an image to supply external facts.
+ReqCov(q, S) =
+1
+|D∗(q)|
+X
+d∈D∗(q)
+aq,d(S).
+Here aq,d(S) = 1 when the selected frames provide vis-
+ible evidence for need d, and zero otherwise.
+The independently derived D∗(q) avoids shrinking the
+evaluation denominator when the selector omits a difficult
+need. Set-level adequacy A(q, S) examines the selected set
+jointly, allowing multiple frames to support one need. These
+diagnostics follow the automatic-evaluation scope in Sec-
+tion A.1.
+Static and dynamic support share requirements, candi-
+dates, and matching scores. Dynamic updates improve both
+coverage and adequacy while using fewer input frames. Ex-
+actly three frames improve coverage further but add little
+QA relative to the default, consistent with the main-paper
+diminishing returns from additional frames.
+The independent assessment (Figure B3) identifies ad-
+equate evidence for 571 of 616 questions (92.69%) in the
+original histories and 551 questions (89.45%) in CoverMem
+memory, corresponding to a decrease of only 3.25 percent-
+age points in aggregate evidence adequacy. After budgeted
+selection, 447 questions (72.56%) are assessed as having
+Table B9. Question-type evidence adequacy alongside the main-
+paper QA scores.
+Question type
+Questions
+Main QA
+Set
+adequate
+(%)
+Attribute recognition
+90
+85.28
+73.33
+Function reasoning
+85
+88.53
+80.00
+Object localization
+92
+88.32
+76.09
+Object recognition
+90
+79.44
+66.67
+State recognition
+94
+83.24
+76.60
+Spatial understanding
+85
+71.18
+52.94
+World knowledge
+80
+89.38
+82.50
+adequate visual evidence, suggesting that question-time evi-
+dence allocation remains an important bottleneck. Evidence
+absent from the original history cannot be recovered by se-
+lection.
+The seven categories (Table B9) contain 616 questions
+and 447 adequate selected sets. Spatial understanding has
+comparatively low evidence adequacy and main-paper QA.
+Missing relation evidence and answering-model interpreta-
+tion errors are distinct contributors, rather than all spatial
+errors being attributable to visual redundancy.
+This auxiliary measure (Figure B4) declares support
+when maxf∈S sq(f, d) ≥γ. Dynamic support is higher at
+all three thresholds, but the metric uses the selector’s own
+scores and is distinct from Table B8. Normalized matching
+scores are not calibrated adequacy probabilities.
+B.4. Associations, maintenance, and stream growth
+As reported in main-paper Table 3, local maintenance and
+full-pool reselection produce identical final memory frame
+sets, question answers, and scores on the 51 unperturbed
+histories. Both methods operate on the same update pool
+Mt ∪Bt+1 rather than the complete history Ht+1. Local
+maintenance reconsiders only 49.30% of these candidates,
+reducing cached maintenance time from 3.763 to 1.958 sec-
+onds per history. Thus, the reported 48.0% reduction is rel-
+ative to full-update-pool reselection, not complete history
+reconstruction or end-to-end processing.
+Reselection uses existing memory plus incoming frames
+as its denominator, whereas retention uses the original his-
+tory. The time decrease is 47.97%, rounded to the main-
+paper 48.0%. Timing and storage definitions are consoli-
+dated in Section A.4.
+Association perturbations.
+Merges, splits, and missing
+observation associations are introduced into cached streams
+before replay. Both maintenance rules consume the same
+perturbed stream; old associations are not retroactively
+changed during replay. Perturbation percentages refer to the
+selected identifiers or observation associations, with each
+17
+
+
+0
+25
+50
+75
+100
+Questions with adequate visual evidence (%)
+Original history
+CoverMem memory
+Relevance-selected frames
+Dynamic-support frames
+92.69%
+89.45%
+59.74%
+72.56%
+Figure B3. Set-level evidence adequacy across memory and selection stages (616 questions). Adequate-question counts are 571, 551, 368,
+and 447 in plotted order; the last two groups compare selection strategies on the same memory.
+0.4
+0.5
+0.6
+Support threshold γ
+60
+70
+80
+90
+Estimated coverage (%)
+74.51
+80.36
+83.28
+Relevance only
+Static support
+Dynamic support
+Figure B4. Estimated requirement coverage as the support threshold γ increases. This selector-score diagnostic complements independent
+visual evidence assessment.
+intervention performed separately.
+Each run satisfies the coverage constraints induced by its
+perturbed associations. LLM-Match, retention, and refer-
+ence qualification are reported for local maintenance, with
+reference qualification evaluated against the original unper-
+turbed associations and full six-cue quality score. Merging
+may satisfy nominal coverage while losing distinctions be-
+tween original targets; splitting increases target count and
+retention. Dropouts can remove useful witnesses. Agree-
+ment percentages of 100, 98.04, 96.08, 94.12, and 90.20
+correspond to 51, 50, 49, 48, and 46 histories. Divergence
+under an intervention differs from the unperturbed main
+comparison and does not imply lost coverage.
+Coverage is satisfied and local/global final-set agreement
+remains complete at these prefixes. As shown in Figure B5,
+scene-group count grows with observed content while the
+local fraction decreases.
+This subset’s final ratios differ
+from the full 51-history average because the aggregation
+sets differ.
+Residual coverage retains the submodular set-cover
+structure after fixing part of the memory [1, 2, 7]; Sec-
+tion C.1 distinguishes coverage feasibility from equality of
+greedy outputs.
+B.5. Cross-benchmark component analyses
+EXPRESS and ScanQA keep the main answering model,
+judge, and K = 3. Plain object coverage replaces qual-
+ity qualification by observed association without removing
+object constraints; removing scene coverage preserves full
+object-quality constraints. Each memory is rebuilt indepen-
+dently.
+On both benchmarks, quality qualification trades addi-
+18
+
+
+25
+50
+75
+100
+10
+15
+20
+17.10
+Representative scene groups
+25
+50
+75
+100
+35.0
+37.5
+40.0
+42.5
+45.0
+35.91
+Retained frames (%)
+25
+50
+75
+100
+History prefix (%)
+50
+55
+60
+65
+48.67
+Local candidate pool (%)
+25
+50
+75
+100
+History prefix (%)
+0.5
+1.0
+1.5
+2.0
+2.01
+Maintenance time (s)
+Figure B5. Increasing prefixes of the ten longest available histories. Scene groups, retained-frame ratio, local candidate fraction, and
+maintenance time are averaged over the same histories.
+Table B10.
+Association perturbations.
+L/G set match mea-
+sures exact final-memory agreement between local maintenance
+and full-pool reselection across 51 histories under the same per-
+turbation.
+Perturbation
+LLM-
+Match
+Ret.
+(%)
+Ref.
+qualified
+(%)
+L/G set
+match
+(%)
+None
+83.60
+36.05
+100
+100
+Identifier merge,
+5%
+82.43
+34.88
+97.68
+96.08
+Identifier merge,
+10%
+80.97
+33.26
+94.17
+90.20
+Identifier split,
+5%
+83.20
+38.44
+100
+98.04
+Identifier split,
+10%
+82.87
+40.72
+100
+94.12
+Association
+dropout, 5%
+82.18
+36.78
+97.36
+96.08
+Association
+dropout, 10%
+80.68
+37.62
+94.82
+90.20
+tional retained frames for stronger quality witnesses. Re-
+moving scene coverage preserves qualified objects but low-
+ers QA, indicating that object quality does not replace lay-
+out and context.
+As in the main construction ablation,
+coverage rules and resulting memory size change jointly.
+Table B11. EXPRESS construction ablations.
+Configuration
+LLM-
+Match
+Ret. (%)
+Qual.
+(%)
+Input
+frames
+Full method
+78.99
+24.94
+100
+2.51
+Plain object
+coverage
+77.18
+20.65
+87.42
+2.57
+Without scene
+coverage
+75.27
+21.78
+100
+2.56
+Table B12. ScanQA construction ablations.
+Configuration
+LLM-
+Match
+Ret. (%)
+Qual.
+(%)
+Input
+frames
+Full method
+79.68
+22.40
+100
+3.00
+Plain object
+coverage
+77.30
+18.72
+88.76
+3.00
+Without scene
+coverage
+75.79
+19.53
+100
+3.00
+Therefore, these ablations do not isolate a memory-size-
+controlled causal effect of representative-scene coverage.
+Static and dynamic support use the same global and re-
+gional evidence, relevance, and redundancy. Their gains
+vary by benchmark; the dynamic margin is smaller on EX-
+PRESS than ScanQA, consistent with the varying complete-
+19
+
+
+Table B13. Cross-benchmark selection ablations on the same full-
+method memory.
+Benchmark
+Relevance
+Static
+support
+Dynamic
+support
+EXPRESS
+74.46
+77.53
+78.99
+ScanQA
+73.74
+77.83
+79.68
+Table B14. Selection controls on the same memory with fixed
+relevance scores, redundancy penalty, and frame budget.
+Requirements and support
+LLM-
+Match
+Relevance + redundancy
+79.95
+Whole question; static global support
+79.71
+Parsed requirements; static global support
+81.17
+Parsed requirements; static global + regional
+support
+81.86
+Parsed requirements; dynamic global + regional
+support
+83.60
+pipeline improvements in the main paper.
+B.6. Controlled attribution of selection gains
+For the whole-question control, D(q) = {q} and static
+global support equals rq(f), so the score reduces to
+rq(f) −λdq(f, S).
+This is the same selector as α = 1
+in Section B.1, and both use the reported result of
+79.71.
+The relevance-plus-redundancy control instead
+keeps 0.5rq(f) −λdq(f, S), giving a different relevance-
+to-redundancy weighting.
+Replacing the whole question with parsed requirements
+in the static global-support control increases QA by 1.46
+points.
+The main-paper increase of 1.22 uses the sepa-
+rate relevance-plus-redundancy baseline of 79.95.
+Static
+regional matching adds 0.69 and dynamic updating adds
+1.74. The 7.06-point advantage over relevance-only selec-
+tion concerns the combined selection configuration rather
+than decomposition alone.
+Section C.2 relates additional support to a submodular
+objective and distinguishes its guarantees from the full se-
+lection rule [6].
+Both regional branches improve on global-only support,
+and their combination scores highest among these branch
+controls. This complements the separate description inter-
+vention in Section B.3.
+Full-history outputs remain unchanged by the shared-
+statistics control. Memory scores shift slightly, while com-
+plementary selection remains stronger within each pool and
+full history remains above compressed memory. Thus, the
+principal ranking is retained when normalization is shared.
+Table B15. Regional branches within dynamic support.
+Support representation
+LLM-
+Match
+Global only
+82.26
+Global + crops
+83.04
+Global + descriptions
+82.79
+Global + crops + descriptions
+83.60
+C. Mathematical properties and scope
+C.1. Coverage preservation and local maintenance
+With quality thresholds and associations fixed, define
+Covt(S) = S
+f∈S Rt(f) and Ft(S) = | Covt(S)|. Object
+and scene constraints have distinct identifiers. For A ⊆T,
+Ft(A ∪{f}) −Ft(A)
+= |Rt(f) \ Covt(A)|
+≥|Rt(f) \ Covt(T)|.
+Hence coverage is normalized, monotone, and submod-
+ular, giving the classical greedy set-cover structure. Greedy
+construction need not produce the smallest possible mem-
+ory.
+Proposition C1: feasible local updates.
+Suppose old
+memory covers old constraints, old qualities and associa-
+tions are immutable, 0 < ρ ≤1, historical maxima are up-
+dated from incoming frames, and the local pool and resid-
+ual universe follow the main definition. Then the local pool
+contains a cover of all residual constraints; greedy selec-
+tion and coverage-preserving local pruning yield feasible
+updated memory.
+Proof. An unchanged historical maximum preserves its old
+qualified witness.
+An increased maximum is attained in
+the incoming batch and qualifies because ρ ≤1; new ob-
+jects have the same kind of witness. Old scenes keep wit-
+nesses, and every new scene has a creating frame. Therefore
+Mt∪Bt+1 covers the updated universe. Partition this union
+into fixed frames P and locally selectable frames W. Every
+constraint uncovered by P has a witness in W. While resid-
+ual constraints remain, an unselected frame supplies posi-
+tive coverage, so finite greedy selection terminates with a
+cover. Every pruning step preserves coverage together with
+P.
+The residual universe includes old constraints supported
+by local frames, not only newly introduced constraints.
+Defining affected frames before quality filtering identifies
+an old witness even when an increased threshold disquali-
+fies it.
+Local/global agreement.
+Fixing part of the memory
+changes the feasible search and greedy order. Feasibility
+therefore does not imply equal membership or size. The
+20
+
+
+Table B16. Candidate-pool normalization control. Shared statistics are computed on the full-history reference pool.
+Pool
+Selection
+Pool-wise QA
+Shared-statistics QA
+Full history
+Relevance
+77.52
+77.52
+Memory
+Relevance
+76.54
+76.62
+Full history
+Complementary
+84.50
+84.50
+Memory
+Complementary
+83.60
+83.52
+main-paper equality is an observation on the evaluated un-
+perturbed histories; the perturbation diagnostics examine a
+distinct regime.
+Scene-group growth. A representative is created only if its
+similarity to every older representative is below η. Fixed
+features avoid centroid-update drift, but diverse observa-
+tions can create further groups. The direct bound |Gt| ≤
+|Ht| does not imply constant retained memory.
+C.2. Residual support and related selection objec-
+tives
+Uq(S) =
+1
+|D(q)|
+X
+d∈D(q)
+max
+f∈S sq(f, d),
+Uq(∅) = 0.
+For a fixed nonempty requirement set and fixed scores,
+Uq is normalized, monotone, and submodular. Increasing
+the selected set can only increase its best support for each
+requirement and thus decrease a new frame’s positive im-
+provement. Its marginal is exactly
+Uq(S ∪{f}) −Uq(S)
+=
+1
+|D(q)|
+X
+d
+[sq(f, d) −uq,d(S)]+
+= ∆q(f | S).
+The per-demand maximum has facility-location form.
+CoverMem instantiates demand units with question require-
+ments and couples their residual support with a memory
+retained before the question. The complete ranking addi-
+tionally includes relevance, maximum visual similarity, and
+stopping; the support proposition alone does not give the de-
+ployed rule a monotonicity or 1 −1/e approximation guar-
+antee.
+Fixed pairwise quadratic penalties likewise differ
+from updating the best support of each demand. Here, com-
+plementarity refers to the marginal improvement in the best
+single-frame support for each question requirement. The
+selection objective does not explicitly model evidence that
+emerges only from jointly interpreting multiple frames for
+the same requirement. Such cross-frame reasoning may still
+be performed by the downstream answering VLM.
+C.3. Positioning relative to structured memories
+Table C1 summarizes the differences between full-frame
+and structured spatial/object memories. A full-frame an-
+Table C1. Capabilities of full-frame and structured memories.
+Aspect
+CoverMem full-frame
+memory
+Structured
+spatial/object memory
+Answer
+evidence
+Source appearance,
+details, and
+surrounding context
+Explicit entities,
+geometry, or relations
+Inputs
+Association, feature,
+and depth-based quality
+preprocessing
+Its reconstruction,
+fusion, and identity
+pipeline
+Coverage
+target
+Recorded quality
+witnesses and
+representative views
+Targets defined by its
+representation and
+updates
+Relations
+Implicit in images and
+requirement matching
+Explicitly queryable
+when represented
+Error sources
+Association and
+perception errors
+Association and
+reconstruction errors
+swer interface does not make the whole pipeline geometry-
+free: depth participates in visibility and preprocessing can
+use geometry. CoverMem does not construct every object
+pair or distance. Localization metrics of streaming object
+memories also differ from QA scores under the present pro-
+tocol. These distinctions explain the operating setting rather
+than imply universal dominance over structured or long-
+video selectors.
+D. Selection traces and qualitative analysis
+D.1. Worked complementary-selection example
+Tables D1 and D2 report the candidate scores and stepwise
+selection results in a worked example. Consider a question
+about the color and material of a chair next to a desk, as well
+as the chair’s position relative to a cabinet. Let d1, d2, d3 de-
+note these unknown information needs. Frame labels below
+belong to this worked example rather than source-frame IDs
+from a main-paper scene.
+Frame fA is selected first. Frame fB then adds little sup-
+port despite relevance, whereas fC adds material and rela-
+tion evidence. Frame fD next strengthens the remaining re-
+lation need. The budget ends selection with best supports
+(0.95, 0.92, 0.94) and mean 0.9367. Relevance alone se-
+lects fA, fB, fC, whose mean best support is 0.8733. This
+21
+
+
+Table D1. Fixed normalized relevance and support in the worked
+example.
+Candidate
+Relevance
+d1
+d2
+d3
+fA
+1
+0.95
+0.30
+0.15
+fB
+0.75
+0.90
+0.35
+0.20
+fC
+0.66
+0.30
+0.92
+0.75
+fD
+0.65
+0.10
+0.20
+0.94
+fE
+0
+0
+0
+0
+Table D2. Ranking with α = 0.5, λ = 0.1, τ = 0.05, and K = 3;
+gain is additional support and red. visual redundancy.
+Step
+Frame
+Gain
+Red.
+Score
+Pick
+1
+fA
+0.4667
+0.00
+0.7333
+Yes
+1
+fB
+0.4833
+0.00
+0.6167
+1
+fC
+0.6567
+0.00
+0.6583
+1
+fD
+0.4133
+0.00
+0.5317
+1
+fE
+0.0000
+0.00
+0.0000
+2
+fB
+0.0333
+1.00
+0.2917
+2
+fC
+0.4067
+0.30
+0.5033
+Yes
+2
+fD
+0.2633
+0.00
+0.4567
+2
+fE
+0.0000
+0.20
+-0.0200
+3
+fB
+0.0000
+1.00
+0.2750
+3
+fD
+0.0633
+0.35
+0.3217
+Yes
+3
+fE
+0.0000
+0.20
+-0.0200
+illustrates the marginal update without asserting complete
+instance coverage for every broad list requirement.
+D.2. Existing success and failure cases
+The four qualitative cases retain the original method labels,
+selected frames, complete responses, and scores. The anal-
+yses below examine the displayed evidence and answer con-
+tent, highlighting both successful complementary selection
+and remaining limitations in spatial reasoning.
+Spatial-relation diagnostics. Global visual redundancy is
+a view-level proxy, while requirement support carries se-
+mantic matching.
+Visually similar images can add rela-
+tion details and visually different images can repeat the
+same relation. Spatial errors include missing a target or
+reference, lacking joint relation evidence, and misinterpret-
+ing visible evidence. Spatial understanding improves from
+49.12 to 71.18 in the main paper but remains the lowest-
+scoring category in absolute terms, whereas state recogni-
+tion shows the smallest improvement. Relation-aware re-
+dundancy and pair-specific support are possible extensions
+rather than components of the submitted method.
+Functional reasoning (Figure D1).
+3D-Mem and
+ToolMerge identify laundry and storage but substitute
+food preparation or cleaning for showering.
+Uniform
+sampling also recognizes storage and laundry, adding
+a utility/work-area interpretation.
+CoverMem combines
+washing-machine, blue-tiled shower, and shelving views
+and names all three reference functions. The explicit shower
+view supplies evidence missing from the other selected sets.
+This case illustrates the value of allocating the same three-
+frame budget across different functional regions when the
+question requests multiple functions.
+Object counting (Figure D2). 3D-Mem and ToolMerge
+report two chairs from partial table views, whereas Uni-
+form sampling reports three. CoverMem includes a wider
+view from another side of the table and predicts the ref-
+erence count of four. Compared with the more repetitive
+views selected by the baselines, its selected frames provide
+broader visibility of the seating arrangement around the ta-
+ble. However, overlapping viewpoints make it difficult to
+unambiguously distinguish all chair instances from the dis-
+played evidence alone. This case is consistent with the po-
+tential benefit of complementary viewpoints for scene-level
+counting, although the displayed frames do not establish un-
+ambiguous cross-view instance identification.
+Landmark binding and answer completeness (Fig-
+ure D3). The reference requests a desk, a chair, and an
+armchair in a corner defined by two doors. 3D-Mem and
+ToolMerge identify the desk but elaborate on desktop equip-
+ment instead of returning the complete furniture set. Uni-
+form sampling identifies the armchair alone. CoverMem an-
+swers couch even though its selected views include the desk
+area and French doors. This failure may arise from both in-
+complete landmark evidence and incorrect spatial binding
+during answer generation. Although relevant furniture is
+visible, the selected frames do not unambiguously establish
+the spatial layout defined by the two doors, leading to an
+incorrect and incomplete answer.
+Queried-relation substitution (Figure D4). All four se-
+lected sets contain a view of the door between the two
+mini-fridges.
+3D-Mem correctly answers door, whereas
+ToolMerge and uniform sampling incorrectly identify the
+trash bins as lying between the two fridges. CoverMem in-
+stead changes the queried relation from “between the two
+refrigerators” to “between a refrigerator and the bed” be-
+fore reporting the bins. The error is directly visible in the re-
+sponse, which describes a different spatial relationship from
+the one specified in the question. This case separates evi-
+dence availability from preserving the target-reference rela-
+tionship when combining views and generating an answer.
+22
+
+
+Based on the visual evidence in the
+images, this room appears to be a
+multi-purpose utility or service
+area. Here are three of its likely
+functions:
+- Food Preparation and Cleaning:
+The presence of a large,
+double-basin stainless steel sink, a
+countertop, and cleaning supplies
+(like the spray bottle and box of
+sponges) strongly suggests this is a
+space for washing dishes, preparing
+food, or general cleaning.
+- Laundry or Utility Work: The
+type of sink is common in utility
+rooms. The space could be used for
+hand-washing clothes or other
+laundry tasks, especially given the
+somewhat cluttered and functional
+nature of the room.
+- Storage: The room contains
+various items that suggest it is used
+for storage. This includes the
+wooden chair, the green laundry
+basket, the box on the counter, and
+the items visible in the adjacent
+room through the doorway.
+Based on the objects visible in the
+images, this room serves at least
+three primary functions:
+- Laundry: The most prominent
+function is laundry.
+This is indicated by the presence of
+a front-loading washing machine
+(seen clearly in the third image) and
+a large box of Persil laundry
+detergent sitting on top of it.
+- Food Preparation and Cleaning:
+The room also functions as a utility
+or kitchen area.
+A stainless steel double-basin sink
+is installed, which is typically used
+for washing dishes, preparing food,
+or general cleaning tasks.
+A spray bottle, possibly a cleaner, is
+also visible on the counter.
+- Storage: The space is used for
+storage.
+In the first image, a wooden chair is
+tucked into a corner, and through
+the open doorway, a small closet or
+storage nook with shelves can be
+seen.
+The counter space itself is also
+being used to store items like the
+detergent box and spray bottle.
+Based on the items visible in the
+images, this room appears to serve
+at least three distinct functions:
+- Storage: The most prominent
+function is storage.
+The shelves are packed with a wide
+variety of items, including pots,
+pans, bowls, baskets, and
+containers.
+This suggests it is used for storing
+kitchenware, possibly for a large
+household or for events.
+- Laundry: There are several items
+that point to laundry activities.
+A green tub, which is commonly
+used for washing clothes, is on a
+shelf.
+On the floor, there are multiple
+laundry baskets, one of which is red
+and another is a woven basket, both
+containing what appear to be
+clothes or linens.
+- Utility/Work Area: The presence
+of a simple wooden chair and the
+general cluttered nature of the space
+suggest it might also be used as a
+utility or work area.
+It could be a place for tasks like
+mending clothes, organizing
+supplies, or other household chores
+that don't require a dedicated room.
+The tiled floor is also practical for a
+utility space as it is easy to clean.
+Based on the objects visible in the
+images, this room serves at least
+three distinct functions:
+- Laundry: The most prominent
+function is laundry.
+This is indicated by the
+front-loading washing machine in
+the third image, the box of Persil
+detergent on top of it, and the
+clothes drying rack seen in the first
+image.
+- Bathing/Showering: The room
+also functions as a bathroom or
+shower area.
+This is evident from the walk-in
+shower with blue tiles and a
+handheld showerhead, which is
+visible in the first and second
+images.
+- Storage: The space is used for
+storage.
+A shelving unit on the left holds
+various items, including a large red
+basin and folded textiles.
+Additionally, a tall cabinet or
+appliance (possibly a refrigerator or
+a tall storage unit) is visible in the
+background of the first image.
+Figure D1. Functional reasoning. Selected frames, complete responses, and original scores.
+23
+
+
+Based on the images provided, we
+can observe the following:
+- In all three images, two black
+mesh office chairs are visible.
+- They are positioned behind a
+light-colored table, against a blue
+wall.
+- The perspective shifts slightly
+between the photos, but the same
+two chairs are consistently shown.
+Therefore, there are 2 chairs in the
+scene.
+Based on the different perspectives
+provided in the images, we can
+identify the chairs in the scene.
+- The first image shows two black
+mesh office chairs from the side.
+- The second image shows the back
+of two black mesh office chairs
+from the opposite side of the table.
+- The third image provides another
+angle, clearly showing two chairs.
+All images consistently show the
+same set of furniture. Therefore,
+there are a total of 2 chairs in the
+scene.
+Based on the images provided, we
+can identify the chairs by
+examining each view:
+- Image 1: This view shows the
+corner of a table. We can clearly see
+two black office chairs on the left
+side of the table and one on the
+right side.
+- Image 2: This is a closer view
+from the side. It shows two chairs
+tucked under the table.
+- Image 3: This view is similar to
+the second, showing the same two
+chairs from a slightly different
+angle.
+By combining the information from
+all the images, we can determine
+the total number of chairs. The first
+image gives the most complete
+overview, showing a total of three
+chairs around the table. The other
+images provide closer looks at two
+of these chairs.
+Therefore, there are a total of 3
+chairs in the scene.
+Based on the different perspectives
+provided in the images, we can
+identify the number of chairs in the
+scene.
+- The first image shows a close-up
+of the corner of a table with at least
+two black office chairs visible on
+the left side.
+- The second image provides a
+wider view, showing the table
+against a wall with a whiteboard. In
+this shot, we can see:
+- One chair on the far left.
+- One chair in the middle, behind
+the table.
+- One chair on the right, in the
+foreground.
+- The third image is a close-up of
+one of the chairs, confirming its
+style and color.
+By combining the information from
+all the images, we can count a total
+of 4 chairs arranged around the
+table.
+There are 4 chairs in the scene.
+Figure D2. Object counting. Selected frames, complete responses, and original scores.
+24
+
+
+Based on the images provided, let's
+analyze the scene to answer your
+question.
+- The second image shows a set of
+French doors with sheer curtains,
+which appear to lead outside.
+- The first image shows a solid
+wood door next to a louvered closet
+door.
+- The third image provides a wider
+view of the room, showing a desk
+area.
+By combining these views, we can
+infer the layout of the room. The
+corner in question is the one where
+the wall with the French doors
+meets the wall with the solid wood
+door. Looking at the third image,
+we can see what is situated in that
+specific corner.
+In the corner between the French
+doors and the solid wood door,
+there is a desk setup. This includes:
+- A grey desk with drawers.
+- Two laptops on the desk.
+- A printer on the right side of the
+desk.
+- A small, multi-drawer organizer
+(like a parts or stamp organizer) on
+a shelf above the desk.
+- Various other items like water
+bottles, a mug, and papers.
+Therefore, the object in the corner
+is a desk with office equipment.
+The corner between the French
+doors and the solid wood door
+contains a desk with two laptops, a
+printer, and other office supplies.
+Based on the images provided, we
+can identify the objects in the
+specified corner by combining the
+views from the different photos.
+- The second image shows a set of
+French doors with glass panes that
+lead outside.
+- The first image shows a solid,
+dark wood door.
+- The third image provides a view
+that encompasses the area between
+these two doors.
+In the corner between the French
+doors and the solid wood door,
+there is a desk. On this desk, you
+can see:
+- An open laptop.
+- A white, adjustable desk lamp.
+- Two plastic water bottles.
+- A computer mouse.
+- A small, dark-colored object that
+appears to be a hard drive or an
+external SSD.
+Based on the images provided, we
+can identify the objects in the
+specified corner.
+- The first two images show a set of
+French doors with glass panes that
+lead outside.
+- The third image shows a solid
+wood door and an adjacent louvered
+closet door.
+- In the corner formed by the
+French doors and the wall next to
+the solid wood door, there is a piece
+of furniture.
+This piece of furniture is a wooden
+armchair with a floral patterned
+fabric on the seat and backrest. It is
+positioned on a black and white
+zebra-print rug.
+Based on the images provided, we
+can identify the objects in the
+specified corner.
+- The third image shows a set of
+French doors with glass panes that
+lead outside.
+- To the left of these doors, there is
+a solid wood door frame.
+- In the corner formed by these two
+doors, there is a piece of furniture.
+The object in the corner between
+the French doors and the solid
+wood door is a brown leather
+couch (or sofa).
+Figure D3. Landmark binding and answer completeness. Selected frames, complete responses, and original scores.
+25
+
+
+Based on the images provided, let's
+analyze the scene to answer your
+question.
+- The first image shows a corner of
+a room with a dark brown door and
+two small, black mini-fridges.
+- One mini-fridge is visible in the
+bottom-left corner, and the other is
+on the right side of the image.
+- The space between these two
+mini-fridges is occupied by the dark
+brown door.
+Therefore, the object between the
+two fridges along the wall is a
+door.
+Based on the images provided, we
+can determine what is located
+between the two mini-fridges.
+- The first image shows a dark
+brown door and the corner of a
+room with two small, dark-colored
+appliances, which appear to be
+mini-fridges.
+- The second image provides a
+clearer view of one of the
+mini-fridges. To its right, there are
+two trash bins: one is a standard
+beige or light gray bin, and the
+other is a blue recycling bin.
+- The third image shows the other
+mini-fridge. Next to it is the same
+blue recycling bin seen in the
+second image.
+By combining the information from
+these images, we can see that the
+two mini-fridges are positioned on
+opposite sides of the two bins.
+Therefore, the items located
+between the two fridges along the
+wall are the trash and recycling
+bins.
+The items between the two fridges
+are a trash can and a recycling
+bin.
+Based on the images provided, we
+can determine what is located
+between the two small refrigerators.
+- The first and third images show a
+corner of the room with a dark
+brown door and two small,
+dark-colored refrigerators (or
+mini-fridges).
+- The second image provides a
+clearer view of the area between
+these two appliances.
+In the space between the two
+fridges, along the wall, there are
+two trash bins:
+- A beige or light gray trash bin
+with a white liner.
+- A blue trash bin with a clear
+plastic liner.
+Therefore, what is between the two
+fridges along the wall is a pair of
+trash bins.
+Based on the images provided, let's
+analyze the scene to answer your
+question.
+- The images show a corner of a
+room, likely a hotel room or a
+dormitory.
+- There are two small, black,
+refrigerator-like appliances. One is
+visible in the first and third images,
+and the other is in the second
+image.
+- In the second image, we can see
+the space between the refrigerator
+on the left and the bed on the right.
+- In this space, there are two distinct
+items on the floor.
+The items located between the
+refrigerator and the bed (which is
+along the same wall) are:
+- A beige or light gray trash can
+with a white liner.
+- A blue recycling bin.
+Therefore, what is between the
+fridge and the bed along the wall
+is a trash can and a recycling bin.
+(b)
+Figure D4. Substitution of the queried relation. Selected frames, complete responses, and original scores.
+26
+
+
+E. Limitations
+Complex requirements and relational evidence. Cover-
+Mem retains reusable visual observations through object-
+quality and representative-scene coverage, and allocates a
+limited input budget at question time.
+For questions in-
+volving multiple same-category instances, fine-grained at-
+tributes, or complex spatial relations, per-requirement max-
+imum support may still inadequately represent joint evi-
+dence. Spatial understanding remains the lowest-scoring
+category in the main paper, and the remaining failure
+cases show that the answering model can produce incorrect
+landmark-conditioned answers or substitute queried spa-
+tial relations even when relevant visual context is retained.
+Finer instance-level support and object-pair relation model-
+ing are promising directions.
+Upstream information errors.
+Construction and selec-
+tion use preprocessed object associations, region descrip-
+tions, and question requirements. Incorrect associations can
+change coverage targets, while omissions in descriptions
+or requirements can alter support estimates.
+Global and
+regional matching provide visual cues at different scales,
+and the whole-question fallback handles structurally invalid
+parser outputs; semantically incorrect but valid require-
+ments require more detailed consistency checking. Incorpo-
+rating association and description uncertainty into coverage
+and support estimation may reduce error propagation.
+Long-term memory growth. Local maintenance reduces
+the frames reconsidered per update, but continually arriving
+visual content can still increase scene groups and coverage
+constraints. Fixed representatives and coverage preserva-
+tion prioritize retaining recorded information; they do not
+explicitly address stale information or task-dependent for-
+getting over long operation. Longer streams motivate hier-
+archical memory, stale-information updates, and resource-
+constrained coverage management.
+Preprocessing and deployment cost. CoverMem’s com-
+pact answer inputs depend on detection, association, quality
+computation, and feature extraction. The main paper reports
+44.29 seconds of construction per history, so deployment
+benefit depends on memory reuse and observation-update
+frequency. Question-independent processing can be reused
+across multiple queries over one history, whereas prepro-
+cessing remains a consideration for few-query settings or
+rapidly changing observation streams. Incremental feature
+updates and on-demand regional processing could further
+reduce this cost.
+References
+[1] Francis Bach. Learning with submodular functions: A convex
+optimization perspective. Now Publishers, 2013. 18
+[2] Vasek Chvatal. A greedy heuristic for the set-covering prob-
+lem.
+Mathematics of operations research, 4(3):233–235,
+1979. 4, 18
+[3] Angela Dai, Angel X Chang, Manolis Savva, Maciej Hal-
+ber, Thomas Funkhouser, and Matthias Nießner.
+Scannet:
+Richly-annotated 3d reconstructions of indoor scenes. In 2017
+IEEE conference on computer vision and pattern recognition
+(CVPR), pages 2432–2443. IEEE, 2017. 5, 11
+[4] Qiao Gu, Ali Kuwajerwala, Sacha Morin, Krishna Murthy
+Jatavallabhula, Bipasha Sen, Aditya Agarwal, Corban Rivera,
+William Paul, Kirsty Ellis, Rama Chellappa, et al. Concept-
+graphs: Open-vocabulary 3d scene graphs for perception and
+planning. In 2024 IEEE International Conference on Robotics
+and Automation (ICRA), pages 5021–5028. IEEE, 2024. 2, 5,
+6, 11
+[5] Arjun Majumdar, Anurag Ajay, Xiaohan Zhang, Pranav Putta,
+Sriram Yenamandra, Mikael Henaff, Sneha Silwal, Paul Mc-
+vay, Oleksandr Maksymets, Sergio Arnaud, et al. Openeqa:
+Embodied question answering in the era of foundation mod-
+els.
+In 2024 IEEE/CVF Conference on Computer Vision
+and Pattern Recognition (CVPR), pages 16488–16498. IEEE,
+2024. 2, 5, 6, 11
+[6] George L Nemhauser, Laurence A Wolsey, and Marshall L
+Fisher. An analysis of approximations for maximizing sub-
+modular set functions—i. Mathematical programming, 14(1):
+265–294, 1978. 20
+[7] Laurence A Wolsey. An analysis of the greedy algorithm for
+the submodular set covering problem. Combinatorica, 2(4):
+385–393, 1982. 4, 18
+[8] Yuncong Yang, Han Yang, Jiachen Zhou, Peihao Chen,
+Hongxin Zhang, Yilun Du, and Chuang Gan. 3d-mem: 3d
+scene memory for embodied exploration and reasoning. In
+2025 IEEE/CVF Conference on Computer Vision and Pattern
+Recognition (CVPR), pages 17294–17303. IEEE, 2025. 2, 5,
+6, 11
+27

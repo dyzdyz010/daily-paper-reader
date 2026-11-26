@@ -1,0 +1,648 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-26T02:05:43.081495+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 12,
+    "deep_cap": 6,
+    "deep_selected": 7,
+    "quick_candidates": 9,
+    "quick_skim_target": 11,
+    "quick_selected": 9
+  },
+  "deep_dive": [
+    {
+      "id": "2611.33005v1",
+      "source": "arxiv",
+      "title": "Leto: Utility-Centric Agent Memory",
+      "abstract": "Large language model (LLM) agents rely on external memory to retain and reuse information across interactions. Existing memory systems treat memory as a record of the past and evaluate it by fidelity to the conversation. However, the value of memory lies in whether it improves the agent's response. A memory system decides what to memorize and what to serve before that response exists, and fidelity checks neither decision against it. Faithful memory can therefore fail to improve the response. We instead view memory as a prediction problem and present \\textbf{\\emph{\\leto{}}}, a memory system for LLM agents that focuses on the utility of memory to the future rather than on its fidelity to the past. Because future requests are unknown, \\emph{\\leto{}} preserves access to conversation details through memory indexing, allowing information to remain available through its sources. When a request arrives, memory replay draws on this index to anticipate and supply the context the agent needs beyond what the request explicitly states. The utility of the served context remains uncertain until the response is generated, motivating a utility loop that uses response outcomes to refine future memory selection. We evaluate our system against six memory systems on five benchmarks across three scenarios. In personalization, it outperforms the strongest compared memory system by 16.3 percentage points in accuracy on PrefEval and by 3.1 points in task completion on PERMA. For long-horizon tasks, it achieves the best overall performance on MemoryArena averaged over five environments with a gain that increases with the chain depth. In long-context understanding, it is on par with retrieval over the raw history while serving fewer context tokens.",
+      "authors": [
+        "Shuguang Chen",
+        "Salman Paracha"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-11-24T17:30:06+00:00",
+      "link": "https://arxiv.org/pdf/2611.33005v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 10.0,
+      "llm_evidence_en": "Utility-centric memory system for LLM agents that predicts future utility rather than past fidelity",
+      "llm_evidence_cn": "以效用为中心的LLM智能体记忆系统，预测未来效用而非过去保真度",
+      "llm_evidence": "以效用为中心的LLM智能体记忆系统，预测未来效用而非过去保真度",
+      "canonical_evidence": "以效用为中心的LLM智能体记忆系统，预测未来效用而非过去保真度",
+      "llm_tldr_en": "Leto treats agent memory as a prediction problem, focusing on future utility to improve LLM agent responses, instead of past fidelity.",
+      "llm_tldr_cn": "本文指出LLM智能体现有记忆系统将记忆视为过去记录并以保真度评估，但保真的记忆未必能改善响应质量。提出Leto，一种以效用为中心的记忆系统，将记忆决策视为预测问题，聚焦记忆对未来请求的效用，同时保留对话细节访问。该系统旨在决定什么值得记忆和提供，以优化智能体的未来表现。该工作挑战了传统记忆评估范式，为智能体记忆系统设计提供了新的视角。",
+      "llm_tldr": "本文指出LLM智能体现有记忆系统将记忆视为过去记录并以保真度评估，但保真的记忆未必能改善响应质量。提出Leto，一种以效用为中心的记忆系统，将记忆决策视为预测问题，聚焦记忆对未来请求的效用，同时保留对话细节访问。该系统旨在决定什么值得记忆和提供，以优化智能体的未来表现。该工作挑战了传统记忆评估范式，为智能体记忆系统设计提供了新的视角。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.22113v3",
+      "source": "arxiv",
+      "title": "RegimeCouncil: Paired-Evidence Routing For Memory Conflict Governance In LLM Agents",
+      "abstract": "Alongside memory storage and retrieval, a fundamental challenge in long-term LLM agent systems is how the agent should act when stored memories conflict with an evolving world. Facts often go stale without explicit deletion, so the conflict surfaces before the store is refreshed: delayed feedback shows that acting on one outdated record hurt, but not whether suppression should stay on that fact (a local policy) or extend to other stored facts (a global policy). Existing systems hard-code one of these scopes at design time. We formulate this online choice, under hidden validity and delayed feedback, as memory conflict governance, and propose RegimeCouncil, a lightweight router that keeps both scopes as advisors and arbitrates between them without retraining the LLM. Each memory-assisted response is scored against a no-memory anchor, by off-path paired comparison or by inverse-propensity estimation from the executed action alone. A Local Advisor tracks only the queried fact, a Global Advisor pools recent outcomes across the store, and an asymmetric Meta Governor follows Local by default, switching to Global only when pooling yields a strictly positive recent utility margin. We prove that using delayed outcomes escapes the prompt-only regret floor, that neither fixed scope suffices alone, and that this margin gate switches within bounded time. On LongMemEval streams, historical drift in TempLAMA and TAQA, delays $τ\\in [1, 96]$, and sparse or bandit feedback, with Qwen3-30B-A3B and GPT-4o, RegimeCouncil outperforms the better fixed scope in all 30 held-out settings, by 5.2-7.3 points on disagreement episodes and +27.9 points over standalone cold-start fallback under clustered shifts, while cutting harmful stale-memory use at microsecond overhead.",
+      "authors": [
+        "Qingcan Kang",
+        "Mingyang Liu",
+        "Shixiong Kai",
+        "Tao Zhong",
+        "Mingxuan Yuan"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-17T02:56:43+00:00",
+      "link": "https://arxiv.org/pdf/2611.22113v3",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "memory conflict governance with paired-evidence routing",
+      "llm_evidence_cn": "基于配对证据路由的记忆冲突治理",
+      "llm_evidence": "基于配对证据路由的记忆冲突治理",
+      "canonical_evidence": "基于配对证据路由的记忆冲突治理",
+      "llm_tldr_en": "Formulates memory conflict governance under hidden validity and delayed feedback, proposing a router that arbitrates between local and global policies.",
+      "llm_tldr_cn": "将记忆冲突治理形式化为隐藏有效性和延迟反馈下的在线选择，提出RegimeCouncil路由器，在本地和全局策略之间仲裁。",
+      "llm_tldr": "将记忆冲突治理形式化为隐藏有效性和延迟反馈下的在线选择，提出RegimeCouncil路由器，在本地和全局策略之间仲裁。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.25235v1",
+      "source": "arxiv",
+      "title": "Some Memories Must Fade: Persistence and Decay of User Memories in Model Parameters",
+      "abstract": "Parametric memory allows Large Language Models to internalize knowledge directly into their weights, offering a potentially powerful alternative to retrieval-based memory (RAG). However, existing approaches to parametric memory are difficult to deploy as they largely mirror the Continual Learning (CL) objective of retaining information indefinitely. This is neither sustainable nor sufficient for a memory system, which must govern knowledge across its lifecycle by retaining stable facts, reinforcing recurring observations, updating changed beliefs, and allowing transient information to fade. We propose a system for parametric memory management consisting of a memory substrate (handling information storage and forgetting) and a learned policy (what to remember, how deeply, and for how long). Our substrate is a fixed-capacity LoRA adapter that consists of k-hot rank combinations which store facts without catastrophic interference and maintain an independently controlled temporal decay, enabling outdated information to fade while long-term facts persist. On this substrate, we train a lightweight controller that governs each incoming user event to ensure the memory system reflects the user's true, updated belief state. To evaluate how memory systems manage user memory, we introduce a controlled dataset of long-horizon user trajectories with varying persistence of facts based on changing belief states and user-behavioral shifts, and probe queries that test recall while information is valid and abstention after it expires. Our policy learns to effectively manage user memory over its entire lifecycle, balancing recall and abstention to achieve 86% of oracle performance, unlike CL and RAG baselines that primarily default to one of the two behaviors. By providing the first system to manage memory directly in model weights, this work establishes a foundation for long-horizon parametric memory.",
+      "authors": [
+        "Sanidhya Vijayvargiya",
+        "Rahul Lokesh"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG",
+        "cs.AI"
+      ],
+      "published": "2026-11-18T22:08:51+00:00",
+      "link": "https://arxiv.org/pdf/2611.25235v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "proposes parametric memory system with lifecycle management for LLMs, including forgetting",
+      "llm_evidence_cn": "为 LLM 提出具有生命周期管理的参数化记忆系统，包括遗忘机制",
+      "llm_evidence": "为 LLM 提出具有生命周期管理的参数化记忆系统，包括遗忘机制",
+      "canonical_evidence": "为 LLM 提出具有生命周期管理的参数化记忆系统，包括遗忘机制",
+      "llm_tldr_en": "Proposes a parametric memory system with a memory substrate and learned policy to manage persistence and decay, addressing limitations of continual learning for LLM memory.",
+      "llm_tldr_cn": "参数化记忆将知识直接存入模型权重，但现有方法沿用持续学习目标无限保留信息，不可持续。本文提出参数化记忆管理系统，包含记忆基底（处理存储与遗忘）和学习策略，管理知识全生命周期：保留稳定事实、强化重复观察、更新变化信念、让暂时信息消逝。该工作使 LLM 参数化记忆更贴近真实记忆系统。",
+      "llm_tldr": "参数化记忆将知识直接存入模型权重，但现有方法沿用持续学习目标无限保留信息，不可持续。本文提出参数化记忆管理系统，包含记忆基底（处理存储与遗忘）和学习策略，管理知识全生命周期：保留稳定事实、强化重复观察、更新变化信念、让暂时信息消逝。该工作使 LLM 参数化记忆更贴近真实记忆系统。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "artificial intelligence and memory systems",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.27219v1",
+      "source": "arxiv",
+      "title": "NavTTT: Adaptive Parametric Memory via Hierarchical Test-Time Training for Vision-and-Language Navigation",
+      "abstract": "Vision-and-language navigation (VLN) demands that agents accumulate and reason over streaming visual observations throughout long navigation episodes. Existing approaches struggle to maintain long-term history, constrained by the finite context capacity of transformer architectures. To solve the problem, fast-weight test-time training (TTT) provides a mechanism for encoding streaming observations into an evolving parameter state. However, existing TTT does not distinguish informative observations from repetitive visual content, allowing redundant tokens to interfere with the retention of information needed for subsequent decisions. We propose Navigation-Conditioned Test-Time Training (NavTTT), which introduces adaptive memory formation and hierarchical memory integration for vision-and-language navigation. NavTTT leverages global navigation context to prioritize informative visual evidence and integrates language instructions with spatial information to construct spatially grounded memory representations. Episode-local nonlinear fast weights store these representations as Adaptive Parametric Memory (APM), preserving history beyond the visual context for later decisions. To reduce cross-layer coupling in memory formation, NavTTT maintains independent fast-weight memories across multiple decoder depths. This decoupled design prevents errors or biases from spreading across different memory levels. Meanwhile, it enables shared historical information to be independently represented at various levels of abstraction. Experiments demonstrate strong navigation performance on VLN-CE benchmarks and effective instruction following on a real robot.",
+      "authors": [
+        "Xiaoyu Luo",
+        "Chengxing Lin",
+        "Jiaxin Huang",
+        "Jiale Liu",
+        "Jingyu Guo",
+        "Sirui Chen",
+        "Aolin Li",
+        "Shaoli Huang",
+        "Cheng-zhong Xu",
+        "Hui Kong"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.AI"
+      ],
+      "published": "2026-11-20T07:14:55+00:00",
+      "link": "https://arxiv.org/pdf/2611.27219v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "adaptive parametric memory for VLN agents via hierarchical test-time training",
+      "llm_evidence_cn": "通过分层测试时训练为视觉语言导航智能体实现自适应参数化记忆",
+      "llm_evidence": "通过分层测试时训练为视觉语言导航智能体实现自适应参数化记忆",
+      "canonical_evidence": "通过分层测试时训练为视觉语言导航智能体实现自适应参数化记忆",
+      "llm_tldr_en": "NavTTT introduces navigation-conditioned test-time training to selectively encode informative observations into parametric memory, addressing context limitations in VLN.",
+      "llm_tldr_cn": "视觉语言导航需要智能体在长导航过程中积累推理流式视觉观察，但现有 Transformer 上下文有限。NavTTT 利用测试时训练将观测编码进参数状态，并通过导航条件分层机制区分信息性观测与冗余内容。该方法使智能体保留关键信息，避免冗余干扰，从而改进长时导航决策。",
+      "llm_tldr": "视觉语言导航需要智能体在长导航过程中积累推理流式视觉观察，但现有 Transformer 上下文有限。NavTTT 利用测试时训练将观测编码进参数状态，并通过导航条件分层机制区分信息性观测与冗余内容。该方法使智能体保留关键信息，避免冗余干扰，从而改进长时导航决策。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.27381v2",
+      "source": "arxiv",
+      "title": "VMSA: Video Memory Skill Agent for Long Video Understanding",
+      "abstract": "Long-video question answering requires retrieving and integrating relevant evidence from videos spanning hours or even days. Recent agentic approaches organize video information into external memories and iteratively retrieve evidence to answer questions. However, effective retrieval and reasoning remain challenging, as agents must determine what information to search for, which memory sources to access, and how to connect evidence across distant temporal intervals. To address these challenges, we propose Video Memory Skill Agent (VMSA), a framework that jointly designs structured video memories and memory skills for long-video understanding. VMSA constructs three complementary memory components. Segment Caption Memory and Entity Event Memory serve as searchable evidence sources, while Entity-Aware Episode Memory provides broad yet detailed video context to guide evidence retrieval and reasoning. To further support effective memory utilization, VMSA induces memory skills from successful agent trajectories, incrementally refining or extending a compact skill library to guide iterative evidence retrieval, reasoning, and verification. Across seven long-video question-answering benchmarks, VMSA achieves the highest accuracy on all three week-long egocentric benchmarks, outperforming the strongest baseline by up to 9.4% on Ego-R1 Bench, and the best or competitive performance on four additional benchmarks. Ablation studies further demonstrate the contributions of all three memory components and memory skills, with memory skills also improving temporal evidence localization.",
+      "authors": [
+        "Changin Choi",
+        "Jungwon Park",
+        "Jungmin Ko",
+        "Jimyeong Kim",
+        "Wonjong Rhee"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "published": "2026-11-20T09:46:06+00:00",
+      "link": "https://arxiv.org/pdf/2611.27381v2",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Designs structured video memories and memory skills for long-video understanding agents",
+      "llm_evidence_cn": "为长视频理解智能体设计结构化视频记忆和记忆技能",
+      "llm_evidence": "为长视频理解智能体设计结构化视频记忆和记忆技能",
+      "canonical_evidence": "为长视频理解智能体设计结构化视频记忆和记忆技能",
+      "llm_tldr_en": "VMSA jointly designs structured video memories (Segment Caption, Entity Event) and memory skills to improve evidence retrieval and integration for long-video QA.",
+      "llm_tldr_cn": "本文针对长视频问答中检索和推理困难的问题，指出现有智能体难以确定搜索内容、访问合适记忆源并连接远距离证据。提出视频记忆技能智能体VMSA，联合设计结构化视频记忆和记忆技能，构建片段字幕记忆、实体事件记忆等互补组件，以支持证据检索。该方法旨在提升跨时间区间的证据整合能力，提高长视频理解的准确性。该框架为视频记忆智能体的设计提供了新方向。",
+      "llm_tldr": "本文针对长视频问答中检索和推理困难的问题，指出现有智能体难以确定搜索内容、访问合适记忆源并连接远距离证据。提出视频记忆技能智能体VMSA，联合设计结构化视频记忆和记忆技能，构建片段字幕记忆、实体事件记忆等互补组件，以支持证据检索。该方法旨在提升跨时间区间的证据整合能力，提高长视频理解的准确性。该框架为视频记忆智能体的设计提供了新方向。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.29912v1",
+      "source": "arxiv",
+      "title": "SuperNav-1.5: Structured Spatial Memory For Agentic Navigation Systems",
+      "abstract": "This paper addresses the challenge of scene-level memory design for efficient navigation across sessions and successive object goals. Recent methods commonly represent a scene using scene graphs or image--text records. However, dense scene-graph representations impose substantial reasoning and context overhead on multimodal large language models, while image--text records cannot be directly converted into executable geometric routes. To address these limitations, we propose SuperNav-1.5, an agentic navigation system equipped with a structured spatial memory constructed by the agent. The memory consists of an area-segmented occupancy map annotated with agent-maintained, map-grounded memory nodes. This map guides the agent toward unvisited areas and provides executable routes to known locations. For multi-session navigation, we introduce agent-guided relocalization, whereby the agent infers an area prior from current observations and stored memory records to constrain geometric matching and localize the robot within the stored map. Together, these designs enable efficient navigation across session and successive object goals. Experiments show that our method outperforms baselines on single-object, multi-object, and demand-driven navigation benchmarks, with particularly strong gains in path efficiency. Multi-session evaluation demonstrates that the constructed memory can be reused, while deployment on a real quadruped robot further shows the system's applicability.",
+      "authors": [
+        "Jiarui Guo",
+        "Jinkai Zhang",
+        "Yuanhong Yu",
+        "Yongchen Zai",
+        "Futang Zhu",
+        "Ruizhen Hu",
+        "Sida Peng",
+        "Xiaowei Zhou"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-23T02:10:43+00:00",
+      "link": "https://arxiv.org/pdf/2611.29912v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "structured spatial memory for agent navigation",
+      "llm_evidence_cn": "面向智能体导航的结构化空间记忆",
+      "llm_evidence": "面向智能体导航的结构化空间记忆",
+      "canonical_evidence": "面向智能体导航的结构化空间记忆",
+      "llm_tldr_en": "Addresses scene-level memory for efficient navigation by proposing SuperNav-1.5, which constructs an area-segmented occupancy map with map-grounded memory nodes, reducing reasoning overhead and enabling route conversion.",
+      "llm_tldr_cn": "针对现有场景记忆方法在导航中的高推理开销和不可直接转换为几何路径的问题，提出SuperNav-1.5系统；该系统构建由区域分割占据地图和地图锚定记忆节点组成的结构化空间记忆；实验表明可有效引导智能体探索未访问区域并提升跨会话导航效率，为智能体空间记忆架构设计提供新方案。",
+      "llm_tldr": "针对现有场景记忆方法在导航中的高推理开销和不可直接转换为几何路径的问题，提出SuperNav-1.5系统；该系统构建由区域分割占据地图和地图锚定记忆节点组成的结构化空间记忆；实验表明可有效引导智能体探索未访问区域并提升跨会话导航效率，为智能体空间记忆架构设计提供新方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.29912v2",
+      "source": "arxiv",
+      "title": "SuperNav-1.5: Structured Spatial Memory For Agentic Navigation Systems",
+      "abstract": "This paper addresses the challenge of scene-level memory design for efficient navigation across sessions and successive object goals. Recent methods commonly represent a scene using scene graphs or image--text records. However, dense scene-graph representations impose substantial reasoning and context overhead on multimodal large language models, while image--text records cannot be directly converted into executable geometric routes. To address these limitations, we propose SuperNav-1.5, an agentic navigation system equipped with a structured spatial memory constructed by the agent. The memory consists of an area-segmented occupancy map annotated with agent-maintained, map-grounded memory nodes. This map guides the agent toward unvisited areas and provides executable routes to known locations. For multi-session navigation, we introduce agent-guided relocalization, whereby the agent infers an area prior from current observations and stored memory records to constrain geometric matching and localize the robot within the stored map. Together, these designs enable efficient navigation across session and successive object goals. Experiments show that our method outperforms baselines on single-object, multi-object, and demand-driven navigation benchmarks, with particularly strong gains in path efficiency. Multi-session evaluation demonstrates that the constructed memory can be reused, while deployment on a real quadruped robot further shows the system's applicability. Project Page: https://zju3dv.github.io/SuperNav-1.5/",
+      "authors": [
+        "Jiarui Guo",
+        "Jinkai Zhang",
+        "Yuanhong Yu",
+        "Yongchen Zai",
+        "Futang Zhu",
+        "Ruizhen Hu",
+        "Sida Peng",
+        "Xiaowei Zhou"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO"
+      ],
+      "published": "2026-11-23T02:10:43+00:00",
+      "link": "https://arxiv.org/pdf/2611.29912v2",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Proposes structured spatial memory for agentic navigation, consisting of area-segmented occupancy map with memory nodes",
+      "llm_evidence_cn": "提出用于智能体导航的结构化空间记忆，包含区域分割占用地图和记忆节点",
+      "llm_evidence": "提出用于智能体导航的结构化空间记忆，包含区域分割占用地图和记忆节点",
+      "canonical_evidence": "提出用于智能体导航的结构化空间记忆，包含区域分割占用地图和记忆节点",
+      "llm_tldr_en": "SuperNav-1.5 introduces a structured spatial memory with area-segmented occupancy map and agent-maintained memory nodes, enabling efficient navigation across sessions and goals.",
+      "llm_tldr_cn": "本文针对智能体导航中场景记忆设计问题，指出现有场景图表示推理开销大、图像文本记录不可执行等局限。提出SuperNav-1.5系统，构建区域分割占用地图，并由智能体维护地图锚定的记忆节点，形成结构化空间记忆。该记忆引导智能体探索未访问区域，支持跨会话和连续目标导航。方法有望降低多模态大模型的推理负担，并提升导航可执行性，为智能体空间记忆架构提供了新思路。",
+      "llm_tldr": "本文针对智能体导航中场景记忆设计问题，指出现有场景图表示推理开销大、图像文本记录不可执行等局限。提出SuperNav-1.5系统，构建区域分割占用地图，并由智能体维护地图锚定的记忆节点，形成结构化空间记忆。该记忆引导智能体探索未访问区域，支持跨会话和连续目标导航。方法有望降低多模态大模型的推理负担，并提升导航可执行性，为智能体空间记忆架构提供了新思路。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2611.28574v2",
+      "source": "arxiv",
+      "title": "EvoViM: Recursively Self-Evolving Visual Agents for Exploration with Deferred Queries",
+      "abstract": "Multimodal large language model (MLLM) agents have shown promising capabilities in task-oriented environments. However, they still struggle when queries are deferred until after exploration, requiring them to retain visual evidence before knowing which details will matter. We introduce EvoViM, a recursively self-evolving framework in which a frozen multimodal model turns its own interaction experience into one visual program for memory and skills. The program retains images and computes directly on pixels, and its operations decide how this evidence is used in each task. During memory evolution, the same model traces failures in its visual trajectories to the operations that lost or misused evidence and revises them. It also rewrites the notes and analysis tools that guide later revisions, which then build on earlier findings and skip changes that have already failed. We evaluate EvoViM with three multimodal models on six tasks covering visual matching, spatial recall, and sequential decision-making, including three tasks with deferred queries. Across the six tasks, EvoViM improves the average score over AutoMem, the strongest baseline in the main comparison, by 31.3-47.6 points on held-out episodes. Programs written once from the initial environment instructions perform substantially worse, highlighting the value of interaction experience in shaping how visual evidence is retained and used. Code and dataset are available at https://evovim.github.io/.",
+      "authors": [
+        "Xinyu Cao",
+        "Tianjie Ju",
+        "Zhuosheng Zhang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-21T05:14:15+00:00",
+      "link": "https://arxiv.org/pdf/2611.28574v2",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "recursively self-evolving visual agents with memory program",
+      "llm_evidence_cn": "具有记忆程序的递归自进化视觉智能体",
+      "llm_evidence": "具有记忆程序的递归自进化视觉智能体",
+      "canonical_evidence": "具有记忆程序的递归自进化视觉智能体",
+      "llm_tldr_en": "EvoViM is a recursively self-evolving framework for multimodal agents that converts interaction experience into a visual program for memory and skills, revising it based on failures to handle deferred queries.",
+      "llm_tldr_cn": "针对多模态大语言模型智能体在查询延迟至探索之后时需要保留视觉证据但往往丢失的问题，本文提出EvoViM递归自进化框架。该框架让冻结的多模态模型将自身交互经验转化为视觉程序，用于记忆和技能，程序保留图像并直接对像素进行计算。通过追踪视觉轨迹中的失败并修订相关操作，EvoViM实现记忆的自进化，使智能体能够更有效地处理延迟查询任务。",
+      "llm_tldr": "针对多模态大语言模型智能体在查询延迟至探索之后时需要保留视觉证据但往往丢失的问题，本文提出EvoViM递归自进化框架。该框架让冻结的多模态模型将自身交互经验转化为视觉程序，用于记忆和技能，程序保留图像并直接对像素进行计算。通过追踪视觉轨迹中的失败并修订相关操作，EvoViM实现记忆的自进化，使智能体能够更有效地处理延迟查询任务。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2611.28613v1",
+      "source": "arxiv",
+      "title": "Internalized Experience: How Training Data Shapes Memory Formation in LLMs",
+      "abstract": "Parametric memory enables large language models (LLMs) to retain information from past experience and reuse it in subsequent tasks. Yet how training data supports the internalization of reusable task rules remains unclear. We introduce FSMem (Finite-State Machine Memory), a state-transition framework for constructing training data and studying how data content and organization shape memory formation. We evaluate rule reuse across synthetic worlds, classical planning, and code execution through valid-action identification and execution-outcome prediction, complemented by next-operation prediction in code. Our experiments reveal several systematic learning patterns. Under matched training conditions, even unchanged task rules become harder to internalize when learned alongside a larger variety of action types; by contrast, scaling the training data to provide broader state-action coverage generally improves rule learning. We further find that training at a single execution depth produces depth-specialized behavior, with models performing best when training and test executions have similar lengths. Motivated by this finding, we construct cumulative corpora that combine short and long trajectories, which can outperform long-trajectory-only training while using fewer training tokens. Together, these results demonstrate that the same task rules can be internalized differently depending on how execution experience is constructed, and that understanding these learning patterns can guide the design of more effective training data for parametric memory.",
+      "authors": [
+        "Xianxuan Long",
+        "Xinnan Dai",
+        "Kai Guo",
+        "Jiliang Tang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-21T06:54:36+00:00",
+      "link": "https://arxiv.org/pdf/2611.28613v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "studies parametric memory formation in LLMs via training data",
+      "llm_evidence_cn": "研究LLM中参数化记忆的形成与训练数据的关系",
+      "llm_evidence": "研究LLM中参数化记忆的形成与训练数据的关系",
+      "canonical_evidence": "研究LLM中参数化记忆的形成与训练数据的关系",
+      "llm_tldr_en": "Introduces FSMem to construct training data and analyze how data content and organization shape internalized task rules, revealing systematic learning patterns in rule reuse across planning and code tasks.",
+      "llm_tldr_cn": "针对LLM参数化记忆形成机制不清晰的问题，提出FSMem状态转换框架构建训练数据，研究数据内容与组织如何影响任务规则内化；在合成世界、经典规划和代码执行等任务中评估规则重用，发现若干系统性学习模式；该工作为理解大模型内部记忆形成和训练数据设计提供新见解。",
+      "llm_tldr": "针对LLM参数化记忆形成机制不清晰的问题，提出FSMem状态转换框架构建训练数据，研究数据内容与组织如何影响任务规则内化；在合成世界、经典规划和代码执行等任务中评估规则重用，发现若干系统性学习模式；该工作为理解大模型内部记忆形成和训练数据设计提供新见解。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "artificial intelligence and memory systems",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2611.25112v2",
+      "source": "arxiv",
+      "title": "TripleKV: Predict, Prefetch, Protect - KV Cache Management for AI Agents",
+      "abstract": "LLM agents alternate between inference and tool execution, repeatedly reusing their growing context across calls. Under high concurrency, their combined key-value (KV) cache working set can reach hundreds of GiB, far exceeding GPU memory capacity. As idle KV cache blocks are evicted to slower storage tiers, returning agents incur expensive retrievals that stall inference.   To address this problem, we present TripleKV, a three-tier KV cache management system that hides the delays of these retrievals. In agentic workloads, the KV blocks needed by the next inference request are known in advance; only the time of their reuse is uncertain. TripleKV uses a tool-aware latency predictor to estimate when each tool call will complete and prefetches the required KV blocks from SSD into host DRAM ahead of time. Unlike GPU prefetching, this avoids reserving scarce GPU memory and interfering with concurrent inference requests. To further improve DRAM utilization, TripleKV eliminates duplication of GPU-resident blocks in DRAM, and introduces a victim-cache mechanism that refills blocks from SSD upon their eviction from GPU memory.   Across data, web, and coding agents, TripleKV reduces the fraction of requests requiring critical-path SSD reads from 45-76% to under 10%. It also reduces P95 time to first token (TTFT) by up to 49% compared with vLLM extended with DRAM and SSD KV-cache tiers, and achieves 1.5-7$\\times$ lower P95 TTFT than recent agent-aware systems.",
+      "authors": [
+        "Shashwat Jaiswal",
+        "Chloe Alverti",
+        "Mengmei Ye",
+        "Chen Wang",
+        "Hubertus Franke",
+        "Fan Lai",
+        "Tianyin Xu",
+        "Josep Torrellas"
+      ],
+      "primary_category": "cs.DC",
+      "categories": [
+        "cs.DC",
+        "cs.AR",
+        "cs.OS"
+      ],
+      "published": "2026-11-18T19:50:23+00:00",
+      "link": "https://arxiv.org/pdf/2611.25112v2",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "KV cache management for AI agents with prediction and prefetching",
+      "llm_evidence_cn": "面向AI智能体的KV缓存管理与预测预取",
+      "llm_evidence": "面向AI智能体的KV缓存管理与预测预取",
+      "canonical_evidence": "面向AI智能体的KV缓存管理与预测预取",
+      "llm_tldr_en": "TripleKV is a three-tier KV cache management system for AI agents that uses tool-aware latency prediction and prefetching to hide retrieval delays and reduce inference stalls.",
+      "llm_tldr_cn": "针对LLM智能体高并发场景下KV缓存工作集超出GPU内存、驱逐后取回延迟高的问题，本文提出三层KV缓存管理系统TripleKV，通过工具感知延迟预测和预取机制隐藏取回延迟，减少智能体推理停顿，提升系统整体性能。",
+      "llm_tldr": "针对LLM智能体高并发场景下KV缓存工作集超出GPU内存、驱逐后取回延迟高的问题，本文提出三层KV缓存管理系统TripleKV，通过工具感知延迟预测和预取机制隐藏取回延迟，减少智能体推理停顿，提升系统整体性能。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2611.29062v1",
+      "source": "arxiv",
+      "title": "HyperHarness: Learning to Generate Personalized Agent Harnesses from User Histories",
+      "abstract": "Personalized LLM agents rely on an agent harness, the surrounding memory and control code, to connect user history with downstream decisions. Existing methods typically employ either a single shared memory workflow across all users, which is efficient to deploy but cannot adapt how evidence is retrieved and interpreted across diverse histories, or per-user harness optimization, which customizes behavior for each user but requires costly repeated candidate evaluation at deployment and suffers from sparse, noisy supervision in raw logs. To address this trade-off, we present HyperHarness, a framework that learns a shared history-to-harness generator to synthesize executable, user-specific retrieval and answer-guidance code directly from user histories. Given a user's permitted history, HyperHarness prompts a construction LLM to write personalized retrieval and guidance functions, while downstream task scores across training users supervise iterative refinements to the shared generator without reference harnesses or answering-model updates. At deployment, the frozen generator constructs a harness for each unseen user in a single pass from history alone, eliminating per-user task-scored search. Across three benchmarks (PersonaMemv3, Mem-PAL, and MemoryCD) and three answering models (Qwen3.5-9B, Qwen3.8-27B, and GPT-5.6-Luna), HyperHarness achieves the highest aggregate score in seven of nine settings and ranks second in the remaining two, improving over the strongest baselines by up to 5.95 points while cutting matched answer-time tokens by 90.32% over long-context prompting. Analyses show that optimization tailors context allocation to each executor, transfers to unseen user clusters, and amortizes adaptation costs.",
+      "authors": [
+        "Zhaoxuan Tan",
+        "Jiachen Zhao",
+        "Jingbo Yang",
+        "Zheyuan Liu",
+        "Chuhan Wang",
+        "Pei Zhou",
+        "Mengting Wan",
+        "Meng Jiang"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-11-21T21:57:03+00:00",
+      "link": "https://arxiv.org/pdf/2611.29062v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Learns personalized agent harnesses from user histories for memory and control",
+      "llm_evidence_cn": "从用户历史学习个性化智能体记忆与控制代码",
+      "llm_evidence": "从用户历史学习个性化智能体记忆与控制代码",
+      "canonical_evidence": "从用户历史学习个性化智能体记忆与控制代码",
+      "llm_tldr_en": "Proposes HyperHarness to learn shared history-to-harness generator that synthesizes user-specific retrieval and answer-guidance code, balancing efficiency and personalization.",
+      "llm_tldr_cn": "针对个性化LLM智能体中共享记忆工作流与每用户优化之间的权衡，提出HyperHarness框架，从用户历史学习生成用户特定的检索与答案引导代码。",
+      "llm_tldr": "针对个性化LLM智能体中共享记忆工作流与每用户优化之间的权衡，提出HyperHarness框架，从用户历史学习生成用户特定的检索与答案引导代码。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "carryover_cache",
+      "paper_id": "2611.29062v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2611.29804v1",
+      "source": "arxiv",
+      "title": "FORGETMENOT: Auditing Memory Driven Privacy Risks in Commercial AI Agents",
+      "abstract": "Commercial AI agents increasingly incorporate long-term memory (both persistent and chat-history) to enable more accurate and personalized responses, raises significant privacy and policy concerns. Yet little is known about user privacy risks associated with memory behavior, in particular, about memory storage, disclosure, transparency and deletion control. To bridge this gap, we propose FORGETMENOT, an auditing framework for analyzing the privacy risks of long term memory in commercial AI agents. Using our framework, we collect around 3800 multi-turn sessions comprising around 6M tokens across five popular AI agents. Our results show that agents store a wide range of personal attributes, including demographics, health, and sensitive details. Furthermore, user visible memory reveals substantially less (around 20% on average) attributes than the agents store in practice, exposing a significant transparency gap. Our stealth memory injection (SMI) technique further increases the amount of personal and sensitive attribute stored in memory, raising it by 25% and 15% for Copilot and Claude, respectively. We further observed memory deletion control is unreliable, as all five agents exhibit non-zero post deletion leakage, including health and self-harm related attributes. Finally, we demonstrate the feasibility of memory disclosure to a 3rd-party email recipient as a proof-of-concept, as Gemini shows 31.9% leakage rate. Together, our findings reveal notable privacy risks in commercial agents memory. Finally, we discuss both design implications and regulatory recommendations to protect users memory privacy in commercial agents.",
+      "authors": [
+        "Ismat Jarin",
+        "Tu Le",
+        "Athina Markopoulou"
+      ],
+      "primary_category": "cs.CR",
+      "categories": [
+        "cs.CR"
+      ],
+      "published": "2026-11-22T22:10:40+00:00",
+      "link": "https://arxiv.org/pdf/2611.29804v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "audits long-term memory privacy risks in commercial AI agents",
+      "llm_evidence_cn": "审计商业 AI 智能体中长期记忆的隐私风险",
+      "llm_evidence": "审计商业 AI 智能体中长期记忆的隐私风险",
+      "canonical_evidence": "审计商业 AI 智能体中长期记忆的隐私风险",
+      "llm_tldr_en": "FORGETMENOT audits privacy risks of long-term memory in commercial AI agents, collecting 3800 sessions to reveal storage of personal attributes.",
+      "llm_tldr_cn": "商业 AI 智能体越来越多采用长期记忆实现个性化，但隐私风险未得到充分研究。FORGETMENOT 框架审计商业智能体的长期记忆隐私风险，收集约 3800 个多轮会话（600 万 token），发现智能体存储了人口统计、健康等敏感个人属性。该工作揭示了记忆存储、披露、透明度和删除控制方面的漏洞。",
+      "llm_tldr": "商业 AI 智能体越来越多采用长期记忆实现个性化，但隐私风险未得到充分研究。FORGETMENOT 框架审计商业智能体的长期记忆隐私风险，收集约 3800 个多轮会话（600 万 token），发现智能体存储了人口统计、健康等敏感个人属性。该工作揭示了记忆存储、披露、透明度和删除控制方面的漏洞。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2611.26007v1",
+      "source": "arxiv",
+      "title": "System-One RSI: Building Muscle Memory for Interactive Agents through Guided Practice",
+      "abstract": "Reasoning models provide strong multimodal task understanding but struggle with sub-second control because deliberation increases decision latency. Fast decision models can meet the response window, yet prompting and few-shot examples do not readily provide the fine-grained experience required by a new task. Inspired by coached motor learning, this paper presents System-One Recursive Self-Improvement (System-One RSI), which couples two loops. The high-frequency online inner loop is an Observe, Orient, Decide, Act (OODA) cycle: a decision model maps each visual observation and task question to structured judgments, and a decision tree converts them into timed actions without invoking a reasoning model. The offline outer loop is a recursive improvement cycle carried out by a team of reasoning agents. The team revises the decision-model prompt and decision tree, captures interaction records, derives supervision from those records, and trains or deploys updated model parameters. The improved system then returns to the environment and generates the experience for the next round, consolidating learned distinctions as external muscle memory. The framework operates with a small number of real episodes, without expert demonstrations, environment modification, sandboxing, or parallel simulation. Experiments in Snake, Zenless Zone Zero, and Black Myth: Wukong use a 27B decision model. Mean Snake score increases from 1.30 to 7.35. In an evaluated scenario of Zenless Zone Zero, median completion time decreases by 8.4%. In an evaluated combat scenario of Black Myth: Wukong, the evasive policy achieves 11 times the mean survival time of a stationary reference, while the offensive policy win rate rises from 0% to 66.7% across the evaluated configurations.",
+      "authors": [
+        "Qingxu Fu",
+        "Xuanfa Jin",
+        "Ziqian Chen",
+        "Zhaoyang Liu",
+        "Bolin Ding"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-19T12:27:36+00:00",
+      "link": "https://arxiv.org/pdf/2611.26007v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "builds muscle memory through guided practice, OODA inner loop and recursive self-improvement",
+      "llm_evidence_cn": "通过引导练习构建肌肉记忆，结合 OODA 内循环与递归自改进",
+      "llm_evidence": "通过引导练习构建肌肉记忆，结合 OODA 内循环与递归自改进",
+      "canonical_evidence": "通过引导练习构建肌肉记忆，结合 OODA 内循环与递归自改进",
+      "llm_tldr_en": "Proposes System-One RSI, which builds procedural muscle memory in interactive agents by coupling a fast OODA decision loop with an offline recursive self-improvement loop to distill reasoning model guidance into decision model skills.",
+      "llm_tldr_cn": "针对推理模型决策延迟高、快速决策模型缺乏新任务细粒度经验的问题，借鉴运动学习中的肌肉记忆概念，提出 System-One RSI，结合高频 OODA 内循环与离线递归自改进外循环，通过受指导的练习将推理能力蒸馏为快速决策技能。实验表明该机制能在亚秒级控制中提升交互智能体表现。该工作将人类程序性记忆模型应用于 AI 智能体，为快速反应能力构建提供新途径。",
+      "llm_tldr": "针对推理模型决策延迟高、快速决策模型缺乏新任务细粒度经验的问题，借鉴运动学习中的肌肉记忆概念，提出 System-One RSI，结合高频 OODA 内循环与离线递归自改进外循环，通过受指导的练习将推理能力蒸馏为快速决策技能。实验表明该机制能在亚秒级控制中提升交互智能体表现。该工作将人类程序性记忆模型应用于 AI 智能体，为快速反应能力构建提供新途径。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "Cognitive memory models applied to artificial intelligence agents",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2611.30412v1",
+      "source": "arxiv",
+      "title": "DMC-5: Dual-Model Collaboration with Cache-aware Context Compression for Long-horizon Agents",
+      "abstract": "Long-horizon agents repeatedly feed an ever-growing interaction trajectory to a specialized agent model. Prefix caching reuses computation over repeated history, but cannot prevent context growth or remove information irrelevant to the current decision. This is especially costly when the specialized agent lacks the cached-input discounts available to general-purpose models, making trajectory compression a natural alternative. However, existing compression methods on selective context risk losing global information, recursively rewriting summary leads to semantic drift, while repeatedly recompressing the full history shifts the growing cost to the compressor. Therefore, we introduce DMC-5 (Dual-Model Collaboration with CaChe-aware Context Compression), an asymmetric framework that assigns full-history integration to a general compression model and action generation to a specialized agent model. DMC-5 maintains the raw trajectory as an Append-only Canonical View, preserving global access while allowing the compressor to reuse a stable historical prefix instead of recursively rewriting or recomputing prior context. The agent operates only on a compact Decision View with recent raw interactions, reducing repeated input while retaining the information needed for the next action. DMC-5 further incorporates YAMATO (integritY-Aware Memory Abstractions for Tool Operations) to preserve execution-critical information during lossy compression. Experiments on AppWorld, OfficeBench, and 8-objective QA show that DMC-5 reduces agent model input by 38.5-57.0% and end-to-end cost by 14.5-28.0% with 78.0-85.0% compressor cache-hit rates, while improving task performance by 1.0-5.8% over the uncompressed baseline.",
+      "authors": [
+        "Haochen Li",
+        "Xiaobing Tu",
+        "Yinggui Wang",
+        "Jinkui Ren",
+        "Xiantao Zhang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-23T10:12:52+00:00",
+      "link": "https://arxiv.org/pdf/2611.30412v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "cache-aware context compression for long-horizon agents, dual-model collaboration",
+      "llm_evidence_cn": "长程智能体的缓存感知上下文压缩与双模型协作",
+      "llm_evidence": "长程智能体的缓存感知上下文压缩与双模型协作",
+      "canonical_evidence": "长程智能体的缓存感知上下文压缩与双模型协作",
+      "llm_tldr_en": "Proposes DMC-5, a dual-model framework combining a specialized agent model with cache-aware context compression to manage growing trajectories for long-horizon agents, addressing semantic drift and cost shifting.",
+      "llm_tldr_cn": "针对长期智能体交互轨迹不断增长、前缀缓存不能防止上下文膨胀且选择性压缩丢失全局信息的问题，提出 DMC-5，通过双模型协作与缓存感知的上下文压缩，在保留关键信息的同时降低计算成本。实验表明该方法有效管理长轨迹，减少重新压缩开销。为长程智能体的记忆压缩与管理提供了实用方案。",
+      "llm_tldr": "针对长期智能体交互轨迹不断增长、前缀缓存不能防止上下文膨胀且选择性压缩丢失全局信息的问题，提出 DMC-5，通过双模型协作与缓存感知的上下文压缩，在保留关键信息的同时降低计算成本。实验表明该方法有效管理长轨迹，减少重新压缩开销。为长程智能体的记忆压缩与管理提供了实用方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2611.31559v1",
+      "source": "arxiv",
+      "title": "COGENT: A Modular Cognitive Architecture for Agentic User Simulation",
+      "abstract": "LLM-based user simulation can support interface design, accessibility research, and interactive-agent evaluation, but standard computer-use agents are optimized for task completion rather than reproducing how people perceive, reason, and act. We introduce COGENT (COGnitive agENT), a modular cognitive architecture for simulating user interaction with desktop interfaces. COGENT draws on established cognitive theories, such as Norman's action cycle and ACT-R, to enable explainable, intervenable, and modular user simulation by decomposing the simulation process into cognitive modules with explicit representations of perception, memory, user state, intentions, and action selection. We begin by presenting six intervenability demonstrations, each tracing how a single edit to memory, a user attribute, or a processing module propagates through the cognitive pipeline to produce a behavioral change. We evaluate COGENT's behavioral and attributional fidelity across three benchmarks -- AgentNetBench, A11y-CUA, and SENSE-42 -- finding that it achieves statistically significant fidelity gains over computer-use baselines in reproducing recorded human behavior and recovers the relational structure among human self-reported psychological states. Together, these demos and evaluations demonstrate COGENT's utility toward more faithful, explainable, intervenable, and modular LLM-based cognitive simulations.",
+      "authors": [
+        "Yikun Chi",
+        "Adam Davies",
+        "Debarati Das",
+        "Lin Ai",
+        "Scott Counts"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.HC"
+      ],
+      "published": "2026-11-23T21:06:33+00:00",
+      "link": "https://arxiv.org/pdf/2611.31559v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "cognitive architecture with explicit memory module grounded in ACT-R",
+      "llm_evidence_cn": "基于ACT-R的认知架构，显式包含记忆模块",
+      "llm_evidence": "基于ACT-R的认知架构，显式包含记忆模块",
+      "canonical_evidence": "基于ACT-R的认知架构，显式包含记忆模块",
+      "llm_tldr_en": "Introduces COGENT, a modular cognitive architecture for user simulation that decomposes interaction into perception, memory, intention and action, using cognitive theories to make simulation explainable and intervenable.",
+      "llm_tldr_cn": "针对标准计算机使用智能体仅优化任务完成、不能复现人类认知行为的问题，提出模块化认知架构COGENT；该架构基于诺曼行动循环和ACT-R等认知理论，将模拟过程分解为感知、记忆、用户状态、意图和动作选择等模块；通过六个可干预性演示验证其可解释性与模块化优势，为智能体用户模拟和认知记忆模型应用提供参考。",
+      "llm_tldr": "针对标准计算机使用智能体仅优化任务完成、不能复现人类认知行为的问题，提出模块化认知架构COGENT；该架构基于诺曼行动循环和ACT-R等认知理论，将模拟过程分解为感知、记忆、用户状态、意图和动作选择等模块；通过六个可干预性演示验证其可解释性与模块化优势，为智能体用户模拟和认知记忆模型应用提供参考。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "Cognitive memory models applied to artificial intelligence agents",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2611.32119v1",
+      "source": "arxiv",
+      "title": "CoverMem: Coverage-Constrained Visual Memory for Budgeted Embodied Question Answering",
+      "abstract": "Episodic-memory embodied question answering enables agents to answer questions based on previously recorded visual observations of the surrounding scenes. However, growing observation histories, varying observation quality across viewpoints, and limited computational resources make it challenging to construct and maintain compact visual memories while retrieving sufficient evidence for question answering. To address these challenges, we introduce CoverMem, which incorporates three key components: (1) a coverage-constrained memory construction method that selects a compact set of informative full frames satisfying object-quality and representative-scene coverage requirements; (2) a coverage-preserving incremental maintenance strategy that locally reselects only the affected frames to satisfy updated coverage requirements as observations arrive; and (3) a budgeted complementary frame selection method that balances question relevance, additional support for question requirements, and redundancy with selected frames within a fixed budget. Experimental results on three benchmarks covering diverse environments and question types demonstrate that CoverMem improves question-answering performance under limited visual budgets.",
+      "authors": [
+        "Ruijie Ma",
+        "Haoyue Liu",
+        "Mingda Zhang",
+        "Dongxu Yue",
+        "Xiaoying Tang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-24T07:36:40+00:00",
+      "link": "https://arxiv.org/pdf/2611.32119v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "coverage-constrained visual memory for embodied question answering",
+      "llm_evidence_cn": "具身问答中覆盖约束的视觉记忆构建与维护",
+      "llm_evidence": "具身问答中覆盖约束的视觉记忆构建与维护",
+      "canonical_evidence": "具身问答中覆盖约束的视觉记忆构建与维护",
+      "llm_tldr_en": "Proposes CoverMem, a visual memory system for embodied QA that selects compact full frames under object-quality and scene-coverage constraints, with coverage-preserving incremental maintenance for efficient retrieval under budget.",
+      "llm_tldr_cn": "针对具身问答中观察历史增长、视角质量不一和计算资源受限问题，提出 CoverMem，包含覆盖约束的记忆构建和覆盖保持的增量维护，选取满足物体质量和代表性场景覆盖的紧凑全帧集合。实验表明在受限预算下能维持足够证据并高效检索。该方法为具身智能体的视觉记忆设计提供了有效方案。",
+      "llm_tldr": "针对具身问答中观察历史增长、视角质量不一和计算资源受限问题，提出 CoverMem，包含覆盖约束的记忆构建和覆盖保持的增量维护，选取满足物体质量和代表性场景覆盖的紧凑全帧集合。实验表明在受限预算下能维持足够证据并高效检索。该方法为具身智能体的视觉记忆设计提供了有效方案。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "intelligent agents with memory",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "8plus"
+    }
+  ]
+}

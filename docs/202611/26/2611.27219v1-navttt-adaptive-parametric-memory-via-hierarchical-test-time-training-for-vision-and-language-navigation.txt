@@ -1,0 +1,1873 @@
+NavTTT: Adaptive Parametric Memory via Hierarchical Test-Time Training for
+Vision-and-Language Navigation
+Xiaoyu Luo1,2*
+Chengxing Lin2,3*
+Jiaxin Huang2,4†
+Jiale Liu5
+Jingyu Guo2,6
+Sirui Chen2,7
+Aolin Li2,8
+Shaoli Huang2‡
+Cheng-zhong Xu1
+Hui Kong1
+1University of Macau
+2AGIBOT
+3UESTC
+4MBZUAI
+5University of Edinburgh
+6University of Melbourne
+7Nanyang Technological University
+8Wuhan University
+Project page: https://gamepeopleplay.github.io/NavTTT/
+Abstract
+Vision-and-language
+navigation
+(VLN)
+demands
+that
+agents accumulate and reason over streaming visual ob-
+servations throughout long navigation episodes. Existing
+approaches struggle to maintain long-term history, con-
+strained by the finite context capacity of transformer archi-
+tectures. To solve the problem, fast-weight test-time train-
+ing (TTT) provides a mechanism for encoding streaming
+observations into an evolving parameter state. However,
+existing TTT does not distinguish informative observations
+from repetitive visual content, allowing redundant tokens
+to interfere with the retention of information needed for
+subsequent decisions. We propose Navigation-Conditioned
+Test-Time Training (NavTTT), which introduces adaptive
+memory formation and hierarchical memory integration for
+vision-and-language navigation. NavTTT leverages global
+navigation context to prioritize informative visual evidence
+and integrates language instructions with spatial informa-
+tion to construct spatially grounded memory representa-
+tions. Episode-local nonlinear fast weights store these rep-
+resentations as Adaptive Parametric Memory (APM), pre-
+serving history beyond the visual context for later deci-
+sions. To reduce cross-layer coupling in memory forma-
+tion, NavTTT maintains independent fast-weight memories
+across multiple decoder depths. This decoupled design pre-
+vents errors or biases from spreading across different mem-
+ory levels. Meanwhile, it enables shared historical informa-
+tion to be independently represented at various levels of ab-
+straction. Experiments demonstrate strong navigation per-
+*Equal contribution. This work was conducted during an internship at
+AGIBOT.
+†Project leader.
+‡Corresponding author.
+formance on VLN-CE benchmarks and effective instruction
+following on a real robot.
+1. Introduction
+Vision-and-language navigation (VLN) [2, 16] requires an
+embodied agent to interpret natural-language instructions
+and sequentially interact with complex visual environments
+to reach a target destination. Unlike static vision-language
+understanding, navigation decisions are inherently history-
+dependent [12]: the agent must continuously relate its cur-
+rent observation to previously visited locations, encoun-
+tered landmarks, and completed sub-goals in order to infer
+its progress and determine the next action [8]. This makes
+memory a fundamental component of VLN systems. An
+effective navigation memory should not only preserve use-
+ful historical information over long trajectories, but also se-
+lectively retain observations that remain relevant to future
+decisions [32], while avoiding excessive accumulation of
+repetitive visual content [34].
+Existing VLN methods maintain navigation history
+through either explicit [1, 8, 9] or implicit memory [12,
+18, 34]. Explicit memory organizes past experience into
+structured representations, such as maps, graphs, or tra-
+jectories, making historical state directly accessible to the
+agent. Implicit memory instead compresses history into la-
+tent representations, typically as recurrent features or per-
+sistent tokens propagated across time.
+While less struc-
+tured, these implicit memories remain fundamentally token-
+based: retaining more history still requires preserving, up-
+dating, or repeatedly attending to an expanding set of latent
+states. This dependence becomes increasingly problematic
+in long-horizon navigation, where successive observations
+are highly redundant and only a small fraction of past infor-
+arXiv:2611.27219v1  [cs.RO]  20 Nov 2026
+
+
+Explicit Memory
+behind
+front
+Topological Structure
+left
+History Observation
+Token-based Implicit Memory
+History Observation
+......
+Incoming Observation
+......
+Persist Visual Tokens Pool
+......
+......
+Parametric Implicit Memory (Ours)
+History Observation
+......
+Fast Weight
+Fast Weight
+Fast Weight
+....
+Fast Weight
+Decoder Layers
+Visual Tokens
+......
+Context-guided Selection
+......
+Retained Tokens
+Store via Update
+New Observation
+Load via
+Fast weight Forward
+Figure 1.
+From explicit to parametric memory in VLN.
+NavTTT replaces explicit or token-based history with episode-
+specific parametric memory stored in fast weights.
+mation may remain relevant to future decisions. As a result,
+token-based memory must continuously balance historical
+coverage against a finite representational and computational
+budget.
+This limitation motivates a different form of implicit
+memory, where past experience is stored in the model state
+rather than kept as persistent representations, as illustrated
+in Fig. 1.
+Test-time training (TTT) [25, 26] provides a
+mechanism for doing so by updating fast weights with in-
+coming observations, allowing past information to persist
+in the model parameters [5]. However, applying TTT di-
+rectly to VLN is not straightforward.
+Navigation obser-
+vations are highly redundant: nearby steps often produce
+similar visual inputs, while only a few observations remain
+useful for later decisions. Which observations matter also
+depends on the instruction, the agent’s current location, and
+its progress along the route. Simply writing every obser-
+vation into fast weights can therefore fill the memory with
+repeated or short-lived visual information and make impor-
+tant landmarks harder to preserve. In addition, navigation
+history needs to support different stages of decision mak-
+ing, while a generic fast-weight memory does not specify
+how historical information should be used across the navi-
+gation model. TTT-based memory for VLN therefore needs
+to address two key questions: what information should be
+stored, and how should that information be used during nav-
+igation.
+To address these challenges, we introduce Navigation-
+Conditioned Test-Time Training (NavTTT), a parametric
+memory framework that selectively internalizes navigation
+experience into episode-specific fast weights. NavTTT con-
+ditions memory formation on global navigation context, pri-
+oritizing visual evidence relevant to the instruction and nav-
+igation state while suppressing redundant content. It further
+integrates linguistic and spatial cues into the selected evi-
+dence, grounding memory in visual appearance and naviga-
+tion context. To make accumulated experience accessible at
+multiple stages of navigation reasoning, NavTTT maintains
+independent fast-weight memories across decoder depths.
+Each memory transforms the selected evidence through its
+own association encoders and accumulates it via separate
+online updates. During subsequent decisions, hidden repre-
+sentations at each depth query the associated memory, inte-
+grating historical information with ongoing decoder compu-
+tation. Together, adaptive memory formation and hierarchi-
+cal memory integration allow navigation history to persist
+beyond limited visual context and inform subsequent deci-
+sions through layer-specific encoding and retrieval.
+We evaluate NavTTT on the R2R-CE [2] and RxR-
+CE [19] benchmarks to examine the effectiveness of adap-
+tive parametric memory for vision-and-language naviga-
+tion. NavTTT achieves 66.7% SR and 59.4% SPL on R2R-
+CE, and 63.6% SR and 52.7% SPL on RxR-CE, consistently
+outperforming representative VLN baselines.
+Controlled
+ablations demonstrate that persistent fast-weight memory,
+online episode-level adaptation, and adaptive evidence se-
+lection each contribute substantially to navigation perfor-
+mance. Together, these results show that selectively inter-
+nalizing navigation history through fast-weight updates pro-
+vides an effective mechanism for preserving and exploiting
+long-horizon experience beyond the active visual context.
+• We introduce NavTTT, a parametric memory framework
+for vision-and-language navigation that internalizes ob-
+servations into episode-specific fast weights through test-
+time training, making accumulated experience accessible
+beyond the explicit visual context.
+• We propose navigation-conditioned memory formation
+that jointly considers task relevance and visual redun-
+dancy when selecting evidence, and incorporates linguis-
+tic and spatial cues to construct grounded representations
+for memory updates.
+• We develop a hierarchical memory architecture that in-
+dependently encodes and accumulates shared historical
+evidence across decoder depths. Layer-specific queries
+retrieve this information during subsequent decisions, in-
+tegrating persistent memory into multiple stages of navi-
+gation reasoning.
+2. Related Work
+2.1. Vision-Language Navigation and Memory
+Vision-language navigation (VLN) has evolved from
+vision-language pre-training and sequential history model-
+ing toward foundation-model-based navigation. Early ap-
+proaches leverage large-scale pre-training [11] or explic-
+itly model navigation history, such as recurrent state prop-
+agation in VLN-BERT [12] and long-horizon trajectory en-
+
+
+coding in HAMT [8]. DUET [9] further constructs an on-
+line topological map to couple global planning with local
+grounding.
+More recently, NavGPT [41] and NaviLLM
+[40] explore LLM-based navigation reasoning, while NaVid
+[35], Uni-NaVid [36], and NaVILA [10] extend VLMs to-
+ward end-to-end, unified, and real-world navigation. Our
+work complements this line by focusing specifically on how
+historical observations are retained and exploited during
+navigation.
+Recent VLN systems have consequently developed in-
+creasingly sophisticated memory mechanisms. StreamVLN
+[31] maintains a slow-updating compressed visual con-
+text alongside a fast streaming context, while NavMorph
+[33] introduces contextual evolution memory within a self-
+evolving world model.
+JanusVLN [34] maintains sepa-
+rate spatial-geometric and visual-semantic histories as com-
+pact implicit memories, whereas HiMemVLN [22] orga-
+nizes navigation history through a hierarchical memory sys-
+tem. Memoir [32] further studies retrieval of accumulated
+environmental and behavioral experience across navigation
+episodes.
+Unlike these approaches, NavTTT selectively
+writes navigation-relevant observations into online-adapted
+fast weights, treating the model parameters themselves as
+persistent memory during an episode.
+2.2. Parametric Memory and Test-Time Training
+Test-time training (TTT) was originally introduced for
+self-supervised adaptation on unlabeled test samples [25],
+but has recently been repurposed as a sequence-modeling
+mechanism in which fast weights serve as recurrent state
+[26]. This view is closely related to earlier fast-weight for-
+mulations of linear attention: Schlag et al. [24] interpret
+linear Transformers as fast-weight programmers that store
+key–value associations in rapidly changing weights. Mod-
+ern TTT generalizes this perspective by allowing a learn-
+able, potentially nonlinear model to serve as the evolv-
+ing parameter state. Titans [5] develops such online neu-
+ral memory for long-context modeling, while LaCT [39]
+enables large nonlinear fast-weight states through efficient
+large-chunk updates.
+Recent work further explores fast weights as explicit
+parametric memory for adaptive inference and agents.
+TMEM [23], for example, consolidates interaction experi-
+ence into lightweight online-updated parameters rather than
+relying solely on prompt-space memory. NavTTT adopts
+LaCT’s nonlinear fast-weight formulation as its underlying
+memory operator, but focuses on a different question: how
+TTT-based memory should be organized for embodied navi-
+gation. Specifically, we study what to write into fast weights
+from redundant visual streams and where to write this infor-
+mation across the navigation model.
+3. Methodology
+3.1. Preliminary
+Navigation task. Vision-and-language navigation in con-
+tinuous environments (VLN-CE) tasks an embodied agent
+with navigating to a target destination by following a
+natural-language instruction x via sequential interactions
+with the environment. At each decision step t, the agent
+observes an egocentric RGB image It, maintains a visual
+history Ht of up to 7 sampled frames, and receives an
+episode-relative pose st = (pt, sin ψt, cos ψt), where pt
+denotes its 2D position and ψt its heading. These inputs
+are denoted by Xt = (x, Ht, It, st, t).
+Conditioned on
+the instruction and all available observations, the naviga-
+tion policy predicts an action sequence At of up to 4 prim-
+itive actions drawn from the discrete action space A =
+{FORWARD, LEFT, RIGHT, STOP}, where t indexes deci-
+sion cycles rather than individual actions. An episode termi-
+nates upon the STOP action or exhaustion of the predefined
+interaction budget. The core objective is to reach the target
+location efficiently while faithfully adhering to the given in-
+struction.
+Test-Time Training. In the fast-weight formulation, test-
+time training (TTT) enables online adaptation through a
+neural memory fW , whose parameters are updated as new
+observations arrive, while the pretrained backbone remains
+fixed during inference. Given a query qt and selected key–
+value pairs (ki, vi), NavTTT adopts a causal read-before-
+write order. In the basic gradient-descent form:
+ot = fWt−1(qt),
+Wt = Wt−1 −ηt∇Lmem(Wt−1),
+(1)
+where Wt denotes the fast weights, ηt is the update rate,
+and the gradient is taken with respect to W.
+Follow-
+ing LaCT [39], the memory objective is the negative dot-
+product loss:
+Lmem(W) = −
+X
+i
+mi ⟨fW (ki), vi⟩,
+(2)
+where mi is the binary selection mask and ⟨·, ·⟩denotes the
+inner product. This objective strengthens key–value associ-
+ations by increasing the agreement between the memory re-
+sponse fW (ki) and its associated value vi. Layer and head
+indices are omitted; Mt denotes the complete memory state
+across layers.
+3.2. Informative Token Selection
+Task relevance and visual diversity.
+The relevance of
+a visual region depends on the navigation instruction and
+the agent’s current state. However, selecting tokens only
+by relevance may include repeated visual content from the
+same frame, leaving fewer tokens for other useful regions
+
+
+APM
+Instruction
+Vision Encoder
+Tokenizer
+Video frames
+Current
+Frame 7
+Frame 1
+“Go around the kitchen 
+island and wait between 
+the tall cabinet and wine 
+fridge.”
+Gate
+Feed-Forward
+Optional APM
+Self-Attention
+Final Normalization
+×36
+Decision Token
+Action Chunk
+Instruction
+Pose
+Step
+Decision Context
+Hierarchical Memory
+Encoding
+K
+V
+Apply Mask
+Token Selection
+Update
+Self-Attention
+Adaptive
+Parametric
+Memory
+Context-guided
+Selection
+Positional
+Encoding
+Feed-Forward
+Memory-Informed Token
+(A) Navigation Flow
+(B) Adaptive Memory Updating
+(C) Hierarchical Memory Retrieval
+Decoder Layer
+Query (Q)
+𝑊𝟎
+𝑊𝟐
+SiLU
+𝑊𝟏
+Context Fusion
+Navigation State 
+Encoder
+Input Hidden State
+Figure 2. Overview of NavTTT. (A) The agent predicts low-level action chunks from language instructions and egocentric visual obser-
+vations. (B) Navigation-relevant visual tokens are selectively encoded to update hierarchical fast weights online. (C) At subsequent steps,
+decoder representations query the adapted fast weights across layers, allowing accumulated experience to inform current perception and
+action prediction.
+under a fixed write budget. NavTTT therefore combines
+context-guided relevance scoring with intra-frame redun-
+dancy suppression to select relevant and diverse visual to-
+kens for APM updates. The selection mask controls mem-
+ory writing, while all visual tokens remain available to the
+navigation backbone.
+Context-Guided Token Selection.
+Given a visual obser-
+vation I, raw visual patch features ei = sg ([Evis(I)]i)
+are extracted via a frozen vision encoder Evis(·), and
+augmented with Fourier positional encodings to generate
+position-aware visual tokens ui. In parallel, the Naviga-
+tion State Encoder (NSE) integrates and encodes non-visual
+navigation signals, including the navigation instruction g,
+agent pose s, and decision step k, into a compact explicit
+state variable c:
+c = NSE(g, s, k).
+(3)
+As illustrated in Fig. 2(B), c is fused with the decoder’s
+high-level decision token d to construct a global guidance
+context z, expressed as:
+z = Wd RMSNorm (sg(d)) + Wcc,
+(4)
+where Wd and Wc denote learnable projection matrices.
+This global guidance context serves as a conditional vec-
+tor that fuses with the features of each visual token along
+the channel dimension, thereby modulating the feature rep-
+resentation. Based on the accumulated navigation state, it
+regulates the assessment of visual input relevance, estab-
+lishing a closed-loop mechanism wherein visual observa-
+tions are filtered adaptively according to the task state. The
+relevance score ri for the i-th token is computed as:
+ri = w⊤
+s SiLU (LayerNorm (Wuui + z)) ,
+(5)
+where Wu is a visual projection matrix and ws is a learnable
+scoring vector.
+Relying solely on independent scoring fails to suppress
+visual redundancy, as multiple similar patches may occupy
+limited memory capacity. To address this, we introduce an
+incremental diversity selection step. Starting from an empty
+set, we select tokens one by one, penalizing candidate to-
+kens that are visually similar to those already chosen. We
+provide the full token selection procedure in the supplemen-
+tary material.
+3.3. Fast-Weight Memory for Navigation
+NavTTT extends the limited visual context capacity by
+persisting selected task-relevant visual evidence via Adap-
+tive Parametric Memory (APM). Following the LaCT [39]
+framework, each memory-augmented decoder layer main-
+tains an independent nonlinear fast-weight mapping to en-
+code accumulated key-value associations. During naviga-
+tion, this persistent memory complements the self-attention
+pathway over instructions and current observations, con-
+necting current perception with historical experience from
+earlier decisions.
+
+
+3.3.1. Contextual Association Encoding
+Given the normalized visual features of each selected re-
+gion, a layer-specific adapter produces ai.
+The key and
+value representations at decoder layer ℓare defined as:
+ki = TK
+ W ℓ
+Kai
+
+,
+vi = W ℓ
+V ai + W ℓ
+Lξi + W ℓ
+zz,
+(6)
+with the superscript ℓindicating layer-specific projections,
+and TK applying normalization alongside positional encod-
+ing. Specifically, the key encodes visual-positional cues for
+retrieval, whereas the value aggregates visual appearance
+ai, spatial context ξi (patch coordinates and relative agent
+poses), and the fused navigation state z. Ultimately, this
+formulation grounds the selected visual evidence in its cor-
+responding spatial and task-specific context.
+3.3.2. Hierarchical Retrieval and Memory Fusion
+NavTTT combines visual context with persistent experience
+through a hierarchical dual-path decoder. Self-attention is
+retained throughout the 36-layer backbone, while parallel
+APM branches are placed at layers {5, 11, 17, 23, 29, 35},
+using zero-based indices. These branches provide memory
+access at different decoder depths. Each augmented layer
+maintains independent fast weights, allowing historical ev-
+idence to be encoded and retrieved through layer-specific
+representations.
+Each APM branch contains four independent memory
+heads. Within each head, a query q derived from the de-
+coder hidden state retrieves stored experience through a
+nonlinear SwiGLU mapping:
+fW ℓ(q) = W ℓ
+1
+
+SiLU(W ℓ
+0q) ⊙(W ℓ
+2q)
+
+,
+(7)
+where W ℓ= {W ℓ
+0, W ℓ
+1, W ℓ
+2} denotes the fast weights, and
+⊙denotes elementwise multiplication. Head indices are
+omitted for simplicity. This mapping provides access to his-
+torical evidence after its source frames leave the active vi-
+sual context. At decision step t, the self-attention and mem-
+ory pathways are combined through a residual connection:
+ehj = hj + SelfAttn(H)j + γj APM(hj; W ℓ
+t−1),
+(8)
+where hj is the hidden state at position j in the current
+layer’s input sequence H. The APM operator combines
+the memory-head outputs and projects them into the de-
+coder hidden space. The gate γj is fixed to 1 at decision
+and action positions. For preselected visual tokens in lay-
+ers {11, 17, 23}, it is computed from the corresponding nor-
+malized pre-decoder visual feature through a learned pro-
+jection followed by a sigmoid. The gate is set to 0 else-
+where. These visual read positions are determined during
+prompt processing, before the final decision representation
+is available. Normalization, headwise scaling, and output
+projection are included in the corresponding operators. The
+fused state ehj is then passed to the standard feed-forward
+block.
+The state W ℓ
+t−1 contains experience accumulated before
+decision t and remains unchanged during current prompt
+processing and action generation. Once the final decision
+representation is available, the selected key-value pairs from
+the current observation produce a pending fast-weight up-
+date using gradients of the memory association loss Lmem.
+After the current action chunk is finalized, the updated state
+is committed as W ℓ
+t and becomes available for retrieval at
+decision t + 1.
+4. Experiments
+4.1. Experimental Setup
+Simulation environments and metrics.
+Following
+standard evaluation protocols for continuous vision-and-
+language navigation [31, 34], we evaluate NavTTT on the
+R2R-CE and RxR-CE benchmarks [2, 16, 19]. Both bench-
+marks require agents to follow natural-language instruc-
+tions and navigate continuous Matterport3D [6] environ-
+ments via low-level actions. Experiments are evaluated on
+the R2R-CE Val-Unseen split and the RxR-CE Val-Unseen
+split. R2R-CE performance is reported using NE, OS, SR,
+and SPL, while RxR-CE performance is reported using NE,
+SR, SPL, and nDTW. SR and SPL serve as primary metrics
+for task completion and navigation efficiency.
+Real-world evaluation setup. We deploy NavTTT on a
+humanoid robot (shown in Figure 3) to assess the real-
+world deployment capability and Sim-to-Real generaliza-
+tion of its learned memory mechanism in continuous navi-
+gation tasks. The robot perceives the environment through
+a forward-facing RGB camera, receiving natural-language
+instructions alongside streaming egocentric visual obser-
+vations.
+NavTTT runs on an off-board inference server
+equipped with an NVIDIA RTX 4090 GPU, transmitting
+predicted low-level navigation actions to the robot for exe-
+cution. No real-world trajectories are used for fine-tuning,
+enabling a direct assessment of sim-to-real generalization.
+Implementation details.
+NavTTT is initialized from
+Qwen3-VL-8B [3], with APM integrated from the begin-
+ning of joint training. The language backbone, multimodal
+projector, and APM modules, including the learned fast-
+weight initialization, are jointly fine-tuned, while the vision
+encoder remains frozen. Joint training runs for one epoch
+using AdamW with a weight decay of 10−2 and a cosine
+learning-rate schedule with a warmup ratio of 0.03, con-
+suming approximately 1,910 GPU hours on NVIDIA H20
+GPUs. The peak learning rates are 1 × 10−5 for the lan-
+guage backbone and 5×10−6 for the multimodal projector.
+The architectural ablations in Section 4.3 follow the same
+joint-training protocol as the main model. We detail the
+
+
+training objective and inference-time fast-weight updates in
+the supplementary material.
+4.2. Main Results
+Results on VLN-CE benchmarks.
+Table 1 compares
+NavTTT with representative VLN-CE methods across ob-
+servation modalities and training setups. On R2R-CE Val-
+Unseen, NavTTT achieves a leading 66.7% SR and 59.4%
+SPL, outperforming JanusVLN by 6.2 SR / 2.6 SPL and
+StreamVLN by 9.8 SR / 7.5 SPL. These improvements
+demonstrate how our selective memory pipeline resolves
+perceptual ambiguities. Context-guided selection isolates
+task-relevant visual regions, whereas intra-frame redun-
+dancy suppression ensures maximal feature diversity within
+each fast-weight update.
+NavTTT parametrically regis-
+ters these distilled historical anchors into fast weights and
+queries them alongside streaming observations, enabling
+robust long-horizon contextual reasoning.
+On RxR-CE
+Val-Unseen, which presents long-horizon trajectories and
+detailed instructions, NavTTT reaches 63.6% SR, 52.7%
+SPL, and 71.0% nDTW. Here, APM retrieves long-range
+evidence that has exited the active visual window, while the
+self-attention pathway preserves local grounding, ensuring
+smooth continuity across extended navigation steps.
+Figure 3 presents representative instruction-following
+episodes on the real robot. Across 40 real-world naviga-
+tion trials, NavTTT successfully completes 11, achieving
+a success rate of 27.5%. During execution, the agent pro-
+cesses successive egocentric observations and predicts short
+action chunks for the robot to execute. Its fast-weight mem-
+ory is updated online with newly observed evidence, mak-
+ing accumulated context available to subsequent decisions.
+This evaluation complements the simulation benchmarks
+and provides a quantitative assessment of NavTTT on a
+physical platform, while highlighting substantial room for
+improving real-world navigation reliability.
+The larger SPL gain over JanusVLN on RxR-CE (5.2
+percentage points) than on R2R-CE (2.6 percentage points)
+is consistent with the motivation to retain historical evi-
+dence over longer trajectories. The accompanying improve-
+ment in nDTW indicates better alignment with reference
+routes, complementing the gains in task completion.
+A
+possible explanation is that persistent memory makes pre-
+viously observed landmarks and their navigation context
+available when recent frames alone provide insufficient in-
+formation. Context-guided selection and redundancy sup-
+pression determine which evidence enters this memory,
+while hierarchical retrieval allows the retained information
+to support subsequent decisions. NavTTT obtains these re-
+sults using approximately 2.97 million additional image–
+action training pairs. This reported data requirement should
+be interpreted alongside differences in observation modali-
+ties and training settings across methods. We provide addi-
+tional qualitative results and failure cases in the supplemen-
+tary material.
+4.3. Ablation Studies
+We examine the contributions of fast-weight memory, on-
+line adaptation, and navigation-specific memory design on
+R2R-CE and RxR-CE Val-Unseen.
+We use Qwen3-VL-
+8B [3] and Qwen2.5-VL-7B-Instruct [4].
+Within each
+backbone, the architectural variants follow the main joint-
+training protocol with matched backbone initialization, ob-
+servation inputs, training data, and optimization budget.
+The static-memory control uses the full model checkpoint
+and holds its learned initial fast state fixed throughout eval-
+uation.
+Contribution of fast-weight memory.
+In Table 2, full
+NavTTT improves SR over the memory-free controls (A1
+and B1) by 4.3 and 3.4 percentage points on R2R-CE and
+RxR-CE with Qwen3-VL-8B, and by 3.7 and 2.7 points
+with Qwen2.5-VL-7B-Instruct.
+NE also decreases in all
+four settings.
+The higher oracle success rates on R2R-
+CE indicate that more trajectories reach the goal neighbor-
+hood during navigation. On RxR-CE, nDTW improves with
+both backbones, and the Qwen3-VL-8B model’s SPL is 0.2
+points below its memory-free baseline.
+Contribution of online adaptation.
+Across the four set-
+tings in Table 2, static memory improves SR by 0.9–2.8 per-
+centage points over the memory-free controls. To isolate the
+effect of online writes, we compare A0 with A2 and B0 with
+B2 using the same trained checkpoint within each pair. En-
+abling online writes improves SR and SPL and reduces NE
+in all four settings. On R2R-CE with Qwen3-VL-8B, online
+updates yield 61 additional successes across 1,839 episodes,
+corresponding to a 3.32-point increase in SR, and improve
+SPL by 2.6 points. On RxR-CE with the same backbone,
+SR, SPL, and nDTW improve by 2.3, 0.2, and 4.1 points, re-
+spectively. With Qwen2.5-VL-7B-Instruct, the SR and SPL
+gains are 0.9 and 0.7 points on R2R-CE and 1.3 and 1.5
+points on RxR-CE. On RxR-CE, the nDTW gains with both
+backbones indicate closer alignment with the reference tra-
+jectories when the agent incorporates new observations into
+its fast state.
+Navigation-specific memory design.
+Direct LaCT im-
+proves SR over the memory-free controls in all four set-
+tings. Full NavTTT improves SR further and reduces NE.
+On R2R-CE, its SPL gains over direct LaCT are 3.0 points
+with Qwen3-VL-8B and 1.3 points with Qwen2.5-VL-7B-
+Instruct. On RxR-CE, nDTW improves by 2.7 points with
+each backbone. SPL is 1.0 point lower with Qwen3-VL-8B
+and 2.7 points higher with Qwen2.5-VL-7B-Instruct.
+
+
+(a) Round-trip navigation
+Revisit the starting area
+Instruction: Walk from the circular glass enclosure to the coffee bar, return through the lounge, and stop beside the enclosure.
+Start at enclosure
+1
+Third-person
+First-person
+Reach the coffee bar
+2
+Third-person
+First-person
+Return through lounge
+3
+Third-person
+First-person
+Stop beside enclosure
+4
+Third-person
+First-person
+(b) Navigation to a landmark
+Stop in front of the target
+Instruction: Walk from the lockers beneath the staircase to the double vending machine and stop in front of it.
+Start beneath staircase
+1
+Third-person
+First-person
+Move along the lockers
+2
+Third-person
+First-person
+Approach the machines
+3
+Third-person
+First-person
+Stop at vending machines
+4
+Third-person
+First-person
+(c) Navigation across the hall
+Stop beside the plant area
+Instruction: Walk from the window-side booths past the vending machines and across the hall; stop beside the plants under the blue light strip.
+Start by the booths
+1
+Third-person
+First-person
+Pass vending machines
+2
+Third-person
+First-person
+Cross the hall
+3
+Third-person
+First-person
+Stop beside plants
+4
+Third-person
+First-person
+Figure 3. Real-world qualitative results of NavTTT. Representative instruction-following episodes on the real robot illustrate NavTTT’s
+navigation behavior in physical environments, guided by natural-language instructions and egocentric RGB observations.
+The LaCT comparison evaluates selective writing, spa-
+tial and navigation context encoding, and multi-depth re-
+trieval as a combined design. At the same write budget,
+combining relevance and within-frame diversity improves
+SR and SPL over either criterion alone. At the same fast-
+state storage, the six-layer shared configuration improves
+SR and SPL over last-layer access. The supplementary ma-
+terial provides details of both ablations, additional memory
+analyses, and inference latency measurements.
+5. Conclusion
+This paper presented NavTTT, a framework that uses
+fast-weight memory to retain historical information for
+vision-and-language navigation.
+The method combines
+navigation-conditioned token selection, contextual associ-
+ation encoding, and memory retrieval at multiple decoder
+layers. Token selection balances task relevance and visual
+diversity under a fixed write budget, while contextual en-
+coding associates the selected visual features with spatial
+information and navigation state. The decoder combines
+self-attention over the available context with retrieval from
+episode-local memory, allowing earlier observations to in-
+form subsequent decisions after their source frames leave
+the active visual window. During inference, the fast weights
+are updated through a self-supervised objective, while the
+backbone and other slow-weight parameters remain fixed.
+Experiments on R2R-CE and RxR-CE show improvements
+in navigation success and efficiency. We also evaluated the
+method on a real robot to examine its behavior outside simu-
+lation. These results suggest that selectively storing and re-
+trieving historical evidence can complement the limited vi-
+sual context available to the navigation model. Future work
+will investigate memory retention over longer trajectories
+and performance in environments with repeated landmarks
+or greater visual ambiguity.
+
+
+Table 1. Comparison among different methods on R2R-CE and RxR-CE Val-Unseen. Pano., Odo., Depth, and S.RGB denote panoramic
+input, odometry/pose, depth, and a single RGB stream, respectively. Baseline external-data counts follow [34], with K = 103 image–action
+or QA pairs; generic foundation-model pretraining is excluded. “–” denotes an unavailable count or a metric without a verified result for
+the corresponding split. 0K denotes a reported zero count. NE is measured in meters; other metrics are percentages. Best values are bold.
+Method
+Observation
+R2R-CE Val-Unseen
+RxR-CE Val-Unseen
+Training
+Pano. Odo. Depth S.RGB NE↓OS↑SR↑SPL↑NE↓SR↑SPL↑nDTW↑External Data
+HPN+DN [ICCV21] [17]
+✓
+✓
+✓
+6.31 40.0 36.0
+34.0
+–
+–
+–
+–
+–
+CMA [CVPR22] [13]
+✓
+✓
+✓
+6.20 52.0 41.0
+36.0 8.76 26.5
+22.1
+47.0
+–
+Sim2Sim [ECCV22] [15]
+✓
+✓
+✓
+6.07 52.0 43.0
+36.0
+–
+–
+–
+–
+–
+VLN⟳BERT [CVPR22] [13]
+✓
+✓
+✓
+5.74 53.0 44.0
+39.0 8.98 27.0
+22.6
+46.7
+–
+Ego2-Map [ICCV23] [14]
+✓
+✓
+✓
+5.54 56.0 47.0
+41.0
+–
+–
+–
+–
+–
+DreamWalker [ICCV23] [27]
+✓
+✓
+✓
+5.53 59.0 49.0
+44.0
+–
+–
+–
+–
+–
+GridMM [ICCV23] [29]
+✓
+✓
+✓
+5.11 61.0 49.0
+41.0
+–
+–
+–
+–
+–
+InstructNav [CoRL24] [21]
+✓
+✓
+✓
+6.89
+– 31.0
+24.0
+–
+–
+–
+–
+–
+COSMO [ICCV25] [38]
+✓
+– 56.0 47.0
+40.0
+–
+–
+–
+–
+–
+AO-Planner [AAAI25] [7]
+✓
+✓
+5.55 59.0 47.0
+33.0 7.06 43.3
+30.5
+50.1
+–
+g3D-LF (Pano.) [CVPR25] [28]
+✓
+✓
+✓
+4.53 68.0 61.0
+52.0
+–
+–
+–
+–
+–
+MapNav [ACL25] [37]
+✓
+✓
+✓
+4.93 53.0 39.7
+37.2 7.62 32.6
+27.7
+43.5
+–
+g3D-LF (Mono.) [CVPR25] [28]
+✓
+✓
+✓
+5.70 59.5 47.2
+34.6
+–
+–
+–
+–
+–
+Seq2Seq [ECCV20] [16]
+✓
+✓
+7.77 37.0 25.0
+22.0
+–
+–
+–
+–
+–
+NaVid-4D [ICRA25] [20]
+✓
+✓
+5.99 55.7 43.8
+37.1
+–
+–
+–
+–
+–
+NavMorph [ICCV25] [33]
+✓
+✓
+5.75 56.9 47.9
+33.2 8.85 30.8
+22.8
+44.2
+–
+Sim2Real [CoRL24] [30]
+✓
+5.95 55.8 44.9
+30.4 8.79 25.5
+18.1
+–
+0K
+NaVid [RSS24] [35]
+✓
+5.47 49.1 37.4
+35.9 8.41 23.8
+21.2
+–
+953K
+Uni-NaVid [RSS25] [36]
+✓
+5.58 53.3 47.0
+42.7 6.24 48.7
+40.9
+–
+3577K
+NaVILA [RSS25] [10]
+✓
+5.22 62.5 54.0
+49.0 6.77 49.3
+44.0
+58.8
+13132K
+StreamVLN [ICRA26] [31]
+✓
+4.98 64.2 56.9
+51.9 6.22 52.9
+46.0
+61.9
+∼26330K
+JanusVLN [ICLR26] [34]
+✓
+4.78 65.2 60.5
+56.8 6.06 56.2
+47.5
+62.1
+10692K
+NavTTT
+✓
+✓
+3.88 73.1 66.7
+59.4 4.25 63.6
+52.7
+71.0
+2974K‡
+‡ NavTTT uses 2,974,963 additional DAgger image–action pairs collected from 30,497 trajectories: 780,222 pairs from 10,819 R2R trajectories and
+2,194,741 pairs from 19,678 RxR trajectories.
+Table 2. Memory ablations on R2R-CE and RxR-CE Val-Unseen. NE is measured in meters. OS, SR, SPL, and nDTW are reported on a
+percentage scale. Bold marks the best result within each backbone and benchmark.
+R2R-CE Val-Unseen
+RxR-CE Val-Unseen
+ID
+Variant
+NE↓
+OS↑
+SR↑
+SPL↑
+NE↓
+SR↑
+SPL↑
+nDTW↑
+Qwen3-VL-8B
+A0
+NavTTT (full)
+3.88
+73.1
+66.7
+59.4
+4.25
+63.6
+52.7
+71.0
+A1
+No fast-weight memory
+4.55
+68.7
+62.4
+56.5
+6.23
+60.2
+52.9
+62.3
+A2
+Static memory
+4.46
+69.7
+63.3
+56.8
+5.62
+61.3
+52.5
+66.9
+A3
+Direct LaCT adaptation
+4.39
+70.2
+63.3
+56.4
+5.24
+62.3
+53.7
+68.3
+Qwen2.5-VL-7B-Instruct
+B0
+NavTTT (full)
+4.83
+67.3
+57.3
+51.0
+6.71
+53.4
+44.8
+63.1
+B1
+No fast-weight memory
+5.53
+62.4
+53.6
+48.6
+7.66
+50.7
+43.0
+61.4
+B2
+Static memory
+4.91
+63.6
+56.4
+50.3
+7.20
+52.1
+43.3
+62.5
+B3
+Direct LaCT adaptation
+4.97
+64.2
+55.7
+49.7
+7.46
+51.6
+42.1
+60.4
+
+
+References
+[1] Dong An, Hanqing Wang, Wenguan Wang, Zun Wang, Yan
+Huang, Keji He, and Liang Wang. Etpnav: Evolving topo-
+logical planning for vision-language navigation in continu-
+ous environments. IEEE Trans. Pattern Anal. Mach. Intell.,
+47(7):5130–5145, 2025. 1
+[2] Peter Anderson, Qi Wu, Damien Teney, Jake Bruce, Mark
+Johnson, Niko S¨underhauf, Ian Reid, Stephen Gould, and
+Anton Van Den Hengel.
+Vision-and-language navigation:
+Interpreting visually-grounded navigation instructions in real
+environments. In 2018 IEEE/CVF conference on computer
+vision and pattern recognition, pages 3674–3683. IEEE,
+2018. 1, 2, 5
+[3] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui
+Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao,
+Chunjiang Ge, Wenbin Ge, Zhifang Guo, Qidong Huang,
+Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhao-
+hai Li, Mingsheng Li, Mei Li, Kaixin Li, Zicheng Lin, Jun-
+yang Lin, Xuejing Liu, Jiawei Liu, Chenglong Liu, Yang Liu,
+Dayiheng Liu, Shixuan Liu, Dunjie Lu, Ruilin Luo, Chenxu
+Lv, Rui Men, Lingchen Meng, Xuancheng Ren, Xingzhang
+Ren, Sibo Song, Yuchong Sun, Jun Tang, Jianhong Tu, Jian-
+qiang Wan, Peng Wang, Pengfei Wang, Qiuyue Wang, Yux-
+uan Wang, Tianbao Xie, Yiheng Xu, Haiyang Xu, Jin Xu,
+Zhibo Yang, Mingkun Yang, Jianxin Yang, An Yang, Bowen
+Yu, Fei Zhang, Hang Zhang, Xi Zhang, Bo Zheng, Humen
+Zhong, Jingren Zhou, Fan Zhou, Jing Zhou, Yuanzhi Zhu,
+and Ke Zhu. Qwen3-vl technical report, 2025. 5, 6
+[4] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin
+Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun
+Tang, Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhao-
+hai Li, Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren Fu,
+Yiheng Xu, Jiabo Ye, Xi Zhang, Tianbao Xie, Zesen Cheng,
+Hang Zhang, Zhibo Yang, Haiyang Xu, and Junyang Lin.
+Qwen2.5-vl technical report, 2025. 6
+[5] Ali Behrouz, Peilin Zhong, and Vahab Mirrokni.
+Titans:
+Learning to memorize at test time.
+In Advances in Neu-
+ral Information Processing Systems 38: Annual Conference
+on Neural Information Processing Systems 2025, NeurIPS
+2025, San Diego, CA, USA, December 2-7, 2025 / Mexico
+City, Mexico, November 30 - December 5, 2025, 2025. 2, 3
+[6] Angel Chang, Angela Dai, Thomas Funkhouser, Maciej Hal-
+ber, Matthias Nießner, Manolis Savva, Shuran Song, Andy
+Zeng, and Yinda Zhang. Matterport3d: Learning from rgb-d
+data in indoor environments, 2017. 5
+[7] Jiaqi Chen, Bingqian Lin, Xinmin Liu, Lin Ma, Xiao-
+dan Liang, and Kwan-Yee K. Wong. Affordances-oriented
+planning using foundation models for continuous vision-
+language navigation, 2024. 8
+[8] Shizhe Chen, Pierre-Louis Guhur, Cordelia Schmid, and
+Ivan Laptev.
+History aware multimodal transformer for
+vision-and-language navigation.
+In Advances in Neural
+Information Processing Systems 34:
+Annual Conference
+on Neural Information Processing Systems 2021, NeurIPS
+2021, December 6-14, 2021, virtual, pages 5834–5847,
+2021. 1, 3
+[9] Shizhe Chen,
+Pierre-Louis Guhur,
+Makarand Tapaswi,
+Cordelia Schmid, and Ivan Laptev. Think global, act local:
+Dual-scale graph transformer for vision-and-language navi-
+gation. In IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, CVPR 2022, New Orleans, LA, USA,
+June 18-24, 2022, pages 16516–16526. IEEE, 2022. 1, 3
+[10] An-Chieh Cheng, Yandong Ji, Zhaojing Yang, Xueyan Zou,
+Jan Kautz, Erdem Biyik, Hongxu Yin, Sifei Liu, and Xiao-
+long Wang.
+Navila: Legged robot vision-language-action
+model for navigation. CoRR, abs/2412.04453, 2024. 3, 8
+[11] Weituo Hao, Chunyuan Li, Xiujun Li, Lawrence Carin, and
+Jianfeng Gao. Towards learning a generic agent for vision-
+and-language navigation via pre-training. In 2020 IEEE/CVF
+Conference on Computer Vision and Pattern Recognition,
+CVPR 2020, Seattle, WA, USA, June 13-19, 2020, pages
+13134–13143. Computer Vision Foundation / IEEE, 2020.
+2
+[12] Yicong Hong, Qi Wu, Yuankai Qi, Cristian Rodriguez-
+Opazo, and Stephen Gould. Vln bert: A recurrent vision-
+and-language bert for navigation.
+In Proceedings of the
+IEEE/CVF conference on Computer Vision and Pattern
+Recognition, pages 1643–1653, 2021. 1, 2
+[13] Yicong Hong, Zun Wang, Qi Wu, and Stephen Gould. Bridg-
+ing the gap between learning in discrete and continuous en-
+vironments for vision-and-language navigation, 2022. 8
+[14] Yicong Hong, Yang Zhou, Ruiyi Zhang, Franck Dernon-
+court, Trung Bui, Stephen Gould, and Hao Tan. Learning
+navigational visual representations with semantic map super-
+vision, 2023. 8
+[15] Jacob Krantz and Stefan Lee. Sim-2-sim transfer for vision-
+and-language navigation in continuous environments, 2022.
+8
+[16] Jacob Krantz, Erik Wijmans, Arjun Majumdar, Dhruv Batra,
+and Stefan Lee. Beyond the nav-graph: Vision-and-language
+navigation in continuous environments. In European Confer-
+ence on Computer Vision, pages 104–120. Springer, 2020. 1,
+5, 8
+[17] Jacob Krantz, Aaron Gokaslan, Dhruv Batra, Stefan Lee, and
+Oleksandr Maksymets.
+Waypoint models for instruction-
+guided navigation in continuous environments, 2021. 8
+[18] Jacob Krantz, Shurjo Banerjee, Wang Zhu, Jason Corso, Pe-
+ter Anderson, Stefan Lee, and Jesse Thomason.
+Iterative
+vision-and-language navigation. In 2023 IEEE/CVF Confer-
+ence on Computer Vision and Pattern Recognition (CVPR),
+pages 14921–14930. IEEE, 2023. 1
+[19] Alexander Ku, Peter Anderson, Roma Patel, Eugene Ie, and
+Jason Baldridge. Room-across-room: Multilingual vision-
+and-language navigation with dense spatiotemporal ground-
+ing, 2020. 2, 5
+[20] Haoran Liu, Weikang Wan, Xiqian Yu, Minghan Li, Ji-
+azhao Zhang, Bo Zhao, Zhibo Chen, Zhongyuan Wang,
+Zhizheng Zhang, and He Wang.
+Na vid-4d: Unleashing
+spatial intelligence in egocentric rgb-d videos for vision-and-
+language navigation. In 2025 IEEE International Conference
+on Robotics and Automation (ICRA), pages 10607–10615,
+2025. 8
+[21] Yuxing Long, Wenzhe Cai, Hongcheng Wang, Guanqi Zhan,
+and Hao Dong. Instructnav: Zero-shot system for generic
+
+
+instruction navigation in unexplored environment, 2024. 8
+[22] Kailin Lyu, Kangyi Wu, Pengna Li, Xiuyu Hu, Qingyi Si,
+Cui Miao, Ning Yang, Zihang Wang, Long Xiao, Lianyu Hu,
+Jingyuan Sun, and Ce Hao. Himemvln: Enhancing reliabil-
+ity of open-source zero-shot vision-and-language navigation
+with hierarchical memory system. CoRR, abs/2603.14807,
+2026. 3
+[23] Tao Ren, Weiyao Luo, Hui Yang, Rongzhi Zhu, Xiang
+Huang, Yuchuan Wu, Bingxue Chou, Jieping Ye, Jiafeng
+Liang, Yongbin Li, et al. Scaling self-evolving agents via
+parametric memory. arXiv preprint arXiv:2606.04536, 2026.
+3
+[24] Imanol Schlag, Kazuki Irie, and J¨urgen Schmidhuber. Linear
+transformers are secretly fast weight programmers. In Inter-
+national conference on machine learning, pages 9355–9366.
+PMLR, 2021. 3
+[25] Yu Sun, Xiaolong Wang, Zhuang Liu, John Miller, Alexei A.
+Efros, and Moritz Hardt.
+Test-time training with self-
+supervision for generalization under distribution shifts. In
+Proceedings of the 37th International Conference on Ma-
+chine Learning, ICML 2020, 13-18 July 2020, Virtual Event,
+pages 9229–9248. PMLR, 2020. 2, 3
+[26] Yu Sun, Xinhao Li, Karan Dalal, Jiarui Xu, Arjun Vikram,
+Genghan Zhang, Yann Dubois, Xinlei Chen, Xiaolong Wang,
+Sanmi Koyejo, Tatsunori Hashimoto, and Carlos Guestrin.
+Learning to (learn at test time): Rnns with expressive hidden
+states. In Forty-second International Conference on Machine
+Learning, ICML 2025, Vancouver, BC, Canada, July 13-19,
+2025. PMLR / OpenReview.net, 2025. 2, 3
+[27] Hanqing Wang, Wei Liang, Luc Van Gool, and Wenguan
+Wang.
+Dreamwalker:
+Mental planning for continuous
+vision-language navigation, 2023. 8
+[28] Zihan Wang and Gim Hee Lee. g3d-lf: Generalizable 3d-
+language feature fields for embodied tasks, 2024. 8
+[29] Zihan Wang, Xiangyang Li, Jiahao Yang, Yeqi Liu, and
+Shuqiang Jiang. Gridmm: Grid memory map for vision-and-
+language navigation, 2023. 8
+[30] Zihan Wang, Xiangyang Li, Jiahao Yang, Yeqi Liu, and
+Shuqiang Jiang. Sim-to-real transfer via 3d feature fields for
+vision-and-language navigation, 2024. 8
+[31] Meng Wei, Chenyang Wan, Xiqian Yu, Tai Wang, Yuqiang
+Yang, Xiaohan Mao, Chenming Zhu, Wenzhe Cai, Hanqing
+Wang, Yilun Chen, et al. Streamvln: Streaming vision-and-
+language navigation via slowfast context modeling. arXiv
+preprint arXiv:2507.05240, 2025. 3, 5, 8
+[32] Yunzhe Xu, Yiyuan Pan, and Zhe Liu.
+Dream to re-
+call: Imagination-guided experience retrieval for memory-
+persistent vision-and-language navigation. IEEE Trans. Pat-
+tern Anal. Mach. Intell., 48(8):9035–9049, 2026. 1, 3
+[33] Xuan Yao, Junyu Gao, and Changsheng Xu. Navmorph: A
+self-evolving world model for vision-and-language naviga-
+tion in continuous environments. In IEEE/CVF International
+Conference on Computer Vision, ICCV 2025, Honolulu, HI,
+USA, October 19-25, 2025, pages 5536–5546. IEEE, 2025.
+3, 8
+[34] Shuang Zeng, Dekang Qi, Xinyuan Chang, Feng Xiong,
+Shichao Xie, Xiaolong Wu, Shiyi Liang, Mu Xu, and Xing
+Wei.
+Janusvln: Decoupling semantics and spatiality with
+dual implicit memory for vision-language navigation. In In-
+ternational Conference on Learning Representations, pages
+33001–33026, 2026. 1, 3, 5, 8
+[35] Jiazhao Zhang, Kunyu Wang, Rongtao Xu, Gengze Zhou,
+Yicong Hong, Xiaomeng Fang, Qi Wu, Zhizheng Zhang, and
+He Wang. Navid: Video-based VLM plans the next step for
+vision-and-language navigation. In Robotics: Science and
+Systems XX, Delft, The Netherlands, July 15-19, 2024, 2024.
+3, 8
+[36] Jiazhao Zhang, Kunyu Wang, Shaoan Wang, Minghan Li,
+Haoran Liu, Songlin Wei, Zhongyuan Wang, Zhizheng
+Zhang, and He Wang.
+Uni-navid: A video-based vision-
+language-action model for unifying embodied navigation
+tasks. Robotics: Science and Systems, 2025. 3, 8
+[37] Lingfeng Zhang, Xiaoshuai Hao, Qinwen Xu, Qiang Zhang,
+Xinyao Zhang, Pengwei Wang, Jing Zhang, Zhongyuan
+Wang, Shanghang Zhang, and Renjing Xu.
+Mapnav: A
+novel memory representation via annotated semantic maps
+for vision-and-language navigation, 2026. 8
+[38] Siqi Zhang, Yanyuan Qiao, Qunbo Wang, Zike Yan, Qi Wu,
+Zhihua Wei, and Jing Liu. Cosmo: Combination of selective
+memorization for low-cost vision-and-language navigation,
+2025. 8
+[39] Tianyuan Zhang, Sai Bi, Yicong Hong, Kai Zhang, Fujun
+Luan, Songlin Yang, Kalyan Sunkavalli, William Freeman,
+and Hao Tan. Test-time training done right. In International
+Conference on Learning Representations, pages 157604–
+157638, 2026. 3, 4
+[40] Duo Zheng, Shijia Huang, Lin Zhao, Yiwu Zhong, and Liwei
+Wang. Towards learning a generalist model for embodied
+navigation. In IEEE/CVF Conference on Computer Vision
+and Pattern Recognition, CVPR 2024, Seattle, WA, USA,
+June 16-22, 2024, pages 13624–13634. IEEE, 2024. 3
+[41] Gengze Zhou, Yicong Hong, and Qi Wu. Navgpt: Explicit
+reasoning in vision-and-language navigation with large lan-
+guage models. In Thirty-Eighth AAAI Conference on Arti-
+ficial Intelligence, AAAI 2024, Thirty-Sixth Conference on
+Innovative Applications of Artificial Intelligence, IAAI 2024,
+Fourteenth Symposium on Educational Advances in Artificial
+Intelligence, EAAI 2024, February 20-27, 2024, Vancouver,
+Canada, pages 7641–7649. AAAI Press, 2024. 3
+
+
+NavTTT: Adaptive Parametric Memory via Hierarchical Test-Time Training for
+Vision-and-Language Navigation
+Supplementary Material
+A. Additional Method Details
+NavTTT uses navigation context to select visual evidence
+for episode-local fast-weight memory. This section details
+how selection accounts for redundancy. Section B describes
+joint training and the inference-time update sequence.
+A.1. Intra-frame redundancy suppression
+The relevance score ri evaluates each visual token inde-
+pendently. Under a fixed write budget K, selecting tokens
+solely by relevance can retain multiple patches with similar
+visual content. We therefore construct a selection set S in-
+crementally. Starting from S = ∅, we repeatedly select a
+token using
+i∗= arg max
+i/∈S
+
+ri −λdiv max
+j∈S cos(ei, ej)
+
+,
+S ←S ∪{i∗}.
+(S1)
+Selection continues until K tokens have been retained or
+the candidates are exhausted. For an empty selection set,
+the redundancy penalty is defined as zero, so the first token
+is selected by relevance. Subsequent selections balance task
+relevance and appearance diversity with λdiv = 0.25.
+Cosine similarity is computed from the raw visual fea-
+tures ei, before positional information is introduced. This
+measures redundancy in visual appearance. The finalized
+selection set defines the binary write mask mi = I[i ∈S].
+All visual tokens remain available to the navigation back-
+bone.
+B. Training Objectives and Test-Time Training
+Pipeline
+NavTTT is jointly trained for navigation with Adaptive
+Parametric Memory (APM) integrated from the outset. Dur-
+ing inference, the learned slow-weight parameters remain
+fixed and episode-local fast weights are updated online.
+B.1. Joint navigation training
+NavTTT is initialized from Qwen3-VL-8B. The language
+backbone, multimodal projector, and APM modules, in-
+cluding the token scoring network and learned fast-weight
+initialization, are jointly optimized under navigation super-
+vision. The vision encoder remains frozen. This training
+adapts the policy together with memory writing and re-
+trieval.
+Let θ denote the trainable parameters and D the navi-
+gation training set. We minimize the autoregressive cross-
+entropy over reference action tokens,
+Lnav(θ) = −ED
+ 1
+Nt
+log Pθ(A⋆
+t | Xt, Mt−1)
+
+,
+(S2)
+where the expectation averages over training decisions, A⋆
+t
+is the reference action chunk, and Nt is its supervised token
+count. The sequence likelihood factorizes autoregressively
+over the reference action tokens, conditioned on navigation
+inputs Xt and the memory state Mt−1 available before the
+current decision. Prompt context and padding tokens are
+excluded from the loss.
+B.2. Self-supervised fast-weight updates
+After joint training, the slow-weight parameters are frozen.
+These include the navigation backbone, multimodal projec-
+tor, token scoring network, and projections used for mem-
+ory writing and retrieval.
+Online adaptation updates the
+episode-local fast weights W.
+At decision t, the scoring network computes relevance
+scores from the current visual features and navigation con-
+text. The procedure in Section A.1 selects tokens, which are
+encoded into contextual key–value pairs. Scores and selec-
+tions vary with the current inputs.
+The memory association objective is
+Lmem(W) = −
+X
+i
+mi⟨fW (ki), vi⟩,
+(S3)
+where ki and vi denote the encoded key and value, mi is the
+selection mask, and fW is the nonlinear fast-weight map-
+ping. Layer and head indices are omitted. The keys, values,
+and write mask are held fixed when differentiating with re-
+spect to W. In the basic gradient-descent form, the update
+is
+Wt = Wt−1 −ηt∇W Lmem(Wt−1),
+(S4)
+where ηt is the update rate. These updates incorporate ob-
+served evidence without requiring ground-truth action la-
+bels.
+B.3. Causal read-before-write execution
+Prompt processing and action generation at step t query
+Mt−1. This state contains experience from previous de-
+cisions and remains unchanged throughout current action
+generation. Once the final decision representation is avail-
+able, the selected evidence from the current observation
+
+
+produces a pending update. The updated state is committed
+after the current action chunk is finalized, producing Mt for
+subsequent decisions.
+C. Visual Token Selection Analysis
+We compare random, relevance-only, diversity-only, and
+combined selection through full navigation rollouts under
+the same evaluation settings and token budget. Table S1
+reports navigation performance. Figure S1 illustrates the
+selected visual regions under matched observations and de-
+cision contexts.
+Both relevance-only and diversity-only selection im-
+prove SR and SPL over random selection. Relevance-only
+selection achieves higher scores than diversity-only selec-
+tion on both benchmarks. Combining the criteria yields the
+best performance, improving SR over relevance-only selec-
+tion by 2.6 percentage points on R2R-CE and 0.9 points on
+RxR-CE. These results support using task relevance to iden-
+tify useful evidence and diversity to reduce overlap within
+the selected set.
+The visualizations illustrate the complementary ef-
+fects. Relevance-only selection concentrates on instruction-
+related content. Diversity-only selection distributes tokens
+more broadly across the scene.
+Combined selection re-
+tains evidence around the dining table and includes cues
+around the white carpet and forward passage, with lower
+similarity among the selected features. These examples il-
+lustrate selection around compact landmarks and extended
+route structures.
+D. Memory Configuration Analysis
+We examine memory depth and state sharing on R2R-CE
+Val-Unseen using Qwen3-VL-8B. All variants follow the
+main joint-training protocol with matched inputs, training
+data, and optimization budget. The token selector, writing
+feature source, number of memory heads, and per-head state
+dimensions are fixed. Online updates are enabled for every
+configuration.
+Layer placement.
+We divide the 36-layer decoder into
+equally sized segments and attach a memory branch to the
+final layer of each segment. Using zero-based indices, the
+single-layer configuration uses layer 35, the three-layer con-
+figuration uses layers {11, 23, 35}, and the six-layer config-
+uration uses layers {5, 11, 17, 23, 29, 35}. These nested lay-
+outs retain the deepest access point while extending mem-
+ory access to earlier decoder stages.
+State sharing.
+Independent configurations maintain a
+separate fast-weight state at each augmented layer.
+The
+shared configuration uses the same six access locations,
+with corresponding memory heads sharing their states
+across layers. With per-head dimensions fixed, indepen-
+dent configurations allocate more total state as the number
+of augmented layers increases.
+Among independent configurations, increasing the num-
+ber of memory depths improves both SR and SPL, accom-
+panied by higher state storage and latency (Table S2). The
+six-layer shared configuration uses the same state storage as
+the last-layer configuration and improves both SR and SPL
+by 0.6 percentage points. This storage-matched compar-
+ison supports accessing historical information at multiple
+decoder depths.
+At the same six access locations, independent states im-
+prove SR over shared memory by 1.4 points. Shared mem-
+ory achieves 0.1 point higher SPL and reduces state stor-
+age to the single-layer footprint. Its mean latency remains
+close to that of the full model. Thus, the storage saving is
+accompanied by a small latency reduction. The full config-
+uration achieves the highest SR, and the shared configura-
+tion achieves the highest reported SPL with lower persistent
+storage.
+E. Navigation Performance by Route Length
+We partition Val-Unseen episodes into short, medium, and
+long groups using tertiles of reference trajectory length. The
+cutoffs are approximately 7.8 and 10.0 m on R2R-CE and
+9.5 and 17.7 m on RxR-CE. The groups contain 1,839 R2R-
+CE episodes and 3,669 RxR-CE episodes. All variants use
+the same episode groups within each benchmark. The base-
+line omits APM. Static APM uses the full-model checkpoint
+with online fast-weight updates disabled.
+Full NavTTT has its largest SR advantage over the base-
+line without APM in the long-route group on both bench-
+marks (Table S3). The static control further distinguishes
+the effects of memory initialization and online updates. On
+R2R-CE, static APM improves SR over the baseline on
+short and medium routes and scores lower on long routes.
+Enabling updates increases long-route SR by 9.97 percent-
+age points and SPL by 4.95 points. The short- and medium-
+group changes in success count cancel, so the long group
+accounts for the net gain of 61 successes over static APM.
+The SPL gain is driven by more successful episodes, with
+lower mean normalized path efficiency among successful
+full-model episodes.
+On long RxR-CE routes, static APM improves SR over
+the baseline by 5.16 points, and full NavTTT adds 2.46
+points.
+The SR gain over static APM is larger in the
+medium group.
+The comparison with direct LaCT also
+varies by benchmark. Full NavTTT improves long-route
+SR by 6.37 points on R2R-CE and 0.41 points on RxR-CE.
+Direct LaCT achieves higher SPL on long RxR-CE routes.
+The results show that the gains in task completion vary
+with route length and are accompanied by different path-
+efficiency tradeoffs.
+
+
+Observation
+Relevance only
+Diversity only
+Relevance + Diversity
+(a) Dining table
+Instruction: Reach a formal dining table
+(b) White carpet
+Instruction: Exit the bathroom and wait on the white carpet
+(c) Forward passage
+Instruction: Proceed forward through the kitchen
+Figure S1. Qualitative comparison of relevance-only, diversity-only, and combined visual token selection. White outlines mark task-
+relevant regions, and colored boxes indicate selected visual tokens. The examples are screened offline comparisons under matched obser-
+vations and decision contexts.
+Table S1. Navigation performance under the same token budget. SR and SPL are percentages. Best scores are bold.
+R2R-CE Val-Unseen RxR-CE Val-Unseen
+Selection
+SR↑
+SPL↑
+SR↑
+SPL↑
+Random
+62.8
+56.8
+60.5
+49.6
+Relevance only 64.1
+58.3
+62.7
+51.8
+Diversity only
+63.5
+57.3
+61.8
+50.7
+Combined
+66.7
+59.4
+63.6
+52.7
+Table S2. Memory configurations on R2R-CE Val-Unseen. H0 is the full NavTTT model. SR and SPL are percentages. Persistent fast-state
+storage is reported separately from total model memory. Latency is the mean per decision. Best navigation scores are bold.
+ID
+Configuration
+SR↑
+SPL↑
+State (MiB)
+Latency (ms)
+H0
+Six-layer independent
+66.7
+59.4
+576.28
+347.51
+H1
+Last-layer only
+64.7
+58.9
+96.05
+313.37
+H2
+Three-layer independent
+65.1
+59.2
+288.14
+327.81
+H3
+Six-layer shared
+65.3
+59.5
+96.05
+345.32
+F. Memory Diagnostics and Inference Profiling
+F.1. Historical readout
+We replay 199 long RxR-CE reference routes across eight
+scenes with fixed learned parameters and online fast-weight
+updates. From each source write, we probe two predeter-
+mined key–value pairs. Each probe queries the same mem-
+ory head with the original write-time key immediately after
+writing and after 8, 16, or 32 further updates. We rank the
+same 32 values from the source write by cosine similarity
+
+
+Table S3. Closed-loop performance by reference-route length. SR and SPL are percentages. Bold marks the highest score for each metric
+within a group. For full NavTTT on RxR-CE, SR is taken from the ablation summary and SPL from the benchmark record.
+NavTTT (full) Without APM
+Static APM
+Direct LaCT
+Dataset
+Group
+Episodes
+SR↑
+SPL↑
+SR↑
+SPL↑
+SR↑SPL↑
+SR↑
+SPL↑
+R2R-CE Short
+615 74.96
+65.89 71.54
+63.69 74.47 64.39 73.66
+63.15
+Medium
+612 71.08
+63.32 67.65
+60.14 71.57 62.08 68.63
+61.49
+Long
+612 53.92
+48.84 47.88
+45.74 43.95 43.89 47.55
+44.53
+RxR-CE Short
+1,224 79.33
+70.34 77.78
+70.53 78.43 70.81 78.84
+69.44
+Medium
+1,224 64.95
+51.25 63.89
+55.60 61.52 52.58 62.09
+53.71
+Long
+1,221 46.44
+36.47 38.82
+32.43 43.98 34.21 46.03
+37.91
+Table S4. First-rank hit rates on long RxR-CE reference routes
+after subsequent memory updates. At each delay, source frames
+have left the active visual context.
+Subsequent updates
+8
+16
+32
+Hit rate (%)
+6.22
+6.05
+5.23
+to each readout. A hit occurs when the paired value ranks
+first.
+At each delay, we retain probes whose source frames
+have left the active visual context and use the same probe set
+for the immediate measurement. We average within routes,
+weight routes equally, and estimate uncertainty in the paired
+change using 2,000 scene-level bootstrap replicates.
+After 32 updates, the paired change relative to the
+immediate readout is +0.14 percentage points (95% CI
+[−0.57, +0.73]). The low absolute hit rate indicates limited
+discrimination among values written together. The confi-
+dence interval is consistent with small changes in either di-
+rection under continued writing.
+F.2. Route history and action prediction
+We evaluate the same checkpoint on R2R-CE and long
+RxR-CE reference routes.
+At each probed decision, we
+fix the instruction, visual context, and pose, then encode
+the prompt afresh under three fast states. The correct state
+comes from the current route. Reset restores the learned ini-
+tial state. Wrong history uses a state from a different route
+after the same number of updates. Replay continues with
+the correct state after scoring.
+We score the same reference-action tokens under teacher
+forcing. For each control c, we compute the paired negative
+log-likelihood difference
+∆c = NLLc −NLLcorrect,
+(S5)
+in nats per action token.
+Positive values indicate higher
+reference-action likelihood with correct history.
+Wrong-
+history comparisons use decisions with a matched donor
+state.
+Confidence intervals are obtained by resampling
+scenes.
+Table S5. Reference-action NLL differences in nats per action
+token. Positive values favor correct route history. All reported
+confidence intervals are above zero.
+Control state
+∆c
+95% CI
+R2R-CE
+Reset
++0.008204 [0.007885, 0.011118]
+Wrong history +0.005426 [0.004127, 0.011335]
+RxR-CE (long)
+Reset
++0.006827 [0.004219, 0.007660]
+Wrong history +0.004970 [0.003809, 0.010436]
+Table S6. Inference cost on R2R-CE Val-Unseen. Decision la-
+tency includes memory writing. Peak memory is the maximum
+allocated GPU memory.
+Variant
+Decision Writing
+Peak
+(ms)
+(ms) (GiB)
+Baseline (w/o APM)
+288.69
+— 16.82
+Static APM
+318.82
+— 17.62
+NavTTT (full)
+331.95
+14.28 18.17
+The reset comparisons show a modest improvement in
+reference-action likelihood from accumulated updates on
+both replay sets (Table S5). The wrong-history compar-
+isons show that the route supplying those updates matters
+at a matched update count. This intervention measures the
+contribution of the full fast state to reference-action scoring.
+F.3. Inference profiling
+We profile all variants on one RTX 5090 D v2 using the
+same 128 R2R-CE Val-Unseen inputs, batch size 1, and four
+generated tokens per decision. We average three repetitions
+with 30 warm-up decisions before each measurement block.
+Decision timing covers input transfer through action detok-
+enization and any write for the next decision. CUDA events
+measure token selection, key–value preparation, and fast-
+weight optimization within that interval.
+Memory writing takes 14.28 ms per decision, including
+selection, key–value preparation, and fast-weight optimiza-
+
+
+tion. Total decision latency increases by 13.13 ms (4.12%)
+relative to static APM (Table S6). Section D reports la-
+tency and persistent fast-state storage across memory lay-
+outs. Section E reports the corresponding closed-loop per-
+formance by reference-route length.
+G. More Qualitative Results
+We present Habitat navigation trajectories to illustrate in-
+struction following and representative failure modes.
+Successful navigation.
+Figures S2 and S3 present suc-
+cessful episodes involving multi-step instructions, extended
+traversal, and target landmarks.
+During these episodes,
+NavTTT updates its fast state with selected observations
+and makes the accumulated history available to later de-
+cisions. The examples provide qualitative illustrations of
+instruction following across successive observations.
+Failure cases.
+Figure S4 presents three failure modes. Di-
+rectional drift or reversal leads the agent away from the in-
+structed route. Repetitive action loops yield little progress
+toward the goal. Missed turn-offs occur when the agent
+passes a required branching point without executing the in-
+structed turn. These cases reveal challenges in translating
+perceptual and historical context into reliable local deci-
+sions. Directional grounding, progress-aware recovery, and
+timely landmark-conditioned turning are directions for fur-
+ther investigation.
+
+
+Expert trajectory
+NavTTT
+Current position
+Goal / 3 m region
+Instruction: You are facing the wall. Turn slightly right and move forward, until you face the wall which has a wall 
+hanging on it. Turn slightly left and move forward to your right, there are stairs. Climb up the stairs. At the top of the 
+stairs, turn slightly left and move forward then you are facing towards the plants. Turn slightly right and move forward, 
+then you are facing towards the plant. Turn slightly right and move forward until you are facing the wall again. Turn 
+slightly right and move forward wherein there are some flower vase to your left and right. Move forward until the sofa, 
+then turn slightly left and walk towards the bed. Now walk beside the bed and move forward, until you are facing the 
+wall again. Turn slightly left and move forward, this is a bathroom and stop facing the bathtub and the windows, and 
+this is your end point.`
+✓
+Success · 40.3 m reference route · 154-word instruction · NE 1.31 m · nDTW 0.937 · SPL 0.944 · 427 actions.
+Instruction: We're starting facing the corner of a room with a tan wall. And there's a doorway/opening to another room with a fireplace with a mirror on top. If you 
+turn to the right you see a window with a privacy wood fence outside. If you keep turning to the right you'll see a glass table with a glass chandelier. We are going to 
+walk into that open room so the glass table will be on our left and we're walking towards the white chair with wood outline. We see the large front door. After the 
+front door you're going to walk where the stairway is on your left towards a houseplant in a basket potter and three tall vases that look like they're made out of wood. 
+And then you'll come to a staircase that leads down. It has a railing, a handrail on the left and then a metal railing on the right. We're gonna go down the stairs, the 
+bottom of the stairs has a foot bench that's tan with a white pattern. At the bottom of the stairs you're going to make a U-turn. And then you're going to walk down the 
+hallway. The stairs will be on your right. You're walking towards two more of those tall wicker vases. When you reach those wicker vases you will see a door to your 
+right, a doorway straight ahead that has a couple chairs and then a hallway to your left. You're going to walk down the hallway to your left. You can see a thermostat 
+on the wall on the right, and then you will see another doorway, it looks like to a bedroom on the right, and an abstract painting as you continue down the hallway. 
+You're going to walk into the restroom. And we're going to end facing the window and towel rack, with the shower on our right, and to your left you're going to see 
+the toilet and the sink and a couple fish that are decorative.
+✓
+Success · 27.2 m reference route · 334-word instruction · NE 0.29 m · nDTW 0.953 · SPL 0.938 · 202 actions.
+Figure S2. Qualitative navigation results of NavTTT on RxR-CE.
+
+
+Instruction: Go to the wooden stairs. Go up the stairs and go between the couch and the table. Walk into the house through the sliding glass 
+door. Go to the television. Go to the refrigerator. Go to the front of the toaster and stop.
+✓
+Success · 22.1 m reference route · 43-word instruction · NE 2.32 m · SPL 0.959 · 170 actions.
+Instruction: Turn around and exit out the door to the far right of the bed. Once out, Walk down the hallway. Once you get to where the 
+hallway opens up, turn left and walk past the stairs. Stop looking into the next door to your left facing the sitting room.
+✓
+Success · 16.7 m reference route · 49-word instruction · NE 1.00 m · SPL 1.000 · 91 actions.
+Instruction: Walk past the large dining table with the chandelier overhead. The table should be on your right as you walk past it. Follow the 
+red carpet to exit that room by the first doorway you come to after passing the table. There are some red chairs just to the right of the doorway 
+you will go through. Walk down the hall and stop in the first doorway on your right.
+✓
+Success · 15.7 m reference route · 70-word instruction · NE 0.71 m · SPL 1.000 · 88 actions.
+Expert Trajectory
+NavTTT Trajectory
+Current Position
+Goal
+Figure S3. Qualitative navigation results of NavTTT on R2R-CE.
+
+
+You are facing a large wooden door. If you turn to the left, you'll be looking into a room that features pieces of artwork 
+and furniture cordoned off, along with a red carpet flowing through the center of the room. SO what you wanna do is 
+walk all the way down this red-carpeted path until you are standing in front of the double doors at the other end of the 
+room, and you are done.
+ Walk through the kitchen passed the sink and around the corner out into the hallway. Walk into the arched entry well to 
+the left of the stairwell. Continue into the room with the armchair and bed.
+Repeat the action loop and exhaust the steps.  
+Direction reversal and cascaded trajectory drift; trajectory recovery failed.
+ Walk through the kitchen passed the sink and around the corner out into the hallway. Walk into the arched entry well to 
+the left of the stairwell. Continue into the room with the armchair and bed.
+Failing to detect or execute critical turn-offs, the agent bypasses intended branch paths. 
+Expert Trajectory
+NavTTT Trajectory
+Current Position
+Goal
+Figure S4. Representative navigation failures, including directional drift or reversal, repetitive action loops, and missed turn-offs.

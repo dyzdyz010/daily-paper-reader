@@ -1,0 +1,1112 @@
+System-One RSI: Building Muscle Memory for
+Interactive Agents through Guided Practice
+Qingxu Fu1
+Xuanfa Jin1,2
+Ziqian Chen1
+qingxu.fu@outlook.com
+xuanfa.jin@alibaba-inc.com
+Zhaoyang Liu1
+Bolin Ding1
+liuzhaoyang@alibaba-inc.com
+dingbolin@alibaba-inc.com
+1Alibaba Token Foundry - Infra & Model RSI - EconML
+2Institute of Automation, Chinese Academy of Sciences
+November 2026
+Abstract
+Reasoning language models struggle with real-time control when the time spent gen-
+erating a decision exceeds the available response window. System-One Recursive Self-
+Improvement (System-One RSI) converts task knowledge and interaction experience into
+reusable visual judgments. A team of agents built on reasoning models supplies control rules
+and supervision through informal language, guiding targeted practice in the environment.
+The decision model stores learned distinctions in its parameters and returns structured
+judgments without generating a reasoning trace at every step. An Observe, Orient, Decide,
+Act (OODA) controller uses these judgments to select actions. Recorded experience supports
+subsequent model training and controller revision without requiring expert operational
+demonstrations. Deployments in Zenless Zone Zero and Black Myth: Wukong examine
+prediction accuracy and online behaviour. The studies include visual-model adaptation and
+controller revision across opponents. The framework targets environments where repeated
+interaction is costly and parallel simulation is impractical. Its application depends on task
+knowledge, the coverage of collected experience, and the resources available for inference.
+1
+arXiv:2611.26007v1  [cs.AI]  19 Nov 2026
+
+
+2
+Fu et al.: System-One RSI
+1
+Introduction
+Long-chain reasoning has improved large language models’ ability to solve complex text-
+processing tasks by allowing them to develop and revise intermediate steps before producing
+an answer [27]. Paired with multimodal perception and action interfaces, the same mechanism
+supports computer use and high-level planning for robot control [1, 2]. The competence is
+general; the timing is not. Greater reasoning effort requires more intermediate tokens, and every
+additional token is another sequential decoding step [27]. Model depth adds a cost of its own,
+since at comparable width and numerical precision more layers raise per-token computation and
+the memory held for parameters and cached attention states [28]. In an environment that keeps
+changing, the resulting delay can leave an observation stale or let an action opportunity pass
+before the reasoning that identifies it has finished [29].
+Decision models have recently attracted renewed interest as a means of reducing decision
+latency [13,30]. Models such as JEV retain backbones similar to those of conventional large
+language models but differ primarily in their output interface: a decision head or selected
+output logits directly assign scores or probabilities to candidate answers without autoregressively
+generating a textual response [28,30]. With relatively few layers and a single forward pass per
+decision, compact models achieve reported latencies of approximately 50–200 ms on bounded
+inputs, supporting a broad range of real-time applications [28]. However, without explicit
+multistep reasoning, these models cannot decompose and revise decisions through intermediate
+reasoning steps, making complex judgments more difficult. Careful task-specific prompt tuning
+can yield high accuracy, but long prompts or multiple input images can increase processing time
+severalfold, bringing latency closer to that of conventional language models [28,30]. Moreover,
+prompt tuning and few-shot examples cannot readily convey fine-grained multimodal experience.
+For example, precise dodge timing requires distinguishing the visually similar postures in
+Fig. 1(a)–(c) and initiating a dodge only at frame (c). Reliable decisions in such settings require
+updating the decision model’s weights to consolidate experience acquired through practice and
+interaction and apply it to subsequent judgments.
+(a) Pre-attack
+(b) Pre-attack
+(c) Dodge window
+(d) After attack
+Figure 1: Successive observations of an attack in Black Myth: Wukong.
+Classical reinforcement learning offers a third route: it addresses acquisition rather than
+expression, and its execution side is already fast. A policy implemented as a shallow network
+maps an observation to an action in a short forward pass, without a reasoning trace, which suits
+high-frequency control. The cost sits in obtaining the policy, which normally requires substantial
+training data [10,11]. Online RL gathers that data by interacting and updating from observed
+rewards, but a live environment may not be sandboxable, reliably reset, or replicable for parallel
+rollouts. Account authentication and persistent service state can block each of these operations,
+which makes large-scale trial and error impractical [11]. Offline RL avoids further interaction by
+learning from existing trajectories, at the price of collecting them and of remaining within their
+coverage, particularly for actions whose consequences the dataset represents poorly [12]. Under
+2
+
+
+3
+Fu et al.: System-One RSI
+an adaptation budget of a few episodes neither route has enough evidence: one has too little
+opportunity to explore, the other too little information about the alternatives.
+A fourth response leaves the weights unchanged and expresses task knowledge in text or
+code, through computer use [1], generated CV routines and control programs [7,8], or prompt
+optimization [9]. Each of these routes presupposes a perceptual judgment that it does not
+itself supply, and none of them learns it. Table 1 collects the routes considered so far and the
+interaction each of them requires.
+Table 1: Routes to control capability and their constraints in live environments.
+Approach
+Advantages
+Limitations
+Online RL [10,11]
+Learns policies from
+interaction feedback
+Environment replication, reset, and parallel
+rollouts may be obstructed by external
+dependencies.
+Offline RL [12]
+Learns from existing
+trajectories
+Data collection can be costly; coverage limits
+learning under distribution shift.
+Reasoning-based
+computer use [1,5]
+Applies task knowledge
+through deliberation
+Repeated reasoning adds latency, and visual
+grounding can remain unreliable.
+Reasoning-
+generated
+CV/control [7,8]
+Converts task knowledge into
+executable rules
+Perceptual conditions require specification and
+testing across visual edge cases.
+Unadapted JEV [13]
+Returns structured judgments
+without a reasoning trace
+Pretrained capabilities may not cover the
+distinctions required by a new task.
+JEV prompt
+optimization [9,13]
+Revises instructions without
+parameter updates
+Fine distinctions can be difficult to express;
+longer inputs increase processing cost.
+No single route in Table 1 supplies all three ingredients at once: task knowledge, fast
+execution, and experience from limited interaction. A reasoning model supplies the first
+and, given multimodal input, reads scenes that a fixed rule set cannot anticipate. A decision
+model supplies the second. Combining them suggests a natural question: can a recursive
+self-improvement (RSI) procedure let the reasoning model improve the decision model from
+their shared experience, so that the capability of the former becomes resident in the latter instead
+of being consulted beside it?
+Motor learning exhibits the same combination in an observable form. Knowledge of the
+physical principles that stabilize a bicycle does not confer the ability to ride one. Those principles
+do not supply the postural corrections that maintain balance, and the corrections are made too
+rapidly to be governed by deliberation; a swimmer does not deliberate over each adjustment of
+the stroke. Progressive practice over hours or days is generally required before the responses can
+be produced without conscious reconstruction, a condition commonly termed muscle memory.
+Conventional online reinforcement learning requires on the order of thousands of trials to
+acquire a policy, whereas human acquisition of a comparable movement requires far fewer
+attempts; the difference is the coach. A coach neither performs the movement nor describes it
+completely; it watches, locates the error, and sets an exercise that isolates the error, so that practice
+is spent on the missing distinction rather than on repetitions of what is already reliable [3].
+This paper places a reasoning model in the coach’s role. The model names the observations
+that matter, states what should be practiced, and defines how the record of an attempt should be
+read; as records accumulate it revises those instructions. Supervised training consolidates the
+resulting judgments in a decision model, where they are applied in a single forward pass rather
+than regenerated at each step. This capacity is termed external muscle memory by analogy, and
+Fig. 2 sets the human and model versions of the process side by side. Three conditions define
+3
+
+
+4
+Fu et al.: System-One RSI
+the setting. No expert demonstration or expert action sample is used. The environment is not
+wrapped in a simulator, its dynamics are not modified, and no parallel instance is launched. The
+interaction budget is a small number of real episodes.
+Human
+Deep thinking
+Conceptual
+understanding
+Targeted practice guided
+by a teacher’s
+imprecise language
+Muscle memory
+Acquire a motor skill
+Language Model
+Reasoning model
+Loosely described
+prior knowledge
+System-One RSI
+Very few samples
+JEV model
+High-frequency
+real-time tasks
+Figure 2: Guided practice as a model for learning external muscle memory.
+This paper presents System-One Recursive Self-Improvement (System-One RSI). It couples
+a fast inner loop with an offline outer loop (Fig. 3). The fast decision loop (inner loop) is an
+Observe, Orient, Decide, Act (OODA) cycle organized around the decision model, which carries
+the entire perceptual burden of the cycle: an observation enters, the decision model returns
+one structured judgment per task-relevant question, a decision tree determines the action those
+judgments jointly imply, and the execution interface acts before the next observation arrives.
+The RSI loop (outer loop) is driven by a team of agents built on reasoning models, with roles
+shown in Fig. 4. These agents act at three stages of each round. They write the decision tree
+and the prompting used inside the inner loop, so the questions asked of the decision model and
+the way its answers become actions are both under their control. They then collect samples,
+starting from a simple inner-loop policy or even a random one, so that the first records reflect the
+environment rather than a pre-existing policy. Finally they review those records offline, identify
+where the inner loop failed, and choose between tuning the decision model and revising the
+decision tree before the next round. Because either choice changes which states the system visits
+next, the following round is built on evidence that the previous round’s system produced.
+We conducted experimental validation under a variety of environmental conditions, including
+three dynamic visual environments, the Snake game, Zenless Zone Zero, and Black Myth:
+Wukong, with the same 27B decision model used throughout. The Snake game involves real
+observation latency and multiple obstacle types; the system receives image input only and
+reads no internal game state, and adaptation raises the mean score from 1.30 to 7.35. The
+other two environments are game clients without internal modification, external intervention, or
+sandboxing; they expose no internal state and support neither reset nor parallel instantiation. In
+a typical scenario of Zenless Zone Zero, adaptation promotes action precision from 63.85% to
+81.15%, raises the success rate from 25% to 100%, and reduces median completion time from
+261.2 s to 239.3 s. In a combat scenario of Black Myth: Wukong, the evasive policy extends
+player mean survival time from 23.6 s to 260.5 s, and the offensive policy win rate rises from 0%
+to 66.7%.
+4
+
+
+5
+Fu et al.: System-One RSI
+2
+System-One RSI
+This paper proposes System-One RSI, which comprises a high-frequency online inner loop and
+an offline outer loop for recursive improvement (Fig. 3).
+The target setting differs from common simulator-based reinforcement learning settings in
+three respects. (1) The environment evolves continuously in real time, even when no action is
+submitted, and does not pause during decision-model inference; actions therefore take effect in
+an environment that has continued to evolve, with a latency of approximately 200 ms or more
+in the target deployment. (2) The environment cannot be parallelized or sandboxed, so each
+episode consumes real-world time and only a very limited number of episodes can be collected.
+(3) Interaction follows the human control interface: each action specifies not only when to act,
+but also which key to press and how long to hold it, measured in milliseconds.
+TRAIN
+INFER
+JEV model
+Updated weights
+SFT
+Supervised fine-tuning
+Auto analyze & tag
+Model-defined supervision
+Data pool
+v1, v2, …
+Experience sequences
+Synchronized images + actions
+Reasoning model
+Write control rules
+Reasoning model (MM)
+Analyze images + actions
+Define labels / protocol
+OODA loop
+Structured decisions
+write
+Real environment
+execute actions
+Images
+Action log
+log images
+OODA loop · expanded view
+Observe → Orient → Decide → Act
+Observation
+JEV
+CV · optional
+Features
+Decision rules
+Model-authored
+L
+R
+Mouse
+Q
+W
+E
+A
+S
+D
+Ctrl
+Shift
+SPACE
+…
+Execution interface
+Purple: Reasoning model participation
+Solid: data / action flow    Dashed: deployment / optional branch / detail view
+Environment views
+Figure 3: Online control and recursive adaptation in System-One RSI.
+System-One RSI couples a fast inner loop with an offline outer loop (Fig. 3). The fast
+decision loop (inner loop) is an Observe, Orient, Decide, Act (OODA) cycle organized around
+the decision model, which carries the entire perceptual burden of the cycle: an observation
+enters, the decision model returns one structured judgment per task-relevant question, a decision
+tree determines the action those judgments jointly imply, and the execution interface acts before
+the next observation arrives. The reasoning model takes no part in the cycle. Interpretation of
+the scene is confined to a single forward pass, which is what allows the loop to close within the
+response window.
+The RSI loop (outer loop) encloses the inner loop and is carried out by a team of agents
+built on reasoning models, with roles shown in Fig. 4. These agents collaborate at three stages
+of each round. They write the decision tree and the prompting used inside the inner loop, so
+the questions asked of the decision model and the way its answers become actions are both
+under their control. They then collect samples, starting from a simple inner-loop policy or
+even a random one, so that the first records reflect the environment rather than a pre-existing
+policy. Finally, they review those records offline, identify where the inner loop failed, and choose
+between tuning the decision model and revising the decision tree before the next round. Because
+5
+
+
+6
+Fu et al.: System-One RSI
+either choice changes which states the system visits next, the following round is built on evidence
+that the previous round’s system produced.
+2.1
+Coordinating the adaptation workflow
+The agent team comprises a Planning & Coordination Agent, Rollout / Capture Agents, a Visual
+Labeling Agent, and a Training / Deploying Agent (Fig. 4). The Planning & Coordination Agent
+maintains the task specification and organizes tasks and feedback across the controller-revision
+and model-adaptation paths. The Rollout / Capture Agents execute OODA and record interactions,
+the Visual Labeling Agent assigns supervision labels, and the Training / Deploying Agent trains
+and deploys updated model weights. Shared interaction records and deployment artifacts connect
+these activities. This organization supports the two update paths while preserving an explicit
+interface between judgments and actions. The coordinator connects rule development to data
+collection and training, so each update returns to the same execution interface.
+Prompt / decision-tree
+optimization cycle
+System One model optimization cycle
+Decision Model Prompt
++ Decision Tree
+Rollout / Capture
+OODA runner
+Samples
+Refine prompts and decision rules
+Planning & Coordination
+Agent
+Organize tasks and feedback
+Rollout / Capture Agent
+OODA runner
+Visual Labeling Agent
+Assign supervision labels
+Training / Deploying Agent
+Train and deploy model weights
+Samples
+Labels
+New JEV model
+Updated weights
+Deploy to runner
+Samples → labels → training → deployment → new interaction
+Agent coordination
+Data / execution flow
+Model deployment
+Figure 4: Agent roles in controller revision and model adaptation.
+Fig. 4 separates the controller-development path from the model-training path. Both paths
+share observations and deployment feedback through the coordinator.
+2.2
+Reasoning model and control interface
+The reasoning model turns task knowledge into control rules and a supervision specification
+for recorded observations. Language-model-generated control programs have direct precedents
+in Code as Policies and Voyager [7,8]. During online interaction, the controller obtains visual
+observations, calls the decision model for structured judgments, applies decision rules, and
+submits actions through the environment’s control interface. Task knowledge is represented in
+both executable control rules and learned decision parameters.
+6
+
+
+7
+Fu et al.: System-One RSI
+From prior knowledge to task supervision
+The framework can draw on web materials, informal human hints, reusable instructions or
+programs, and a small number of exploratory interactions with the live environment. Exploratory
+traces provide observations of environment states and input effects for subsequent analysis. A
+reasoning model can use these sources to define observable task features, candidate responses,
+and labels grounded in recorded observations. Control rules encode executable knowledge, while
+supervised adaptation consolidates selected judgments into the model’s parameters. Supervision
+can therefore come from direct annotations or from a labelling protocol specified by the reasoning
+model, depending on the observable feedback. Reasoning-model supervision has precedents in
+distillation [17]; here the supervised targets are structured task judgments.
+2.3
+External muscle memory in the decision model’s parameters
+For an observation 𝑜𝑡and task question 𝑞, the decision model produces a structured judgment 𝑧𝑡.
+The controller maps this judgment to an action 𝑎𝑡through
+𝑧𝑡= 𝑓𝜃(𝑜𝑡, 𝑞),
+𝑎𝑡= 𝐶𝜙(𝑧𝑡).
+(1)
+The model maps an observation and a task question to structured outputs in a single forward
+pass, allowing the controller to use its judgments without generating a reasoning trace at
+each step [13]. Here 𝜃denotes the decision-model parameters and 𝜙the controller rules and
+configuration. A pretrained visual backbone supplies representations, while a decision head
+defines the output interface. Task adaptation updates selected parameters, such as LoRA
+adapters [19], to consolidate supervised judgments into reusable responses. The output schema
+specifies the judgments required by the controller, rather than a fixed set of environment-specific
+actions. Related decision-native architectures such as Jeva also study structured judgments
+with variable candidate sets [20]; the present framework concerns how task supervision and
+interaction adapt such judgments.
+2.4
+Experience, supervision, and training
+Training examples pair recorded observations with task-specific supervision. The reasoning
+model annotates selected observations or defines a labelling procedure that derives targets from
+recorded events and state changes. This converts task knowledge and interaction experience
+into training signals without requiring a reward function, expert operational demonstrations,
+or a parallel environment simulator. Labels derived from trajectories describe events under
+the recorded behaviour; they do not by themselves identify what would have happened under
+alternative actions.
+The experience pool retains observations, actions, and available outcomes across interaction
+rounds. Sampling can emphasize errors, rare states, or task-relevant events, while validation
+supports checkpoint selection before redeployment. Supervised objectives train the model’s
+structured outputs; class-weighted focal loss [21] is one option when label frequencies are
+imbalanced. The sampling distribution, training initialization, and validation partition are
+specified for each adaptation round. Repeated or adjacent observations must be distinguished
+from independent interaction experience when accounting for the data budget.
+7
+
+
+8
+Fu et al.: System-One RSI
+2.5
+Recursive interaction and capability consolidation
+An improvement round begins with experience generated by the deployed system and ends by
+returning an evaluated update to interaction. Writing 𝑟for the learning round, the proposed
+dependency is
+T𝑟= Rollout(𝐸, 𝑓𝜃𝑟, 𝐶𝜙𝑟),
+(2)
+P𝑟+1 = Aggregate(P𝑟, T𝑟),
+(3)
+D𝑟+1 = Supervise𝑇(P𝑟+1),
+(4)
+𝜃𝑟+1 = Train(𝜃init,𝑟, D𝑟+1).
+(5)
+Here 𝐸is the environment, 𝐶𝜙𝑟the controller at round 𝑟, 𝑇the reasoning model, T𝑟the
+interaction records, and P𝑟the experience pool. The initialization 𝜃init,𝑟is specified independently
+for each training run. Recursion is defined by the dependence of subsequent observations and
+supervision on the deployed system. After training and evaluation, the selected model re-enters
+OODA.
+The accumulated experience pool supports data reuse across rounds, while evaluation
+determines whether an adapted model is suitable for deployment. Collecting labels on states
+visited by the current policy follows the motivation of dataset aggregation [14]; the supervision
+source and training objective here differ from expert-action imitation.
+2.6
+Model-only, controller-only, and joint improvement
+Model parameters and controller rules define separate targets for improvement. Write the
+deployed system at round 𝑟as 𝑆𝑟= ( 𝑓𝜃𝑟, 𝐶𝜙𝑟), where 𝜃𝑟contains the learned decision-model
+parameters and 𝜙𝑟denotes the controller’s executable rules and configuration. The model-
+training equations above describe the model-only path; the other paths introduce controller
+revision guided by a reasoning model using the same recorded experience. This distinction
+separates parameter updates from code or feedback-based improvement, as illustrated by Voyager,
+Reflexion, and Self-Refine [8,18,22].
+Model-only improvement
+Keep 𝜙𝑟+1 = 𝜙𝑟, obtain supervision for recorded observations, and train 𝜃𝑟+1. The objective is
+to improve task judgments while preserving the mapping from those judgments to actions.
+OODA-only improvement
+Keep 𝜃𝑟+1 = 𝜃𝑟and let the reasoning model revise 𝐶𝜙𝑟from task knowledge and interaction
+traces. Updates can change decision rules, action timing, or setting-specific configuration without
+retraining the model.
+Joint improvement
+Update both the decision model and the OODA controller, and evaluate their combined behaviour
+after redeployment. If task questions or output schemas change, the controller and training
+labels must remain consistent with the updated interface. These update modes define separate
+interventions on the learned decision model and the controller. Code-revising agents such as SICA
+8
+
+
+9
+Fu et al.: System-One RSI
+and the Darwin Gödel Machine update executable programs [23,24], whereas self-referential
+weight matrices learn a parameter-update mechanism [25]. Here a reasoning model guides
+revisions to task judgments and control rules while the supervised training procedure remains
+fixed.
+Transfer across settings
+A fine-tuned decision model can be reused as a candidate module in another setting, with a
+different interface or task configuration. Holding the adapter fixed while changing the controller
+tests whether its judgments remain useful under the new configuration without additional model
+training. Keeping both fixed instead tests direct transfer of the complete system. If both are
+updated, the process constitutes joint adaptation rather than direct reuse. Transfer evaluation
+accordingly specifies the source and target configurations, parameter updates, controller changes,
+and additional interaction budget.
+2.7
+Online response and offline learning cost
+Online response time includes observation, inference, decision, and action submission; offline
+learning incurs data collection, labelling, adaptation, and deployment costs. In the intended
+serial live-interaction regime, recorded experience is retained for reuse across training iterations.
+Prior knowledge informs the reasoning model and controller outside the time-critical execution
+path; the trained model supplies online judgments. Separating request latency from the complete
+observation-to-action interval is necessary when choosing the online response budget.
+3
+Experiments in Dynamic Visual Environments
+Zenless Zone Zero and Black Myth: Wukong provide visual environments in which observations
+and action opportunities change during execution. Both implementations combine a 27B decision
+model with an OODA controller. The ZZZ study examines model adaptation and subsequent
+controller revision across opponents. The Wukong study compares policies for sustained evasion
+and offensive action.
+3.1
+Visual judgments in Zenless Zone Zero
+The ZZZ controller uses attack warnings, combat state, skill readiness, and character identity to
+select actions. LoRA [19] targets the attack-warning question while keeping the visual backbone
+frozen. The decision head and calibration remain unchanged. The training and validation
+sets contain 922 and 164 frames for zzz-rsi-v1, and 1,462 and 260 frames for zzz-rsi-v2.
+Validation negative log-likelihood (NLL) selects each checkpoint.
+Fig. 5 connects the deployed policy to the two adaptation rounds. Each round collects five
+episodes, labels attack warnings, and uses those examples to update the model with LoRA. The
+behaviour tree converts the resulting judgments into skill use, movement, character switching,
+and attacks.
+9
+
+
+10
+Fu et al.: System-One RSI
+Policy
+Iterative JEV improvement
+Main screen
+Visual input
+JEV feature output
+Combat state
+Skill and ultimate state
+Current player
+Attack prediction
+Behavior tree
+Special
+Ultimate
+Movement
+Dodge
+Switch player
+Normal attack
+(Counter)
+Visual perception → features → control actions
+zzz-rsi-base
+Initialization
+zzz-rsi-v{k}
+Model at iteration k
+5 episodes
+Collect interaction experience
+Attack-prediction labels
+Supervision from collected experience
+LoRA SFT
+Supervised fine-tuning
+zzz-rsi-v{k+1}
+Model at iteration k + 1
+Apply policy
+Iteration ×2
+Update JEV
+Repeat experience collection and model refinement
+Blue: policy / interaction    Purple: labels    Amber: training    Teal: JEV / model update
+Game image retained from the supplied reference
+Figure 5: Policy execution and model adaptation in Zenless Zone Zero.
+The adapted model returns to the same interaction process to collect the next round of
+experience. The validation comparison below measures changes in the attack-warning judgments
+that drive this policy.
+Table 2 compares the models on a common set of 260 frames. The labels comprise 224 none,
+11 yellow, and 25 red warnings. Balanced accuracy averages the three class recalls, giving each
+class equal weight. The validation reference differs from the online reference below; both are
+labelled zzz-rsi-base within their respective comparisons.
+Table 2: ZZZ attack-warning validation.
+Model
+Top-1 (%)
+Balanced accuracy (%)
+NLL
+Always none
+86.15
+33.33
+N/A
+zzz-rsi-base
+63.85
+44.52
+0.6799
+zzz-rsi-v1
+79.23
+74.87
+0.4565
+zzz-rsi-v2
+81.15
+77.98
+0.4966
+Top-1 agreement rises from 63.85% to 81.15%, while balanced accuracy rises from 44.52%
+to 77.98%. The constant-none predictor has higher overall accuracy but lower balanced accuracy
+than either adapted model. The distinction reflects improved recognition of the less frequent
+warning classes. Training and validation share source episodes, and the same validation set selects
+zzz-rsi-v2; these results do not estimate performance on independent episodes. Reusing a
+selection set for performance reporting can introduce selection bias [26].
+3.2
+Online control in Zenless Zone Zero
+Each configuration runs five episodes with the same two-character team and controller under a
+300 s limit. Table 3 reports completion and decision timing. Completion duration summarizes
+successful episodes, while 𝑡50 denotes the first time the opponent’s imbalance gauge reaches 50%.
+The latency columns give the median and 95th percentile of logged decision-round durations.
+10
+
+
+11
+Fu et al.: System-One RSI
+Table 3: ZZZ outcomes and decision latency.
+Model
+Wins Median completion (s) Median 𝑡50 (s) p50/p95 (ms)
+zzz-rsi-base
+2/5
+261.2
+167.0
+231.4/244.2
+zzz-rsi-v1
+5/5
+236.2
+26.0
+229.1/249.4
+zzz-rsi-v2
+5/5
+239.3
+29.7
+230.2/255.0
+Both adapted configurations win all five episodes, compared with two wins for the reference.
+Their median decision latency remains approximately 230 ms. Fig. 6 shows how opponent
+health changes during each episode. Crosses mark successful completion, and open circles mark
+unfinished episodes at the end of the record. The lower panel places the outcomes on the same
+time axis.
+0
+50
+100
+150
+200
+250
+300
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Opponent HP (normalized)
+zzz-rsi-base
+zzz-rsi-v1
+zzz-rsi-v2
+0
+50
+100
+150
+200
+250
+300
+Time since detected battle start (s)
+2/5
+zzz-rsi-base
+5/5
+zzz-rsi-v1
+5/5
+zzz-rsi-v2
+Figure 6: Opponent-health trajectories in fifteen ZZZ episodes.
+The trajectories show differences in the pace of combat even when the final outcomes
+agree. With five unpaired episodes per configuration, they do not establish an ordering between
+zzz-rsi-v1 and zzz-rsi-v2. The accompanying reference and adapted-model recordings
+show how visual judgments enter the action rules.
+3.3
+Controller revision across opponents
+Controller revision changes the questions asked of the decision model and the actions selected
+from its answers. The revised ZZZ configuration adjusts state descriptions and behaviour-tree
+rules, including action sequences and character switching after a parry. The strategies are fixed
+before evaluation on nine additional opponents under the P2 configuration. These evaluations
+comprise 39 attempts, of which 26 complete the task. The display names zzz-rsi-v2 and
+zzz-rsi-v3 identify the earlier and revised controller configurations in this comparison; the
+study does not isolate a fixed-weight controller intervention.
+Fig. 7 compares mean completion times on opponents with at least one completed episode.
+Table 4 gives the corresponding values. YeShiyuan is a separate comparison with five earlier and
+11
+
+
+12
+Fu et al.: System-One RSI
+three revised-controller episodes, outside the nine-opponent attempt count. All means condition
+on completion, so an unfinished attempt is not assigned an artificial completion time.
+0
+50
+100
+150
+200
+250
+300
+Mean completion time (s)
+YeShiyuan
+Amalgam
+Butcher
+Pompey
+Priest
+Sweeper
+Girtab
+Opponent
+No completion
+zzz-rsi-v2
+zzz-rsi-v3
+Figure 7: Mean completion time under two ZZZ controller configurations.
+Table 4: Completion times by opponent.
+Opponent
+zzz-rsi-v2 mean (s)
+zzz-rsi-v3 mean (s)
+YeShiyuan
+242.7
+159.3
+Amalgam
+207.2
+190.8
+Butcher
+214.0
+163.0
+Pompey
+245.0
+194.0
+Priest
+309.0
+293.0
+Sweeper
+278.0
+242.0
+Girtab
+N/A
+243.0
+For Amalgam, each configuration completes five episodes, with mean time decreasing by
+16.4 s from 207.2 to 190.8 s. The revised controller completes three YeShiyuan episodes in 162,
+165, and 151 s, averaging 159.3 s. For Priest, completed episodes take 309 and 293 s under the
+earlier and revised configurations, respectively; each also has one unfinished attempt. The earlier
+controller does not complete either Girtab attempt, whereas the revised controller completes two
+in 257 and 229 s. Hunter, Twins, and Bringer have no completed episodes in this evaluation.
+Sample counts and completion subsets differ between opponents, so these means describe the
+observed runs rather than a uniform improvement rate.
+3.4
+Evasive control in Black Myth: Wukong
+Fig. 1 shows why temporal judgment requires more than a coarse description of posture. The
+second and third observations both show a raised weapon, but occur at different stages before the
+attack.
+Distinguishing panels (b) and (c) requires attention to weapon angle and the recent change in
+posture. A short description can merge these states, while a longer description must still identify
+the visual features that determine action timing. Learning from observation sequences provides
+a mechanism for encoding such distinctions in parameters rather than repeatedly describing them
+in the prompt.
+12
+
+
+13
+Fu et al.: System-One RSI
+The Wukong model predicts the remaining time before damage from the current observation
+and four historical frames. The controller uses that prediction to time a dodge.
+Fig. 8 shows how recent observations, predicted time to damage, and interaction data enter
+the adaptation process. Its action branches describe the broader policy family; the evasive
+evaluation below enables only the evasive actions.
+Policy
+Iterative JEV improvement
+Current screen + 4 history frames
+Visual input
+JEV feature output
+Ticks until hit
+Heavy-attack energy
+Behavior tree
+Dodge
+Attack
+Heavy attack
+Visual perception → features → control actions
+wk-rsi-base
+Initialization
+wk-rsi-v{k}
+Model at iteration k
+20 episodes
+Collect interaction experience
+Hit-prediction labels
+Supervision from collected experience
+LoRA SFT
+Supervised fine-tuning
+wk-rsi-v{k+1}
+Model at iteration k + 1
+Apply policy
+Next iteration
+Update JEV
+Repeat experience collection and model refinement
+Blue: policy / interaction    Purple: labels    Amber: training    Teal: JEV / model update
+Game image retained from the supplied reference
+Figure 8: Policy execution and model adaptation in Black Myth: Wukong.
+The illustrated training cycle collects interactions, constructs hit-prediction labels, and
+updates the model before redeployment. The evasive policy issues no attacks, heavy attacks, or
+healing actions. Table 5 compares recorded episode durations with a stationary reference that
+takes no active actions.
+Fig. 9 plots the group means and medians, with episode counts alongside each row. Vertical
+marks denote medians; the stationary reference has no median reported in this comparison.
+Mean recorded episode duration (s)
+0
+100
+200
+300
+Stationary reference
+23.6 s
+n = 6
+wk-rsi-v1
+108.1 s
+n = 10
+wk-rsi-v2
+160.0 s
+n = 10
+wk-rsi-v3
+160.9 s
+n = 5
+wk-rsi-v4
+260.5 s
+n = 5
+Bars show means; vertical marks show medians; gray indicates the stationary reference.
+Figure 9: Recorded durations under the Wukong evasive policy.
+The gap between the mean and median summarizes differences within each set of recorded
+episodes. Table 5 provides the numerical values and separates the experimental batches.
+Under the later configuration, mean duration increases from 160.9 s for wk-rsi-v3 to 260.5 s
+13
+
+
+14
+Fu et al.: System-One RSI
+Table 5: Wukong evasive-policy durations.
+Model
+Episodes
+Mean (s)
+Median (s)
+Stationary reference
+6
+23.6
+N/A
+wk-rsi-v1
+10
+108.1
+114.9
+wk-rsi-v2
+10
+160.0
+170.1
+wk-rsi-v3
+5
+160.9
+166.7
+wk-rsi-v4
+5
+260.5
+212.2
+for wk-rsi-v4, a difference of approximately 62%. The earlier v1/v2 batches use a 350 ms
+action cooldown, while the later v3/v4 batches use 500 ms. Recorded durations include the time
+required to detect termination and do not identify an exact time of death. The batches therefore
+remain separate comparisons. Fig. 10 shows the changing visual conditions in which these
+responses are selected.
+(a)
+(b)
+Figure 10: Visual observations during evasive control in Black Myth: Wukong.
+Both observations contain rapid motion and occlusion near the opponent. Recent frames
+provide information about how the action has developed, while the current frame constrains the
+timing of the response. Task completion also requires choosing when to attack, motivating a
+separate offensive policy.
+3.5
+Offensive control in Black Myth: Wukong
+The offensive policy coordinates dodging, attacks, and healing.
+Win rate measures task
+completion, and mean winning-episode duration describes the time taken by successful attempts.
+Table 6 reports the five model configurations in two experimental batches. The first three
+configurations each run ten episodes; the remaining two each run fifteen.
+Table 6: Wukong offensive-policy outcomes.
+Model
+Episodes Win rate (%) Mean duration (s) Winning mean (s)
+wk-rsi-base
+10
+0.0
+21.9
+N/A
+wk-rsi-v1
+10
+20.0
+74.1
+139.7
+wk-rsi-v2
+10
+30.0
+89.5
+122.4
+wk-rsi-v3
+15
+60.0
+139.7
+154
+wk-rsi-v4
+15
+66.7
+125.3
+131
+The base model wins none of its ten episodes, while every adapted configuration has
+14
+
+
+15
+Fu et al.: System-One RSI
+at least one win. The wk-rsi-v4 configuration wins ten of fifteen episodes, with a mean
+winning-episode duration of 131 s. The two batches use different controller settings, and
+successful episodes form different subsets of the attempted runs. The values do not isolate
+the effect of model adaptation across all five configurations. The evasive-policy recording and
+offensive-policy recording illustrate the action timing behind these aggregate outcomes.
+4
+Latency Control
+Interactive control must keep observations, decisions, and executions moving while an individual
+model request is still in flight. Fig. 11 depicts the scheduling pattern used by the controller. It is
+an idealized timing diagram that makes the concurrency and its timing assumptions explicit.
+Staggered inference and independent execution
+Idealized timing with n = 3; L is one complete inference cycle
+Frame capture
+Inference worker 0
+Inference worker 1
+Inference worker 2
+Policy decision
+Action execution
+0
+L/3
+2L/3
+L
+4L/3
+5L/3
+2L
+8L/3
+Time
+Shared frames keep updating
+Inference · L
+Inference
+Inference · L
+Inference
+Inference · L
+Inference
+Receipt
+Result spacing ≈ L/3
+Read fresh frames at each start
+Bound the backlog
+Replace pending schedules; skip missed starts.
+Drop the oldest queued action when full.
+Decide on arrival
+Results may finish out of order.
+Decisions and actions each use one worker.
+Measure distinct timings
+Inference, decision spacing, observation-to-action.
+Stop on a lead-worker latency-budget breach.
+Figure 11: Idealized timing of staggered inference and independent execution.
+Each lane represents an independent execution unit. The three inference workers read the
+newest available observation when they start, rather than waiting for the preceding request to
+finish. With sufficient service capacity, similarly timed workers can produce results about 𝐿/3
+apart even though each request still takes about 𝐿. This spacing is an idealized scheduling
+property, not a measured reduction in individual inference time. Dashed receipts carry actual
+execution timestamps back to the decision worker, so inference duration, decision spacing, and
+observation-to-action-completion time remain separate quantities.
+The scheduler replaces a pending schedule when a newer one supersedes it and skips a missed
+start. A full action queue drops its oldest pending action. These rules bound stale work, but
+concurrency is useful only when the serving system has enough capacity; otherwise server-side
+queues can erase the intended update frequency. The latency budget therefore concerns the
+complete observation-to-execution path rather than model inference alone.
+15
+
+
+16
+Fu et al.: System-One RSI
+5
+Design Properties and Limitations
+5.1
+Learning and reuse
+The framework organizes capability formation around targeted practice guided by informal
+language. Prior knowledge identifies what to observe, and interaction supplies task-specific
+experience. Adaptation consolidates the resulting distinctions into a decision model.
+Learning from limited interaction
+Retaining observations across rounds allows the system to reuse costly experience instead of
+requiring a new environment instance for every training update. Supervision can focus on errors
+and informative states, making the approach suitable for settings in which replication, reset, and
+parallel rollout are unavailable. The interaction budget required to acquire a particular capability
+remains task dependent.
+A compact online decision path
+The online controller uses structured decision-model judgments and executable rules, while
+extended reasoning and parameter adaptation take place outside the response-critical path.
+Learning can encode fine perceptual distinctions in parameters without repeatedly expanding
+their verbal specification at every step. Observation processing, serving, and action execution
+still determine the achievable response frequency.
+Using prior knowledge to guide exploration
+Web retrieval, informal human hints, and exploratory actions provide complementary sources of
+information about an unfamiliar environment. The reasoning-agent team turns these sources
+into initial questions and control rules, then revises them using recorded feedback. This process
+directs practice toward relevant distinctions rather than relying exclusively on undirected trial
+and error. Using prior knowledge to construct executable skills has related precedents in Code
+as Policies and Voyager [7,8].
+Targeted model and controller updates
+The separation between the decision model and the controller makes the object of an update
+explicit. When the judgments are useful but their mapping to actions is inadequate, the controller
+can change while the model remains fixed. When perception is inadequate, adaptation can target
+the decision model while preserving the control rules. Joint revision is available when the task
+requires a different judgment interface.
+Reusing the OODA controller
+Explicit control rules make dependencies between observations, decisions, and actions inspectable.
+Adapting an execution interface or revising a subset of rules can reuse the surrounding control
+structure in a new setting. The extent of that reuse depends on which task assumptions and
+action semantics remain valid.
+16
+
+
+17
+Fu et al.: System-One RSI
+Reusing learned judgments
+A structured decision interface allows an adapted model to be combined with revised questions
+and control rules. When its learned distinctions remain applicable, the same parameter set can
+support a different controller without additional model training. Such reuse does not establish
+that adaptation preserves every unrelated capability; new questions and changed observation
+distributions require validation. Policy-dependent state distributions are also central to the
+motivation for dataset aggregation [14].
+An interpretable learning process
+The external-muscle-memory analogy connects deliberate task understanding and targeted
+practice under informal verbal guidance. It describes how knowledge becomes available for
+action through learning, rather than treating fast inference alone as a sufficient account of skill
+acquisition. The explicit interaction and adaptation loops make the sources of subsequent updates
+identifiable.
+No requirement for expert operational demonstrations
+Training observations can be collected by the Rollout / Capture Agents and labelled by the Visual
+Labeling Agent through reasoning or event-based protocols. The framework therefore does not
+require a human expert to perform the task to generate demonstrations. Public text and images
+remain useful sources of knowledge, distinct from a dataset of expert actions.
+5.2
+Scope and deployment constraints
+Task-specific generalization
+Learned judgments depend on the visual conditions and state distribution represented in the
+experience pool. A change in environment can require revised prompts, control rules, or
+additional interaction and adaptation. Reusing an interface or an adapter is a mechanism for
+transfer, rather than a guarantee of unchanged performance across settings.
+Dependence on external priors
+Dispensing with expert operational demonstrations does not eliminate dependence on human
+knowledge. Initial questions and control rules rely on descriptions of task structure, available
+actions, and relevant state changes. Missing or inaccurate priors can misdirect both exploration
+and supervision, making the initial policy and subsequent learning less effective.
+Hardware and serving requirements
+Low-latency execution depends on model size, observation processing, communication, and
+competition for compute resources. Separating environment rendering and inference across
+GPUs can reduce contention but increases deployment cost. Resource-limited deployments may
+require different model sizes, serving arrangements, or response budgets. The framework does
+not impose a universal GPU count or a fixed latency bound.
+17
+
+
+18
+Fu et al.: System-One RSI
+Supervision and update quality
+A recursive learning loop does not ensure that every update improves control. Reasoning-model
+annotations can be incorrect, trajectory-derived labels depend on the actions that were taken,
+and adjacent observations provide correlated supervision. Model selection can itself overfit a
+finite validation set [26]. Future evaluations should separate checkpoint selection from testing
+on distinct interaction episodes and retain previous models for comparison.
+6
+Conclusion
+System-One RSI connects task understanding to executable capability through targeted practice
+under informal verbal guidance. A team of agents built on reasoning models supplies task
+knowledge and control rules and coordinates experience collection, supervision, and training;
+the decision model retains learned perceptual judgments in its parameters as external muscle
+memory for online OODA execution. The separation between these components supports
+targeted model updates, controller revision, and reuse when the relevant task assumptions remain
+valid. The framework addresses capability formation in dynamic environments where expert
+demonstrations and parallel simulation may be unavailable. The ZZZ and Wukong deployments
+illustrate the connection between learned judgments and online action, while small samples
+and different experimental settings limit comparative conclusions. Its effectiveness depends on
+the quality of prior knowledge and supervision, the coverage of collected experience, and the
+resources available for deployment.
+References
+[1] T. Xie, et al. OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer
+Environments. arXiv:2404.07972, 2024. https://arxiv.org/abs/2404.07972
+[2] M. Ahn, et al. Do As I Can, Not As I Say: Grounding Language in Robotic Affordances. arXiv:2204.01691,
+2022. https://arxiv.org/abs/2204.01691
+[3] K. A. Ericsson, R. T. Krampe, C. Tesch-Römer. The Role of Deliberate Practice in the Acquisition of Expert
+Performance. Psychological Review, 100(3):363–406, 1993. https://doi.org/10.1037/0033-295X.100.3.363
+[4] D. Kahneman. Thinking, Fast and Slow. Farrar, Straus and Giroux, 2011.
+[5] B. Y. Lin, et al. SwiftSage: A Generative Agent with Fast and Slow Thinking for Complex Interactive Tasks.
+arXiv:2305.17390, 2023. https://arxiv.org/abs/2305.17390
+[6] G. L. Bailo. System Switch: When should a fast decision model stop and think? In arXiv:2610.09683, 2026.
+https://arxiv.org/abs/2610.09683
+[7] J. Liang, et al. Code as Policies: Language Model Programs for Embodied Control. arXiv:2209.07753, 2022.
+https://arxiv.org/abs/2209.07753
+[8] G. Wang, Y. Xie, et al. Voyager: An open-ended embodied agent with large language models. In
+arXiv:2305.16291, 2023. https://arxiv.org/abs/2305.16291
+[9] P. Liu, W. Yuan, J. Fu, Z. Jiang, H. Hayashi, G. Neubig. Pre-train, Prompt, and Predict: A Systematic Survey
+of Prompting Methods in Natural Language Processing. arXiv:2107.13586, 2021. https://arxiv.org/abs/2107.
+13586
+[10] C. Berner, et al.
+Dota 2 with large scale deep reinforcement learning.
+In arXiv:1912.06680, 2019.
+https://arxiv.org/abs/1912.06680
+[11] G. Dulac-Arnold, D. Mankowitz, T. Hester.
+Challenges of Real-World Reinforcement Learning.
+arXiv:1904.12901, 2019. https://arxiv.org/abs/1904.12901
+18
+
+
+19
+Fu et al.: System-One RSI
+[12] S. Levine, A. Kumar, G. Tucker, J. Fu. Offline Reinforcement Learning: Tutorial, Review, and Perspectives
+on Open Problems. arXiv:2005.01643, 2020. https://arxiv.org/abs/2005.01643
+[13] TypeSafe AI.
+Introducing System One Models & Jev.
+TypeSafe AI Blog, September 2026.
+https:
+//typesafe.ai/blog/introducing-system-one-models-and-jev
+[14] S. Ross, G. J. Gordon, J. A. Bagnell. A Reduction of Imitation Learning and Structured Prediction to No-Regret
+Online Learning. In AISTATS, PMLR 15:627–635, 2011. https://proceedings.mlr.press/v15/ross11a.html
+[15] G. Hinton, O. Vinyals, J. Dean. Distilling the Knowledge in a Neural Network. arXiv:1503.02531, 2015.
+https://arxiv.org/abs/1503.02531
+[16] A. A. Rusu, et al. Policy Distillation. arXiv:1511.06295, 2015. https://arxiv.org/abs/1511.06295
+[17] C.-Y. Hsieh, et al. Distilling Step-by-Step! Outperforming Larger Language Models with Less Training Data
+and Smaller Model Sizes. Findings of ACL, pp. 8003–8017, 2023. https://aclanthology.org/2023.findings-
+acl.507/
+[18] N. Shinn, F. Cassano, E. Berman, A. Gopinath, K. Narasimhan, S. Yao. Reflexion: Language Agents with
+Verbal Reinforcement Learning. arXiv:2303.11366, 2023. https://arxiv.org/abs/2303.11366
+[19] E. J. Hu, et al. LoRA: Low-Rank Adaptation of Large Language Models. arXiv:2106.09685, 2021.
+https://arxiv.org/abs/2106.09685
+[20] Q. Li, X. Wang. Jeva: System One models from first principles. In arXiv:2610.18773, 2026. https:
+//arxiv.org/abs/2610.18773
+[21] T.-Y. Lin, P. Goyal, R. Girshick, K. He, P. Dollár. Focal loss for dense object detection. In ICCV, 2017.
+arXiv:1708.02002. https://arxiv.org/abs/1708.02002
+[22] A. Madaan, et al.
+Self-Refine: Iterative Refinement with Self-Feedback.
+arXiv:2303.17651, 2023.
+https://arxiv.org/abs/2303.17651
+[23] M. Robeyns, M. Szummer, L. Aitchison. A Self-Improving Coding Agent. arXiv:2504.15228, 2025.
+https://arxiv.org/abs/2504.15228
+[24] J. Zhang, S. Hu, C. Lu, R. Lange, J. Clune. Darwin Gödel Machine: Open-Ended Evolution of Self-Improving
+Agents. arXiv:2505.22954, 2025. https://arxiv.org/abs/2505.22954
+[25] K. Irie, I. Schlag, R. Csordás, J. Schmidhuber. A Modern Self-Referential Weight Matrix That Learns to
+Modify Itself. In ICML, 2022. https://arxiv.org/abs/2202.05780
+[26] G. C. Cawley, N. L. C. Talbot.
+On Over-fitting in Model Selection and Subsequent Selection Bias
+in Performance Evaluation. Journal of Machine Learning Research, 11(70):2079–2107, 2010. https:
+//www.jmlr.org/papers/v11/cawley10a.html
+[27] P. Yu, J. Xu, J. Weston, I. Kulikov. Distilling System 2 into System 1. arXiv:2407.06023, 2024. https:
+//arxiv.org/abs/2407.06023
+[28] F. Zhang, et al. MedJev: A System One Vision-Language Decision Model for Fast and Effective Medical
+Image Understanding. arXiv:2611.20992, 2026. https://arxiv.org/abs/2611.20992
+[29] J. Tang, et al. Realtime-Bench: Can Frontier Models Solve Real-time Interactive Problems? arXiv:2610.22155,
+2026. https://arxiv.org/abs/2610.22155
+[30] Y. Li, J. Wagle. LLM-as-Jev: LLMs Are Already Jev-Style Decision Models—When and How to Fine-Tune
+Them. arXiv:2610.02076, 2026. https://arxiv.org/abs/2610.02076
+19
