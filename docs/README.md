@@ -6,71 +6,53 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-11-26
-- 运行时间：2026-11-26 02:23:21 UTC
+- 最新运行日期：2026-11-27
+- 运行时间：2026-11-27 02:39:33 UTC
 - 运行状态：成功
-- 本次总论文数：16
+- 本次总论文数：10
 - 精读区：7
-- 速读区：9
+- 速读区：3
 
 ### 今日简报（AI）
-- 今日共生成 16 篇推荐（精读 7 篇，速读 9 篇）
-- 精读：《Leto: Utility-Centric Agent Memory》（10.0/10）, 《RegimeCouncil: Paired-Evidence Routing For Memory Conflict Governance In LLM Agents》（9.0/10）
-- 速读：《EvoViM: Recursively Self-Evolving Visual Agents for Exploration with Deferred Queries》（8.0/10）, 《HyperHarness: Learning to Generate Personalized Agent Harnesses from User Histories》（8.0/10）, 《DMC-5: Dual-Model Collaboration with Cache-aware Context Compression for Long-horizon Agents》（8.0/10）
+- 今日共生成 10 篇推荐（精读 7 篇，速读 3 篇）
+- 精读：《RecallFlow: Episodic Memory as the Source Distribution of Generative Robot Policies》（10.0/10）, 《Demystifying the Autoresearch Harness: How Context and Skills Shape Self-Evolving Agents》（9.0/10）
+- 速读：《Reasoning on Call: Efficient Agentic Robot Control for Long-Horizon Robot Manipulation》（7.0/10）, 《SpatialCraft: Evolving Procedural Intelligence from Experience and Skills for Spatial Reasoning Agents》（7.0/10）, 《Innata-0: A Native Embodied World System with Model-Agent Co-Design》（6.0/10）
 - 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
-- 详情：[/202611/26/README](/202611/26/README)
+- 详情：[/202611/27/README](/202611/27/README)
 
 ### 精读区论文标签
-1. [Leto: Utility-Centric Agent Memory](/202611/26/2611.33005v1-leto-utility-centric-agent-memory)  
+1. [RecallFlow: Episodic Memory as the Source Distribution of Generative Robot Policies](/202611/27/2611.23731v2-recallflow-episodic-memory-as-the-source-distribution-of-generative-robot-policies)  
    标签：评分：10.0/10、query:agent-memory
-   evidence：以效用为中心的LLM智能体记忆系统，预测未来效用而非过去保真度
-2. [RegimeCouncil: Paired-Evidence Routing For Memory Conflict Governance In LLM Agents](/202611/26/2611.22113v3-regimecouncil-paired-evidence-routing-for-memory-conflict-governance-in-llm-agents)  
+   evidence：将情景记忆作为生成式机器人策略的源分布，实现记忆依赖操作。
+2. [Demystifying the Autoresearch Harness: How Context and Skills Shape Self-Evolving Agents](/202611/27/2611.28244v1-demystifying-the-autoresearch-harness-how-context-and-skills-shape-self-evolving-agents)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：基于配对证据路由的记忆冲突治理
-3. [Some Memories Must Fade: Persistence and Decay of User Memories in Model Parameters](/202611/26/2611.25235v1-some-memories-must-fade-persistence-and-decay-of-user-memories-in-model-parameters)  
+   evidence：研究自动科研智能体的框架设计，关注上下文管理（保留）和技能管理（复用）。
+3. [Engram: Multi-Stage Memory for Agentic Tuning of Heterogeneous Models](/202611/27/2611.28356v2-engram-multi-stage-memory-for-agentic-tuning-of-heterogeneous-models)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：为 LLM 提出具有生命周期管理的参数化记忆系统，包括遗忘机制
-4. [NavTTT: Adaptive Parametric Memory via Hierarchical Test-Time Training for Vision-and-Language Navigation](/202611/26/2611.27219v1-navttt-adaptive-parametric-memory-via-hierarchical-test-time-training-for-vision-and-language-navigation)  
+   evidence：提出Engram记忆系统，存储试验结果、假设和理由，供LLM智能体跨会话复用。
+4. [Failure Broadens, Success Sharpens: Continual Adaptation of Tool-Use Agents Across Diverse Tasks with Dual-Polarity Memory](/202611/27/2611.33612v1-failure-broadens-success-sharpens-continual-adaptation-of-tool-use-agents-across-diverse-tasks-with-dual-polarity-memory)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：通过分层测试时训练为视觉语言导航智能体实现自适应参数化记忆
-5. [VMSA: Video Memory Skill Agent for Long Video Understanding](/202611/26/2611.27381v2-vmsa-video-memory-skill-agent-for-long-video-understanding)  
+   evidence：面向工具使用智能体持续适应的双极性记忆工作流
+5. [HoMe: Toward Practical Harness Optimization of Memory Systems for AI Assistants](/202611/27/2611.34624v1-home-toward-practical-harness-optimization-of-memory-systems-for-ai-assistants)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：为长视频理解智能体设计结构化视频记忆和记忆技能
-6. [SuperNav-1.5: Structured Spatial Memory For Agentic Navigation Systems](/202611/26/2611.29912v1-supernav-15-structured-spatial-memory-for-agentic-navigation-systems)  
+   evidence：面向AI助手记忆系统的评估驱动harness优化
+6. [TASK Memory: Beyond Text-Only Memory with Activation Steering and Knowledge Editing against Memory Hallucination](/202611/27/2611.34762v1-task-memory-beyond-text-only-memory-with-activation-steering-and-knowledge-editing-against-memory-hallucination)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：面向智能体导航的结构化空间记忆
-7. [SuperNav-1.5: Structured Spatial Memory For Agentic Navigation Systems](/202611/26/2611.29912v2-supernav-15-structured-spatial-memory-for-agentic-navigation-systems)  
+   evidence：通过激活引导和知识编辑解决LLM智能体记忆幻觉
+7. [Agentic LongLive: Asynchronous Agentic Memory for Long Video Generation](/202611/27/2611.34907v1-agentic-longlive-asynchronous-agentic-memory-for-long-video-generation)  
    标签：评分：9.0/10、query:agent-memory
-   evidence：提出用于智能体导航的结构化空间记忆，包含区域分割占用地图和记忆节点
+   evidence：提出异步智能体记忆，用于长视频生成中保持实体一致性。
 
 ### 速读区论文标签
-1. [EvoViM: Recursively Self-Evolving Visual Agents for Exploration with Deferred Queries](/202611/26/2611.28574v2-evovim-recursively-self-evolving-visual-agents-for-exploration-with-deferred-queries)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：具有记忆程序的递归自进化视觉智能体
-2. [HyperHarness: Learning to Generate Personalized Agent Harnesses from User Histories](/202611/26/2611.29062v1-hyperharness-learning-to-generate-personalized-agent-harnesses-from-user-histories)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：从用户历史学习个性化智能体记忆与控制代码
-3. [DMC-5: Dual-Model Collaboration with Cache-aware Context Compression for Long-horizon Agents](/202611/26/2611.30412v1-dmc-5-dual-model-collaboration-with-cache-aware-context-compression-for-long-horizon-agents)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：长程智能体的缓存感知上下文压缩与双模型协作
-4. [COGENT: A Modular Cognitive Architecture for Agentic User Simulation](/202611/26/2611.31559v1-cogent-a-modular-cognitive-architecture-for-agentic-user-simulation)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：基于ACT-R的认知架构，显式包含记忆模块
-5. [CoverMem: Coverage-Constrained Visual Memory for Budgeted Embodied Question Answering](/202611/26/2611.32119v1-covermem-coverage-constrained-visual-memory-for-budgeted-embodied-question-answering)  
-   标签：评分：8.0/10、query:agent-memory
-   evidence：具身问答中覆盖约束的视觉记忆构建与维护
-6. [Internalized Experience: How Training Data Shapes Memory Formation in LLMs](/202611/26/2611.28613v1-internalized-experience-how-training-data-shapes-memory-formation-in-llms)  
+1. [Reasoning on Call: Efficient Agentic Robot Control for Long-Horizon Robot Manipulation](/202611/27/2611.26341v1-reasoning-on-call-efficient-agentic-robot-control-for-long-horizon-robot-manipulation)  
    标签：评分：7.0/10、query:agent-memory
-   evidence：研究LLM中参数化记忆的形成与训练数据的关系
-7. [FORGETMENOT: Auditing Memory Driven Privacy Risks in Commercial AI Agents](/202611/26/2611.29804v1-forgetmenot-auditing-memory-driven-privacy-risks-in-commercial-ai-agents)  
+   evidence：利用有序交互记忆估计任务状态
+2. [SpatialCraft: Evolving Procedural Intelligence from Experience and Skills for Spatial Reasoning Agents](/202611/27/2611.31475v1-spatialcraft-evolving-procedural-intelligence-from-experience-and-skills-for-spatial-reasoning-agents)  
    标签：评分：7.0/10、query:agent-memory
-   evidence：审计商业 AI 智能体中长期记忆的隐私风险
-8. [TripleKV: Predict, Prefetch, Protect - KV Cache Management for AI Agents](/202611/26/2611.25112v2-triplekv-predict-prefetch-protect---kv-cache-management-for-ai-agents)  
+   evidence：面向空间智能体的自进化框架，包含经验与技能记忆
+3. [Innata-0: A Native Embodied World System with Model-Agent Co-Design](/202611/27/2611.30254v1-innata-0-a-native-embodied-world-system-with-model-agent-co-design)  
    标签：评分：6.0/10、query:agent-memory
-   evidence：面向AI智能体的KV缓存管理与预测预取
-9. [System-One RSI: Building Muscle Memory for Interactive Agents through Guided Practice](/202611/26/2611.26007v1-system-one-rsi-building-muscle-memory-for-interactive-agents-through-guided-practice)  
-   标签：评分：6.0/10、query:agent-memory
-   evidence：通过引导练习构建肌肉记忆，结合 OODA 内循环与递归自改进
+   evidence：联合设计具身世界-行动模型与智能体，智能体利用记忆进行长程执行。
 
 
 <div class="dpr-home-promo-card">

@@ -1,0 +1,2450 @@
+Title: SpatialCraft: Evolving Procedural Intelligence from Experience and Skills for Spatial Reasoning Agents
+
+URL Source: https://arxiv.org/pdf/2611.31475v1
+
+Published Time: Wed, 25 Nov 2026 01:19:49 GMT
+
+Number of Pages: 46
+
+Markdown Content:
+# SpatialCraft: Evolving Procedural Intelligence from Experience and Skills for Spatial Reasoning Agents 
+
+## Xiwei Liu 1, Yulong Li 1, Xuhui Li 1, Zhixiang Lu 2, Haolin Yang 1
+
+## Jianxu Chen 1, Yifan Lu 1, Di Fan 3, Yutong Xie 1,*
+
+> 1
+
+## Mohamed bin Zayed University of Artificial Intelligence 2University of Liverpool 
+
+> 3
+
+## University of Southern California 
+
+## Abstract 
+
+Spatial reasoning agents increasingly rely on external tools, such as 3D reconstruction, segmentation, and geometric computation, to answer questions that a multimodal large language model (MLLM) cannot resolve from pixels alone. Tool access, however, shifts the bottleneck to orchestration: the agent must decide which tools to call, in what order, and how to interpret their outputs, yet a stateless agent repeats the same mistakes across tasks. We ask whether a frozen tool-using agent can improve its orchestration from its own interaction history, without parameter updates. We present 
+
+SPATIAL CRAFT , a self-evolving framework that maintains two forms of external knowledge: Experiences , condition-action tactics distilled by contrasting rollouts of the same task, and Skills , multi-step procedures with explicit activa-tion and termination conditions. Three designs couple the two streams. Experiences can be anchored to a Skill, ap-pearing only while it is active rather than once per task. A Contrastive Utility Score estimates each Experience’s effect by randomly withholding it across rollouts of the same task, separating its contribution from task difficulty, and Experi-ences with consistently positive utility are consolidated into the Skills they support. Across five spatial benchmarks and four backbones, SPATIAL CRAFT achieves the best accuracy in all 20 settings, showing that a frozen agent can learn to orchestrate spatial tools from its own experience. Code 
+
+## 1. Introduction 
+
+Spatial reasoning, the ability to infer 3D distances, orien-tations, and object relations from visual observations, is a fundamental prerequisite for embodied agents and robotic manipulation [18, 31, 42, 45, 67]. Yet multimodal large lan-guage models (MLLMs) frequently fail at complex spatial queries when relying solely on internal parametric knowl-
+
+> *Corresponding author.
+
+edge [8, 10, 13, 18, 31, 35, 42, 54, 60]. Consequently, a growing line of work equips MLLMs with external spa-tial tools, such as 3D reconstruction, metric depth estima-tion, and pose estimation, enabling them to explicitly com-pute metric geometric quantities rather than relying on un-grounded visual perception [11, 15, 16, 40, 41, 45, 80]. However, tool integration shifts the bottleneck from per-ception to orchestration. A tool-augmented agent must de-cide which tools to call, in what order, and how to interpret their outputs. Because these decisions are interdependent, a single tactical error can derail the entire reasoning chain, yet most spatial agents operate statelessly, discarding trial-and-error insights after each episode. Supervised fine-tuning or reinforcement learning can internalize spatial and tool-use competence [8, 10, 11, 36, 38, 50, 77, 80], but must be re-peated whenever the backbone or toolset changes. An al-ternative is parameter-update-free self-evolution, in which a frozen agent accumulates knowledge in an external mem-ory [53, 63, 73, 74, 76]. SMA [72] shows that such mem-ory benefits tool-free spatial reasoning. For tool-augmented agents, however, useful knowledge spans both multi-step tool procedures and step-level tactics, raising the challenge of how to structure, validate, and integrate it without accu-mulating spurious or redundant heuristics. To address this challenge, we draw on the hierarchical nature of tool use, which prior work captures with two com-plementary forms of reusable knowledge [32]: procedural 
+
+Skills , which orchestrate multi-step tool pipelines (e.g., re-constructing a scene before querying distances) [46, 57, 63, 78], and tactical Experiences , which guide localized deci-sions (e.g., re-prompting a segmentation model upon detect-ing a failure) [47, 55, 76]. In spatial reasoning, the two are intertwined, as a tactic’s usefulness depends on the proce-dural stage: re-prompting segmentation helps during object grounding but is irrelevant during metric comparison. This suggests structuring knowledge hierarchically, with tacti-cal Experiences anchored to the procedural Skills they sup-port. Tactics that prove consistently effective can then be arXiv:2611.31475v1 [cs.AI] 23 Nov 2026 absorbed into the procedure itself, so that the Skill evolves and the Experience bank stays compact, much as human ex-pertise compiles practiced rules into procedures [1]. Beyond structural organization, a self-evolving agent re-quires empirical validation of its accumulated knowledge. MLLMs often distill lessons that are linguistically plausible but practically misleading [29], and retaining such untested heuristics lets the memory accumulate errors alongside competence. Correlating a lesson with successful episodes, as in reward-based memory valuation [72, 74], is insuffi-cient because the correlation is confounded by task diffi-culty: heuristics retrieved for inherently easier tasks may appear effective regardless of their actual impact. Isolating the utility of a lesson instead requires a controlled compar-ison. By randomly showing an Experience in only a sub-set of the parallel rollouts of the same task [52], the agent can contrast their outcomes to isolate the effect of the tactic from task difficulty, at no extra interaction cost, since these rollouts are already collected to distill Experiences. Building on these insights, we present S PATIAL CRAFT ,a parameter-update-free framework that co-evolves tactical Experiences and procedural Skills for tool-augmented spa-tial agents. During exploration, S PATIAL CRAFT leverages multi-trajectory rollouts to distill Experiences, anchoring each strictly to the active Skill. The framework evaluates each Experience using a Contrastive Utility Score, which estimates its contribution by comparing within-task rollouts with and without the tactic. Experiences that systemati-cally improve outcomes are consolidated into their anchor Skills, while ineffective ones are retired. Skills themselves are refined through trajectory feedback, with proposed revi-sions rigorously verified against prior decision states before adoption. During deployment, the accumulated dual-level knowledge base is frozen, enabling the agent to seamlessly retrieve task-level insights and trigger context-aware tactics precisely when the corresponding Skill is invoked, so tactics surface where they apply. Experiments across five representative spatial bench-marks and four base VLMs show that S PATIAL CRAFT con-sistently outperforms tool-only and memory-based base-lines, demonstrating that evolving procedural knowledge provides an effective parameter-update-free path for spatial self-evolution. Our core contributions are three-fold: 
+
+❶ We propose S PATIAL CRAFT , a parameter-update-free framework that organizes tactical Experiences around the task-level Skills they support and co-evolves both, enabling frozen spatial reasoning agents to transform verified inter-action into reusable procedural intelligence. 
+
+❷ We introduce the Contrastive Utility Score, which ran-domizes each Experience’s exposure across rollouts of the same task to estimate its effect separately from task diffi-culty, together with a judge-based verification that accepts Skill revisions by replaying recorded decision states and re-quires no token likelihoods, suiting proprietary MLLMs. 
+
+❸ We evaluate SPATIAL CRAFT across diverse spatial benchmarks and VLM backbones, demonstrating consistent performance gains together with effective in-domain, cross-task, and cross-agent knowledge reuse. 
+
+## 2. Methodology 
+
+As shown in Figure 1, S PATIAL CRAFT augments a frozen multimodal agent through two external knowledge stores: an Experience Bank E of action-level tactics and a Skill Pool K of temporally extended procedures. 
+
+2.1. Problem Setup 
+
+We consider a task instance T = ( q, I), where q is a spa-tial query and I = {I1, . . . , I m} are the image inputs. A frozen MLLM Mexec solves it as a sequential decision pro-cess with a toolset F = {f1, . . . , f n} covering reconstruc-tion, segmentation, pose estimation, and geometric compu-tation. At step t, conditioned on the state st (query, images, and interaction history), it selects at ∈ F ∪ { ANSWER }
+
+and receives an observation ot, yielding a trajectory τ =[( s0, a 0, o 0), . . . , (sT , a T , o T )] that concludes with an an-swer ˆy and a binary reward R(τ ) = ⊮[ˆ y = y∗]. A second instance Mkb of the same backbone performs knowledge operations over an external knowledge base KB = ( K, E).
+
+Definition 1 (Skill ). A Skill k ∈ K is a reusable procedu-ral unit written in structured natural language that provides temporal guidance. It takes the form k = ( ωk, π k, β k),where ωk is the activation condition specifying when k
+
+should be invoked, πk is the execution procedure that guides the action sequence while k is active, and βk is the termina-tion condition that returns control to the agent. 
+
+Definition 2 (Experience ). An Experience e ∈ E is a non-parametric tactical prompt that records action-level knowl-edge. It takes the form e = ( c, a, α e, ve), where c is the triggering condition, a is the recommended action, αe ∈K ∪ { ∅} is the anchor Skill under which e applies, and 
+
+ve ∈ Rd is the semantic embedding used for retrieval. e is 
+
+anchored if αe ∈ K and global if αe = ∅.With Mexec frozen, KB is constructed on the environ-ment split Denv and then used read-only on the deployment split Ddep , where no knowledge is written and evolved: 
+
+max  
+
+> KB
+
+ET ∼D dep Pˆy = y∗ | T , KB ; Mexec 
+
+. (1) 
+
+2.2. Experience Accumulation 
+
+Visually Grounded Rollout Summary. For each task 
+
+Ti = (qi, Ii) ∈ Denv , Mexec runs N rollouts with the current knowledge base, yielding Ri = {τ (1)  
+
+> i
+
+, . . . , τ (N ) 
+
+> i
+
+}.Following [32], Mkb summarizes them by jointly con-sidering the trajectories, task images, query, and ground PHASE 1: Knowledge Accumulation 
+
+A. Cross Rollouts Critique         
+
+> Query:
+> “These images show a room from several angles. How many chairs in total are at the blue dining table?”
+> R1 shown
+> R2 withheld
+> R3 shown
+> R4 withheld
+> Detection Depth Estimation 3D Grounding Camera
+> merged chairs in 3D → 5
+> summed 2D boxes → 7
+> matched views via clock
+> a lucky guess
+
+B. Utility Test       
+
+> Shown Withheld
+> same task, only exposure differs
+> Probation · merge duplicates
+> Retire Graduate Keep
+> New Experience Cross-View Count
+> [E12] “When counting across views, lift instances to 3D and merge duplicates first.”
+
+PHASE 2: Solving Tasks  
+
+> Query: “How many chairs are there further away from the camera than the bowl?”
+
+D. Decomposition & Retrieval  
+
+> Subtask 1 Subtask 3
+> retrieve top-k global Experiences
+> Experience Rewrite
+
+E. Skill-Anchored Execution 
+
+> Subtask 2
+
++  
+
+> <think> <result>
+> <think> <result>
+> <think> <result>
+> <think> <result>
+> masks · boxes depth 3D lifting
+> Insight
+> by contrast
+> Anchor
+> to Skill
+
+Experience Bank 
+
+> [E1] When comparing distanc es, use median depth, not ... [E2] When a mask is empty, prompt SAM3 with a simpler ...
+
+Skill Pool   
+
+> Object Grounding
+> Depth Compare
+> SAM3.(image, [object]) Reconstruct([frame]) seg.centroid_3d
+> pruned Skill → its anchored Experiences become global
+> …
+> Cross-View Count
+> Trajectory
+> feedback
+> Graduated
+> Experiences
+> Revise SKILL.md
+> ## Cross-View Count 1. Detect + SAM3 / view
+> + merge in 3D, then count
+> LLM Judge Keep/Prune
+
+C. Skill Evolution  
+
+> Skill active
+> Pose Estimation Bird’s Eye View
+
+Agent Toolset Experience Anchor to Skill Skill Figure 1. Overview of SpatialCraft. Phase 1: (A) contrasting rollouts of the same task distills Experiences, each anchored to the active Skill; (B) randomly withholding an Experience across rollouts isolates its effect from task difficulty; (C) proven Experiences are folded into their Skills. Phase 2: the agent (D) retrieves global Experiences per subtask and (E) activates Skills that bring their anchored Experiences. 
+
+truth, Si = Mkb (Ri, Ii, q i, y ∗
+
+i ), which captures key deci-sion points, tool-use patterns, visual evidence, and failure causes. The summary additionally records, for each step, the active Skill and the Experiences shown to the agent. See Appendix H for prompt details; Appendix E for examples. 
+
+Cross-Rollout Critique. Given the Experiences Ei used during the rollouts, Mkb contrasts successful and failed rollouts to identify the causal factors behind their outcomes, and produces a set of structured updates: 
+
+∆Ei = Mkb 
+
+ Si, y ∗
+
+i , Ei
+
+ = {op 1, . . . , op Mi }, (2) where each operation is either (add , e ), which introduces a new Experience, or (modify , e id , e ′), which refines an exist-ing Experience eid into e′. Each new Experience is anchored to the Skill that the summary records as active at the step whose decision it addresses, or left global ( αe = ∅) if no Skill was active at that step or it spans several Skills; a mod-ified Experience inherits the anchor of the one it refines. 
+
+Experience Consolidation. Before an added Experience 
+
+e is committed, the system checks whether any existing entry has cosine similarity above θsim with e; if so, Mkb 
+
+merges them into a single Experience that preserves their generalizable insights. A merge of Experiences with the same anchor keeps that anchor; otherwise the merged Expe-rience becomes global, since its lesson has applied beyond a single procedure. When the bank exceeds its capacity 
+
+N E
+
+max , Mkb first merges remaining redundancies, and the excess is removed in ascending order of utility (Sec. 2.3). 
+
+2.3. Contrastive Utility Estimation 
+
+Not every distilled Experience helps: a lesson may be overly specific, or plausible in language yet misleading in practice. We therefore estimate its utility by contrasting same-task rollouts that differ in whether it is shown. 
+
+Randomized Exposure. An Experience is eligible in a rollout if it is retrieved for the task or its anchor Skill is ac-tivated during the rollout. Before the rollouts of Ti, each Experience e is assigned to a random subset Mi(e) ⊂{1, . . . , N } with |Mi(e)| = ⌊N/ 2⌋, independently across Experiences, and is shown in rollout j only if it is eligible and j ∈ Mi(e). Let X+
+
+i (e) and X−
+
+i (e) denote the rollouts in which e is eligible and shown or withheld, respectively. Because exposure is randomized, the two groups differ sys-tematically only in whether e is shown, so their outcome difference reflects the effect of e rather than task difficulty or the agent’s own choice to follow it. 
+
+Contrastive Utility Score. For each task in which both groups are non-empty, we compute the within-task contrast 
+
+δi(e) = 1
+
+|X+ 
+
+> i
+
+(e)|
+
+X 
+
+> j∈X+
+> i(e)
+
+R τ (j)
+
+> i
+
+ − 1
+
+|X− 
+
+> i
+
+(e)|
+
+X 
+
+> j∈X−
+> i(e)
+
+R τ (j)
+
+> i
+
+, (3) and accumulate Se ← Se + δi(e) and ne ← ne + 1 . The Contrastive Utility Score (CUS) is U (e) = Se 
+
+> λ+ne
+
+, where λ
+
+acts as λ virtual observations of zero effect, shrinking low-evidence estimates toward zero. Unlike an average reward, 
+
+U is signed: a positive value indicates that showing e im-proves outcomes, and a negative value that it harms them. 
+
+Utility-Driven Lifecycle. Each Experience e is assigned a state by U (e) and its number of contrasts ne: (1) Proba-tion if ne < n min , ensuring sufficient initial evaluation; (2) 
+
+Retired if ne ≥ nmin and U (e) ≤ 0, triggering its evic-tion from the memory bank; (3) Graduated if ne ≥ nmin ,the anchor skill αe̸ = ∅, and U (e) ≥ τg , promoting it for consolidation; and (4) Retained otherwise, maintaining it for ongoing use. A new Experience starts at Se = ne = 0 ,and merged Experiences sum their statistics. A modified Experience keeps its statistics if U (e) > 0 (refining a help-ful lesson) but resets them to zero if U (e) ≤ 0, so that the corrected lesson is not biased by its predecessor’s failures. 
+
+2.4. Skill Evolution 
+
+Following the seed-based strategy of [46], the Skill Pool K
+
+is initialized with six general-purpose seeds (Appendix A.4) that encode generic reasoning procedures rather than task-specific spatial knowledge. The pool then evolves through interaction, refining existing Skills, synthesizing new ones, and pruning those that underperform. 
+
+2.4.1. Semantic Gradients and Consolidation Semantic Gradients. We use semantic gradients, natural-language update directions derived from trajectories, as learning signals for Skills. For each of the B trajectories 
+
+τi ∈ T (B) 
+
+> k
+
+in which k was active, Mkb analyzes the segment controlled by k and attributes its outcome to (ωk, π k, β k):
+
+gi = ∇sem (τi, k ) =  g(ω) 
+
+> i
+
+, g (π) 
+
+> i
+
+, g (β)
+
+> i
+
+. (4) Individual gradients may conflict, so Mkb aggregates them into ¯gk = Agg( {gi}Bi=1 ), retaining recurring failure pat-terns and consistent refinement suggestions. 
+
+Experience-to-Skill Consolidation. A graduated Experi-ence has proven useful within its anchor Skill, yet as a sep-arate prompt it remains outside the procedure it supports. We therefore fold it into the Skill during revision. Let Gk
+
+denote the graduated Experiences anchored to k; Mkb gen-erates Nc candidate revisions from both ¯gk and Gk:
+
+k′ = k ⊕  ¯gk, Gk
+
+, (5) where ⊕ is an LLM-driven update with two modes. In re-finement mode, it revises k along ¯gk and writes each Experi-ence in Gk into the step of πk, or the condition βk, at which its trigger arises; these Experiences leave the bank once the revision is accepted. In discovery mode, used when the gra-dients reveal a recurring situation that k does not cover, it synthesizes a structurally new Skill from the same evidence. 
+
+2.4.2. LLM-as-Judge Skill Verification 
+
+Revisions derived from hindsight may introduce steps that are plausible in language but unsupported in practice. We therefore compare the actions that the parent and candidate Skills induce at the same historical decision states. 
+
+Key-State Replay. From each τi ∈ T (B) 
+
+> k
+
+, we select one state si at which k guided the action: the earliest such step with direct evidence of an action error, or else the earliest such step. These states and their recorded actions 
+
+ai are fixed in advance and shared across all candidates. For each candidate k′, we replace only the active Skill in the recorded context and let Mexec generate one action 
+
+a′ 
+
+> i
+
+∼ M exec (· | si, k ′) under the same budget, without exe-cuting it or observing ai or the trajectory outcome. 
+
+Action Comparison. An MLLM judge Mjudge compares 
+
+a′ 
+
+> i
+
+and ai against the task requirements, shared context, and available evidence, and returns a candidate-directed score 
+
+ji(k′) ∈ {+1 , 0, −1}, where 0 denotes a tie or insuffi-cient evidence; identical actions receive 0 without a judge call. With J(k′) = 1
+
+> B
+
+PBi=1 ji(k′), the best candidate is accepted only if its score is positive: 
+
+knew = arg max  
+
+> k′∈C (k)
+
+J(k′) s.t. J(knew ) > 0, (6) where C(k) is the set of Nc candidates; otherwise k is re-tained. A positive J indicates more local wins than losses at the replayed states; whether the revision improves full trajectories is monitored by the online score (Sec. 2.4.3). 
+
+2.4.3. Score-Based Skill Pool Maintenance 
+
+Skills are retained or pruned according to an online score of their empirical contribution, computed with the same within-task contrast used for Experiences. For task Ti, let 
+
+Ai(k) and ¯Ai(k) be the rollouts in which k is and is not activated. When both are non-empty,         
+
+> δi(k) = 1
+> |Ai(k)|
+> X
+> j∈Ai(k)
+> R τ(j)
+> i
+> −1
+> |¯Ai(k)|
+> X
+> j∈¯Ai(k)
+> R τ(j)
+> i
+> ,(7)
+
+which accumulates into Sk and nk, giving Score( k) =
+
+Sk/(λ + nk). Skill activation depends on the trajectory rather than being randomized, and revisions are gated by verification. An accepted revision inherits the statistics of its parent under the same rule as Experience modification. To respect the pool capacity N K
+
+> max
+
+, we remove (i) Skills with nk ≥ nmin and Score( k) ≤ 0, and (ii) Skills that are semantically redundant. If K still exceeds capacity, Skills are removed in ascending order of score. Experiences an-chored to a removed Skill become global, so tactical knowl-edge outlives the procedure in which it was learned. 
+
+2.5. Solving Tasks with Experiences and Skills 
+
+Global Experiences are retrieved once per task and adapted to it, Skills are selected as the reasoning state evolves, and Table 1. Main results (accuracy, %) on five spatial benchmarks (Robo. = RoboSpatial, Omni. = Omni3D, View. = ViewSpatial); Avg. is the macro average, with the gain over the no-memory CoT baseline. Mean ±std over three runs. Bold : best; shaded : second best. 
+
+GPT-5.4 GPT-5.4-mini 
+
+Method Robo. ERQA Omni. SAT View. Avg. Robo. ERQA Omni. SAT View. Avg. CoT (no mem.) 59.4 ±1.1 47.5 ±0.9 25.7 ±0.2 66.1 ±1.6 45.6 ±0.1 48.9 54.5 ±1.8 34.5 ±0.1 23.6 ±1.1 56.1 ±1.4 33.5 ±0.6 40.4 ReAct (tools) 61.1 ±2.1 58.0 ±0.5 30.4 ±1.4 68.7 ±1.2 49.2 ±0.6 53.5 ↑4.6 55.2 ±1.2 35.2 ±1.9 29.5 ±1.0 60.2 ±0.8 38.9 ±0.3 43.8 ↑3.4 
+
+RAG 58.9 ±1.5 64.0 ±1.8 31.2 ±1.1 91.3 ±0.9 52.2 ±0.4 59.5 ↑10.6 61.5 ±2.0 55.2 ±0.8 33.9 ±1.5 85.1 ±0.5 46.2 ±0.4 56.4 ↑16.0 
+
+MemP 65.1 ±0.6 65.5 ±1.3 34.0 ±1.6 91.7 ±1.3 60.6 ±0.3 63.4 ↑14.5 63.8 ±2.2 58.2 ±2.1 30.9 ±0.6 85.1 ±1.4 45.2 ±0.5 56.6 ↑16.2 
+
+MemRL-R 67.4 ±2.3 67.0 ±2.0 35.6 ±0.4 92.3 ±1.0 61.8 ±0.5 64.8 ↑15.9 63.2 ±0.9 59.0 ±1.3 29.9 ±1.7 85.3 ±1.5 47.3 ±0.7 56.9 ↑16.5 
+
+MemRL-GT 69.1 ±1.7 69.5 ±1.5 37.2 ±1.2 92.7 ±0.3 65.9 ±0.7 66.9 ↑18.0 65.5 ±1.4 51.0 ±1.8 32.8 ±1.6 86.3 ±1.2 47.7 ±0.5 56.7 ↑16.3 
+
+SMA 72.0 ±1.1 71.0 ±1.0 42.4 ±0.8 93.7 ±0.7 66.3 ±0.7 69.1 ↑20.2 67.4 ±2.1 60.5 ±0.5 38.4 ±1.1 88.7 ±0.9 55.9 ±0.3 62.2 ↑21.8 
+
+SpatialCraft 75.2 ±1.8 74.7 ±1.6 50.7 ±1.3 94.2 ±1.1 69.8 ±0.6 72.9 ↑24.0 70.9 ±0.6 62.0 ±2.0 46.0 ±1.4 90.3 ±0.7 62.6 ±0.4 66.4 ↑26.0 
+
+Qwen3.6-27B Qwen3.5-9B 
+
+Method Robo. ERQA Omni. SAT View. Avg. Robo. ERQA Omni. SAT View. Avg. CoT (no mem.) 54.3 ±0.7 52.1 ±1.3 39.5 ±2.0 80.9 ±1.5 49.2 ±0.2 55.2 58.0 ±0.1 45.7 ±1.2 35.5 ±1.6 76.8 ±0.4 45.8 ±0.1 52.4 ReAct (tools) 62.9 ±1.5 54.0 ±1.5 42.8 ±1.2 84.3 ±1.0 53.9 ±0.6 59.6 ↑4.4 57.0 ±2.2 43.0 ±1.8 32.1 ±1.7 77.0 ±1.5 43.1 ±0.6 50.4 ↓2.0 
+
+RAG 59.2 ±2.3 54.5 ±1.0 44.0 ±0.4 85.0 ±1.3 49.8 ±0.5 58.5 ↑3.3 55.6 ±1.4 49.5 ±0.5 31.6 ±1.1 77.7 ±1.3 42.3 ±0.7 51.3 ↓1.1 
+
+MemP 65.3 ±2.0 51.7 ±1.6 44.0 ±0.8 86.0 ±0.3 55.3 ±0.4 60.5 ↑5.3 53.5 ±1.2 53.0 ±1.3 34.4 ±1.4 78.0 ±1.2 48.7 ±0.4 53.5 ↑1.1 
+
+MemRL-R 62.3 ±1.7 51.3 ±1.9 44.7 ±1.3 83.8 ±0.5 57.6 ±0.3 59.9 ↑4.7 54.3 ±1.5 43.5 ±1.0 36.4 ±1.6 76.7 ±1.0 48.0 ±0.5 51.8 ↓0.6 
+
+MemRL-GT 67.2 ±0.9 55.7 ±0.8 43.7 ±0.6 86.9 ±0.8 64.3 ±0.7 63.6 ↑8.4 52.8 ±1.2 49.0 ±2.0 34.4 ±0.8 80.3 ±0.9 48.7 ±0.4 53.0 ↑0.6 
+
+SMA 68.6 ±1.1 58.3 ±2.1 47.7 ±1.0 86.9 ±1.1 63.2 ±0.6 64.9 ↑9.7 58.5 ±0.9 51.8 ±0.8 40.8 ±0.4 81.3 ±0.7 50.2 ±0.3 56.5 ↑4.1 
+
+SpatialCraft 70.5 ±1.8 61.5 ±1.5 49.3 ±1.5 89.1 ±1.4 65.8 ±0.3 67.2 ↑12.0 59.4 ±0.6 53.8 ±1.6 43.6 ±1.2 83.3 ±0.3 54.7 ±0.5 59.0 ↑6.6 
+
+each activated Skill brings its anchored Experiences with it. 
+
+Task Decomposition Retrieval. Mkb decomposes the task into ng abstract subtasks G = {g1, . . . , g ng } that cap-ture distinct reasoning needs, such as depth ambiguity or viewpoint-dependent relations, and generates a short re-trieval query for each. For each subtask, we retrieve the top-n global Experiences by semantic similarity: 
+
+Eret = [
+
+> g∈G
+
+TopN  {e ∈ E ∅ : cos( vg , ve) > θ min }, (8) 
+
+where E∅ = {e ∈ E : αe = ∅} excludes anchored Experi-ences, which enter through their Skills. Mkb then rewrites each retrieved Experience for the current query and images, discarding those that do not apply. 
+
+Skill Selection. Skills are activated at state-dependent boundaries: at the start of a task and whenever the active Skill terminates. At a boundary, the Skill whose activation condition best matches the current state is selected, 
+
+kt = arg max  
+
+> k∈K
+
+cos  v(st), vωk
+
+, (9) and the agent proceeds without a Skill if the maximum similarity is below θact . A Skill remains active until Mkb 
+
+judges its termination βkt satisfied or a horizon of Hmax 
+
+steps is reached, so a single task may invoke a sequence of Skills. The anchored Experiences are injected into the context Eanc  
+
+> kt
+
+= TopN  {e ∈ E : αe = kt}, ranked by sim-ilarity to the task query, and withdrawn when kt terminates. 
+
+Joint Guidance. At each step, Mexec selects the next ac-tion conditioned on the state, the active Skill, and both sets of Experiences: at ∼ M exec 
+
+ · | st, k t, Eret , Eanc 
+
+> kt
+
+.
+
+## 3. Experiments 
+
+3.1. Experimental Setup 
+
+Benchmarks. We evaluate on five spatial benchmarks: RoboSpatial [54] and ERQA [56] for embodied scene and robot reasoning, Omni3D-Bench [45] for metric 3D queries, SAT [50] for egocentric and two-frame dynamics, and ViewSpatial [35] for multi-perspective orientation. All results are reported on Ddep . Benchmark details and split statistics are given in Appendix B.1. 
+
+Implementation. We use four backbones: GPT-5.4, GPT-5.4-mini, Qwen3.6-27B, and Qwen3.5-9B, with open-weight models served by vLLM [33] in non-thinking mode. In each setting, Mexec , Mkb , and the Judge share the same backbone. Accumulation runs N = 4 rollouts per task with temperature 0.7 and top-p 0.9; deployment uses tempera-ture 0. Each call is capped at 16,384 output tokens and each trajectory at 50 steps. Retrieval and Skill activation use 
+
+text-embedding-3-large . We set B = 6 , Nc = 3 ,
+
+Np = 2 , λ = 2 , nmin = 3 , and τg = 0 .2; the remaining detailed hyperparameters are listed in Appendix B.2. 
+
+Baselines. We compare S PATIAL CRAFT with seven base-lines: CoT, Tools-only ReAct [70], RAG [34], MemP [20], MemRL-R [74], MemRL-GT and SMA [72]. Since the original MemRL uses reward-only reflection, we implement MemRL-GT, which provides ground-truth answers during reflection for fair comparison. Baselines do not receive the seed Skills. Further details are specified in Appendix B. 
+
+Tool Sets. We equip the spatial reasoning agent with a unified library of perception and geometry tools: (1) Re-Figure 2. (a) Training curves under ablations of skill evolution. (b) Training curves under ablation of experience evolution; Solid lines and shaded areas denote the smoothed mean and standard deviation of average returns, respectively. (c) Performance comparison across different rollout values on Robospatial. N = 0 denotes the initial agent without knowledge accumulation. 
+
+construct and Scale for recovering depth and metric spa-tial structure; (2) SAM3 and Detect for object segmenta-tion and localization; (3) Geometry and Pose for estimating geometric relations and object orientation; (4) Mask and 
+
+Draw for region manipulation and visual annotation. Full tool definitions are provided in Appendix G. 
+
+3.2. Main Results 
+
+SpatialCraft consistently helps agents translate tool ac-cess into effective spatial reasoning. As shown in Table 1, SpatialCraft improves macro-averaged accuracy over Tool-Only by 7.6–22.6 percentage points across four backbones, and exceeds the strongest baseline SMA by 2.3–4.2 points. This benefit is especially evident with Qwen3.5-9B: tool ac-cess alone lowers average accuracy from 52.4% to 50.4%, whereas SpatialCraft achieves 59.0%. These results suggest that reusable experience and procedural skills provide use-ful guidance for exploiting spatial tools, including when the backbone struggles to benefit from tool access alone. 
+
+SpatialCraft is particularly effective when spatial judg-ments depend on 3D geometry and reference frames. On Omni3D, which requires reasoning about three-dimensional quantities and relations, SpatialCraft reaches 50.7% and 46.0% accuracy with GPT-5.4 and GPT-5.4-mini, exceed-ing SMA by 8.3 and 7.6 percentage points. On ViewS-patial, which evaluates localization from different perspec-tives, GPT-5.4-mini achieves 62.6%, compared with SMA’s 55.9%. Together, these gains are consistent with the role of learned guidance in linking spatial evidence to the ge-ometric and viewpoint constraints posed by the question. Appendix E displays case examples that trace step-by-step tool use on queries alongside baseline trajectories. 
+
+3.3. What Makes SpatialCraft Work? 
+
+We ablate the component contributions of SpatialCraft as shown in Table 2, disabling knowledge streams at deploy-ment and individual mechanisms during accumulation. 
+
+A tactic is only as useful as its timing. Skills contribute more than Experiences (12.0 vs. 9.6 points on RoboSpa-
+
+Table 2. Ablations on RoboSpatial and Omni3D with GPT-5.4-mini. Naive score: mean reward without the within-task contrast.                                                 
+
+> Setting RoboSpatial ∆Omni3D ∆
+> SpatialCraft (full) 70.9 ±0.6 –46.0 ±1.4 –w/o Experiences 61.3 ±0.9 ↓9.6 40.5 ±0.6 ↓5.5 w/o Skills 58.9 ±0.6 ↓12.0 38.8 ±0.8 ↓7.2 w/o Anchoring (All global) 65.7 ±1.0 ↓5.2 42.4 ±0.8 ↓3.6 w/o Consolidation 67.8 ±0.7 ↓3.1 43.6 ±1.1 ↓2.4 CUS →LLM-based pruning 63.4 ±1.1 ↓7.5 42.0 ±1.1 ↓4.0 CUS →Naive score 66.2 ±1.2 ↓4.7 42.9 ±1.0 ↓3.1 w/o Skill Evolution (Seeds only) 61.9 ±0.9 ↓9.0 40.8 ±0.8 ↓5.2 w/o Decomposition Retrieval 68.6 ±0.6 ↓2.3 44.9 ±0.6 ↓1.1 w/o Experience Rewrite 67.4 ±1.1 ↓3.5 44.1 ±1.0 ↓1.9
+
+tial; 7.2 vs. 5.5 on Omni3D-Bench), yet Experiences mat-ter mostly through their placement: treating them as global erases 5.2/3.6 points, over half of their total contribution. The same tactic shown at task start is often absent from the step that needs it, which is precisely what anchoring fixes. 
+
+What the agent keeps matters more than how it re-trieves. Curation mechanisms dominate: replacing CUS with LLM-based pruning costs 7.5/4.0 points, freezing Skills at their seeds costs 9.0/5.2, and disabling consolida-tion costs 3.1/2.4. Even an outcome-based score falls short: rating Experiences by naive success rate, with exposure still randomized, costs 4.7/3.1 points; without the within-task contrast, easy tasks are mistaken for useful tactics (see the correlation analysis in App. D.2). Decomposition retrieval and rewriting together account for at most 3.5 points. 
+
+3.4. How Does Knowledge Evolve? 
+
+We track how knowledge evolves during accumulation on RoboSpatial with GPT-5.4-mini, ablating one mech-anism at a time with others fixed. For Skill evolution (Fig. 2a), w/o Semantic Gradients replaces diagnostic gra-dients with neutral trajectory summaries, w/o Candidate Verification adopts a randomly chosen candidate without Judge comparison, and w/o Online Score replaces score-based pruning with first-in-first-out (FIFO) eviction; the x-axis counts Skill Pool update rounds. For Experience Table 3. Main Results on Memory Reuse and Efficiency. Results are reported as Mean ±Std Dev , with GPT-5.4-mini as the source backbone. Unit types in “Avg Tokens Per Unit” denote T: Trajectory, P: Procedural memory card, S: Skill, E: Condition-action experience. 
+
+Method Skill and Experience Reuse Rate % (↑) Efficiency Metrics In-domain Cross-task Reuse Cross-agent Reuse Storage Cost (↓) Execution Cost Units 
+
+Robospatial Omni-3D SAT Qwen3.5-9B Qwen3.6-27B Total Stored Tokens Avg Tokens per Unit 
+
+∆ Prompt Tokens/Step Retrieval Ratio ( %)
+
+RAG 38.7 ±4.8 34.3 ±2.1 36.8 ±4.4 13.9 ±0.7 18.3 ±0.6 159,600 912 ±248 (T) 2744.8 ±7.2 100 ±0.0 175 
+
+MemP 55.2 ±3.9 41.7 ±5.2 39.5 ±2.7 28.1 ±1.4 34.9 ±1.4 22,464 208 ±53 (P) 601.8 ±8.8 18.6 ±0.7 108 
+
+SMA 61.1 ±2.9 53.1 ±7.6 47.4 ±6.0 37.3 ±4.0 46.1 ±3.1 39,200 224 ±56 (P) 632.6 ±4.9 19.9 ±0.8 175 
+
+SpatialCraft -(Skill) 94.4 ±4.8 77.8 ±4.8 80.6 ±4.8 66.7 ±0.0 75.0 ±0.0 2,580 215 ±36 (S) 209.3 ±2.2 64.7 ±1.7 12 
+
+-(Experience) 85.2 ±3.4 72.6 ±6.4 68.9 ±3.8 73.3 ±2.2 71.9 ±3.4 3,510 78 ±19 (E) 346.6 ±7.2 21.7 ±0.8 45 1 50 100 150 
+
+(a) HypothesisElimination → relation & viewpoint 
+
++1 v5 +2 +3 +1 v4 +2 +2 
+
+redundant 
+
+HypothesisElimination generic seed 
+
+RelInfer left/right, front/behind 
+
+DepthOrder nearer/farther 
+
+FrameAlign camera vs. person view 
+
+“compare 3D centroids, not 2D box edges ”
+
+1 50 100 150 
+
+Accumulation task (RoboSpatial Denv )
+
+(b) SelfConsistencyCheck → evidence & placement 
+
+v4 +2 +3 +1 v4 +1 +2 
+
+SelfConsistencyCheck generic seed 
+
+EvidenceCheck empty mask, depth outliers 
+
+FitCheck object size vs. free space 
+
+“empty SAM3 mask →
+
+re-prompt, simpler noun ”
+
+generic seed spatial Skill survives probation discovery re fi nement rejected by Judge Exp. absorbed pruned Exp. → global 
+
+Figure 3. Evolutionary lineage of Skills on RoboSpatial. 
+
+evolution (Fig. 2b), w/o Visual Grounding removes im-ages from rollout summaries, w/o Cross-Rollout Critique 
+
+extracts Experiences from each rollout independently, and 
+
+w/o CUS replaces utility-driven retirement and gradua-tion with LLM-based pruning; the x-axis counts processed samples. Both panels report an efficiency-adjusted return 
+
+˜R(τ ) = R(τ ) [1 − κ C (τ )] , where C(τ ) ∈ [0 , 1] is the budget-normalized tool-call count and κ = 0 .2; learning still uses the binary R(τ ). Owing to Experiences withheld half the rollouts, these returns fall below deployment accu-racy. Sustained skill improvement requires both reliable refinement and selective retention. Removing Semantic Gradients limits later gains, while removing Candidate Ver-ification produces recurrent setbacks. FIFO eviction repeat-edly discards recovered Skills, proving why candidate qual-ity and knowledge retention require separate mechanisms. 0% 10% 20% 30%                  
+
+> Probability
+> Cross-Agent Skill Selection Distribution
+> 0.84 0.48 0.92 0.36 0.40 0.30 0.42 0.28 0.91 0.37 0.83 0.22 0.32 0.19 0.45 0.41 0.78 0.47 0.89 0.39 0.37 0.27 0.41 0.32
+> GPT-5.4-mini (Base) (N=4.2) Qwen3.5-9B (N=3.7) Qwen3.6-27B (N=4.0)
+> ObjGround FrameAlign RelInfer MetricCompare FreeSpace FitCheck SpatialPlan EvidenceCheck
+> 0% 10% 20% 30%
+> Probability
+> Cross-Task Skill Selection Distribution
+> 0.84 0.48 0.92 0.36 0.40 0.30 0.42 0.28 0.96 0.42 0.79 1.29 0.06 0.43 0.35 0.72 0.94 1.05 0.18 0.56 0.40
+> RoboSpatial (Base) (N=4.2) Omni3D (N=4.5) SAT (N=4.1)
+
+Figure 4. Skill distribution across LLM agents and benchmarks. 
+
+Fig. 3 traces how generic seeds spawn spatial Skills that are refined with absorbed Experiences or pruned. 
+
+Effective experience accumulation depends on extract-ing useful lessons and filtering what is retained. Remov-ing Visual Grounding or Cross-Rollout Critique limits later improvement, whereas removing CUS leads to regression after initial gains: extraction determines what is learned, while utility estimation determines what is kept. 
+
+Additional rollouts help most when the backbone can exploit within-task contrast. Fig. 2(c) varies the number of rollouts N , where N = 0 denotes the agent with seed Skills only, and deployment still uses a single run per task. From 
+
+N = 0 to N = 4 , Qwen3.6-27B and GPT-5.4-mini improve by 6.3 and 13.7 points with Qwen3.5-9B gains only 1.7. For GPT-5.4-mini, the largest jump occurs from N = 1 to 
+
+N = 2 , the smallest N at which an Experience can be both shown and withheld within a task, so CUS starts filtering. 
+
+3.5. Does SpatialCraft Truly Enable Reusability? 
+
+We next ask whether the accumulated knowledge remains useful once frozen and moved beyond the setting in which it was learned. We take the knowledge base accumulated by 
+
+GPT-5.4-mini on RoboSpatial and deploy it unchanged in three settings: in-domain on RoboSpatial, cross-task on Omni3D and SAT, and cross-agent with Qwen3.5-9B and 
+
+Qwen3.6-27B as executors. The reuse rate is the fraction of stored units invoked at least once during evaluation. 0 2 4 6 8
+
+Error rate (%) ↓ 
+
+(a) Failure Stage 
+
+> 1.40 0.62
+> 0.64
+
+Format 
+
+> 0.84 0.32
+> 0.29
+
+Resolution  
+
+> 4.28 6.37
+> 2.64
+
+Validation 
+
+> 3.45 4.95
+> 2.55
+
+Execution 
+
+8.5 7.5 6.5 
+
+Avg. tool calls ↓ 
+
+55 60 65 70 75 
+
+> Accuracy (%) ↑
+> 14.11% 7.95%
+> 5.69%
+> size: repeat rate
+
+(b) Acc. vs. Cost 
+
+Experience Only Skill Only Skill + Experience Figure 5. Error analysis on RoboSpatial with GPT-5.4-mini. 
+
+Memory transfer depends on both its representa-tion and the executor. Table 3 shows that the accu-mulated knowledge transfers beyond its source setting. Skills reach 77.8–80.6% cross-task reuse, and the trans-ferred knowledge improves accuracy in all four trans-fer settings, recovering most of the target-accumulated gain (Appendix D.1). Fig. 4 shows which Skills carry over: ObjGround and RelInfer stay prominent across agents, while MetricCompare dominates on Omni3D and FrameAlign rises on SAT. The preferred form de-pends on the backbones: Qwen3.5-9B relies more on Ex-periences, and Qwen3.6-27B more on Skills. Since neither form consistently dominates, retaining both is warranted. 
+
+Compact memory can support frequent adaptation without large prompt overhead. SpatialCraft stores far fewer tokens and adds fewer prompt tokens per step than MemP and SMA, yet activates Skills more often. The key distinction is how often memory is accessed versus how much content enters each decision: selecting a concise ac-tive Skill accommodates changing states while bounding the injected context, so a high retrieval ratio here reflects frequent access to compact units rather than inefficiency. 
+
+3.6. Error Analysis 
+
+To identify what each form of knowledge contributes, we analyze tool calls on RoboSpatial with GPT-5.4-mini 
+
+(Fig. 5). Each invocation attempt is assigned to the first check it fails: Format (malformed call), Resolution (un-known tool name), Validation (inputs rejected before exe-cution), or Execution (failure after validation), with rates normalized by all attempts (details in Appendix C.5). 
+
+Skills organize invocation, while Experiences adapt it to the current input. Skill Only makes fewer format and resolution errors than Experience Only but more validation and execution failures, as Skills structure the call sequence yet leave input-specific requirements unresolved. Adding Experiences to Skills leaves format errors essentially un-changed but roughly halves validation and execution fail-0% 10% 20% 30% 40%                          
+
+> Probability
+> Tool Usage Distribution on Robospatial
+> 9.3 1.5 21.1 25.6 14.9 2.4 15.0 8.9 8.3 0.9 26.1 19.3 15.3 2.0 18.6 8.8 9.7 1.4 21.6 24.2 16.1 2.6 15.5 8.0 8.7 0.9 26.6 17.0 16.5 1.9 20.1 7.8
+> Tool-only Experience-only Skill-only Skill & Experience Reconstruct Scale SAM3 Detect Geometry Pose Mask Draw 0% 10% 20% 30% 40%
+> Probability
+> Tool Usage Distribution on Omni3D
+> 8.9 3.0 21.0 27.0 26.3 2.5 5.8 4.3 10.9 4.0 22.0 20.5 32.4 2.3 3.6 3.5 10.9 2.8 21.3 25.5 27.9 2.7 4.5 3.5 12.8 3.5 22.7 18.4 35.0 2.1 2.4 2.7
+> Tool-only Experience-only Skill-only Skill & Experience
+
+Figure 6. Tool usage distribution on Robospatial and Omni3D. 
+
+ures. Fig. 5(b) shows the downstream effect: from Expe-rience Only to Skill Only to Skill + Experience, accuracy rises while both tool calls and repeated calls fall. 
+
+3.7. Experiences Enable Flexible Orchestration 
+
+We investigate whether Experiences also change which 
+
+tools the agent calls, comparing tool-usage shares on Ro-boSpatial and Omni3D with GPT-5.4-mini . Shares count all task-execution calls with valid tool names, exclud-ing internal knowledge operations (More in Appendix D). 
+
+Experiences steer tool selection toward what each task requires. Adding Experiences shifts tool usage in a task-dependent direction (Fig. 6). On RoboSpatial, the combined share of SAM3 and Mask rises from 36.1% to 44.7% with-out Skills and from 37.1% to 46.7% with them, while De-tect declines, favoring precise object regions over bounding boxes. On Omni3D, Geometry rises from 26.3% to 32.4% and from 27.9% to 35.0%, along with Reconstruct, favoring explicit 3D computation. Since the shift appears regardless of Skills, it stems from the Experiences themselves. 
+
+## 4. Related Work 
+
+Spatial reasoning with MLLMs. Spatial reasoning in MLLMs has been advanced by post-training on spatial data or geometric environments [8, 10, 13, 36, 50, 77], and by tool-augmented agents that invoke 3D reconstruction and geometry modules to compute spatial quantities explic-itly [11, 15, 16, 41, 45, 80]. Most tool-augmented agents re-main stateless, discarding lessons from one task to the next. 
+
+Self-evolving agents. Parameter-update-free agents in-stead accumulate external knowledge from interaction, as reflective insights [47, 53, 55, 76], reusable workflows [20, 63], or procedural skills [46, 57, 78], and recent work com-bines action-level experiences with task-level skills [32]. To decide what to retain, these systems rely on LLM judg-ment [32], token-likelihood ratios [46], or the rewards of episodes in which an entry is retrieved [72, 74]; the last is confounded by task difficulty, as entries retrieved mostly for easy tasks appear useful regardless of their effect. A full discussion of related work is given in Appendix F. 5. Conclusion 
+
+We presented S PATIAL CRAFT , which lets a frozen spatial agent improve tool orchestration by anchoring Experiences to the Skills they support, validating them through random-ized within-task contrast, and folding proven ones into those Skills. Empirically, it achieves the best accuracy in all 20 benchmark-backbone settings. Our results suggest that, as tools grow more capable, the decisive knowledge lies less in what an agent knows than in knowing when to apply it, and in keeping only what has been shown to help. 
+
+## References 
+
+[1] John R Anderson. Acquisition of cognitive skill. Psycholog-ical review , 89(4):369, 1982. 2, 13 [2] Anthropic. Building agents with skills: Equipping agents for specialized work. https://claude.com/blog/ building - agents - with - skills - equipping -agents-for-specialized-work , 2026. Accessed: 2026-01-27. 13 [3] Tajamul Ashraf, Amal Saqib, Hanan Ghani, Muhra AlMahri, Yuhao Li, Noor Ahsan, Umair Nawaz, Jean Lahoud, Hisham Cholakkal, Mubarak Shah, et al. Agent-x: Evaluating deep multimodal reasoning in vision-centric agentic tasks. arXiv preprint arXiv:2505.24876 , 2025. 13 [4] Daichi Azuma, Taiki Miyanishi, Shuhei Kurita, and Motoaki Kawanabe. Scanqa: 3d question answering for spatial scene understanding. In proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 19129– 19139, 2022. 12 [5] Weihao Bo, Shan Zhang, Yanpeng Sun, Jingjing Wu, Qunyi Xie, Xiao Tan, Kunbin Chen, Wei He, Xiaofan Li, Na Zhao, Jingdong Wang, and Zechao Li. Agentic learner with grow-and-refine multimodal semantic memory, 2026. 13 [6] Alexey Bochkovskiy, Ama¨ el Delaunoy, Hugo Germain, Marcel Santos, Yichao Zhou, Stephan Richter, and Vladlen Koltun. Depth pro: Sharp monocular metric depth in less than a second. In International Conference on Learning Rep-resentations , pages 75602–75637, 2025. 13 [7] Sebastian Borgeaud, Arthur Mensch, Jordan Hoffmann, Trevor Cai, Eliza Rutherford, Katie Millican, George Bm Van Den Driessche, Jean-Baptiste Lespiau, Bogdan Damoc, Aidan Clark, et al. Improving language models by retriev-ing from trillions of tokens. In International conference on machine learning , pages 2206–2240. PMLR, 2022. 13 [8] Wenxiao Cai, Iaroslav Ponomarenko, Jianhao Yuan, Xiaoqi Li, Wankou Yang, Hao Dong, and Bo Zhao. Spatialbot: Pre-cise spatial understanding with vision language models. In 
+
+2025 IEEE International Conference on Robotics and Au-tomation (ICRA) , pages 9490–9498. IEEE, 2025. 1, 8, 12 [9] Nicolas Carion, Laura Gustafson, Yuan-Ting Hu, Shoubhik Debnath, Ronghang Hu, Didac Suris Coll-Vinent, Chaitanya Ryali, Kalyan Vasudev Alwala, Haitham Khedr, Andrew Huang, et al. Sam 3: Segment anything with concepts. In 
+
+International conference on learning representations , pages 138846–138923, 2026. 13, 18 [10] Boyuan Chen, Zhuo Xu, Sean Kirmani, Brain Ichter, Dorsa Sadigh, Leonidas Guibas, and Fei Xia. Spatialvlm: Endow-ing vision-language models with spatial reasoning capabili-ties. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pages 14455–14465, 2024. 1, 8, 12 [11] Siyi Chen, Mikaela Angelina Uy, Chan Hee Song, Faisal Ladhak, Adithyavairavan Murali, Qing Qu, Stan Birchfield, Valts Blukis, and Jonathan Tremblay. Spacetools: Tool-augmented spatial reasoning via double interactive rl, 2026. 1, 8, 13 [12] Zeren Chen, Xiaoya Lu, Zhijie Zheng, Pengrui Li, Lehan He, Yijin Zhou, Jing Shao, Bohan Zhuang, and Lu Sheng. Geometrically-constrained agent for spatial reasoning. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 38689–38699, 2026. 13, 18 [13] An-Chieh Cheng, Hongxu Yin, Yang Fu, Qiushan Guo, Rui-han Yang, Jan Kautz, Xiaolong Wang, and Sifei Liu. Spatial-rgpt: Grounded spatial reasoning in vision-language mod-els. In Advances in Neural Information Processing Systems ,pages 135062–135093, 2024. 1, 8, 12 [14] Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. Mem0: Building production-ready ai agents with scalable long-term memory, 2025. 13 [15] Seokju Cho, Ryo Hachiuma, Abhishek Badki, Hang Su, Byung-Kwan Lee, Chan Hee Song, Sifei Liu, Subhashree Radhakrishnan, Seungryong Kim, Yu-Chiang Frank Wang, and Min-Hung Chen. Spatialclaw: Rethinking action inter-face for agentic spatial reasoning, 2026. 1, 8, 13 [16] Yalun Dai, Hao Li, Shulin Tian, Runmao Yao, Yuhao Dong, Fangzhou Hong, Zhaoxi Chen, Fangfu Liu, Tao Wang, Kim-Hui Yap, and Ziwei Liu. S-agent: Spatial tool-use elicits reasoning for spatial intelligence, 2026. 1, 8, 13 [17] Abhishek Das, Samyak Datta, Georgia Gkioxari, Stefan Lee, Devi Parikh, and Dhruv Batra. Embodied question answer-ing. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 1–10, 2018. 12 [18] Erik Daxberger, Nina Wenzel, David Griffiths, Haiming Gang, Justin Lazarow, Gefen Kohavi, Kai Kang, Marcin Eichner, Yinfei Yang, Afshin Dehghan, et al. Mm-spatial: Exploring 3d spatial understanding in multimodal llms. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 7395–7408, 2025. 1, 12 [19] Mengfei Du, Binhao Wu, Zejun Li, Xuan-Jing Huang, and Zhongyu Wei. Embspatial-bench: Benchmarking spatial un-derstanding for embodied tasks with large vision-language models. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers) , pages 346–355, 2024. 12 [20] Runnan Fang, Yuan Liang, Xiaobin Wang, Jialong Wu, Shuofei Qiao, Pengjun Xie, Fei Huang, Huajun Chen, and Ningyu Zhang. Memp: Exploring agent procedural memory. In Findings of the Association for Computational Linguis-tics: ACL 2026 , pages 17490–17502, 2026. 5, 8, 3, 13 [21] Xingyu Fu, Yushi Hu, Bangzheng Li, Yu Feng, Haoyu Wang, Xudong Lin, Dan Roth, Noah A Smith, Wei-Chiu Ma, and Ranjay Krishna. Blink: Multimodal large language models can see but not perceive. In European Conference on Com-puter Vision , pages 148–166. Springer, 2024. 12 [22] Xingang Guo, Utkarsh Tyagi, Advait Gosai, Paula Vergara, Jayeon Park, Ernesto Gabriel Hern´ andez Montoya, Chen Bo Calvin Zhang, Bin Hu, Yunzhong He, Bing Liu, et al. Beyond seeing: Evaluating multimodal llms on tool-enabled image perception, transformation, and reasoning. arXiv preprint arXiv:2510.12712 , 2025. 13 [23] Yifu Guo, Zishan Xu, Zhiyuan Yao, Yuquan Lu, Jiaye Lin, Sen Hu, Zhenheng Tang, Huacan Wang, and Ronghao Chen. Octopus: Agentic multimodal reasoning with six-capability orchestration. arXiv preprint arXiv:2511.15351 , 2025. 13 [24] Kostas Hatalis, Despina Christou, and Vyshnavi Kondapalli. Review of case-based reasoning for llm agents: theoretical foundations, architectural components, and cognitive inte-gration. arXiv preprint arXiv:2504.06943 , 2025. 13 [25] Jack Hong, Chenxiao Zhao, ChengLin Zhu, Weiheng Lu, Guohai Xu, and Xing Yu. Deepeyesv2: Toward agentic mul-timodal model. arXiv preprint arXiv:2511.05271 , 2025. 13 [26] Yining Hong, Haoyu Zhen, Peihao Chen, Shuhong Zheng, Yilun Du, Zhenfang Chen, and Chuang Gan. 3d-llm: Inject-ing the 3d world into large language models. In Advances in Neural Information Processing Systems , pages 20482– 20494, 2023. 12 [27] Mu Hu, Wei Yin, Chi Zhang, Zhipeng Cai, Xiaoxiao Long, Hao Chen, Kaixuan Wang, Gang Yu, Chunhua Shen, and Shaojie Shen. Metric3d v2: A versatile monocular geomet-ric foundation model for zero-shot metric depth and surface normal estimation. IEEE Transactions on Pattern Analysis and Machine Intelligence , 46(12):10579–10596, 2024. 13 [28] Yuyang Hu, Shichun Liu, Yanwei Yue, Guibin Zhang, Boyang Liu, Fangyi Zhu, Jiahang Lin, Honglin Guo, Shi-han Dou, Zhiheng Xi, et al. Memory in the age of ai agents. 
+
+arXiv preprint arXiv:2512.13564 , 2025. 13 [29] Jie Huang, Xinyun Chen, Swaroop Mishra, Huaixiu Steven Zheng, Adams Yu, Xinying Song, and Denny Zhou. Large language models cannot self-correct reasoning yet. In In-ternational conference on learning representations , pages 32808–32824, 2024. 2 [30] Jiangyong Huang, Silong Yong, Xiaojian Ma, Xiongkun Linghu, Puhao Li, Yan Wang, Qing Li, Song-Chun Zhu, Baoxiong Jia, and Siyuan Huang. An embodied generalist agent in 3d world, 2024. 12 [31] Mengdi Jia, Zekun Qi, Shaochen Zhang, Wenyao Zhang, Xinqiang Yu, Jiawei He, He Wang, and Li Yi. Omnispatial: Towards comprehensive spatial reasoning benchmark for vi-sion language models, 2026. 1, 12 [32] Guanyu Jiang, Zhaochen Su, Xiaoye Qu, and Yi R Fung. Xskill: Continual learning from experience and skills in mul-timodal agents. In Forty-third International Conference on Machine Learning , 2026. 1, 2, 8, 6, 13 [33] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph Gonzalez, Hao Zhang, and Ion Stoica. Efficient memory management for large language model serving with pagedattention. In Pro-ceedings of the 29th symposium on operating systems prin-ciples , pages 611–626, 2023. 5 [34] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich K¨ uttler, Mike Lewis, Wen-tau Yih, Tim Rockt¨ aschel, et al. Retrieval-augmented generation for knowledge-intensive nlp tasks. In Advances in Neural Information Processing Sys-tems , pages 9459–9474, 2020. 5, 3, 13 [35] Dingming Li, Hongxing Li, Zixuan Wang, Yuchen Yan, Hang Zhang, Siqi Chen, Guiyang Hou, Shengpei Jiang, Wenqi Zhang, Yongliang Shen, Weiming Lu, and Yueting Zhuang. Viewspatial-bench: Evaluating multi-perspective spatial localization in vision-language models, 2025. 1, 5, 3, 12 [36] Dinging Li, Yingxiu Zhao, Xinrui Cheng, Kangheng Lin, Hongbo Peng, Hongxing Li, Zixuan Wang, Yuhong Dai, Haodong Li, Jia Wang, Yukang Shi, Liang Zhao, Jianjian Sun, Zheng Ge, Xiangyu Zhang, Weiming Lu, Jun Xiao, Yueting Zhuang, and Yongliang Shen. Spatialevo: Self-evolving spatial intelligence via deterministic geometric en-vironments, 2026. 1, 8, 12 [37] Haotong Lin, Sili Chen, Junhao Liew, Donny Y Chen, Zhenyu Li, Guang Shi, Jiashi Feng, and Bingyi Kang. Depth anything 3: Recovering the visual space from any views. 
+
+arXiv preprint arXiv:2511.10647 , 2025. 13, 18 [38] Junming Liu, Yuqi Li, Yifei Sun, Maonan Wang, Piotr Ko-niusz, Yirong Chen, and Ding Wang. Self-evolving spa-tial reasoning in vision language models via geometric logic consistency, 2026. 1, 12 [39] Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang, Hang Su, et al. Grounding dino: Marrying dino with grounded pre-training for open-set object detection. In Euro-pean conference on computer vision , pages 38–55. Springer, 2024. 13, 18 [40] Xiwei Liu, Yulong Li, Xinlin Zhuang, Xuhui Li, Zhixiang Lu, Haolin Yang, Imran Razzak, and Yutong Xie. Grounding isn’t knowing: Do vlms need object localization for spatial reasoning?, 2026. 1, 12 [41] Zhanpeng Luo, Ce Zhang, Silong Yong, Cunxi Dai, Qian-wei Wang, Haoxi Ran, Guanya Shi, Katia Sycara, and Yaqi Xie. pyspatial: Generating 3d visual programs for zero-shot spatial reasoning. In International Conference on Learning Representations , 2026. 1, 8, 13 [42] Wufei Ma, Haoyu Chen, Guofeng Zhang, Yu-Cheng Chou, Jieneng Chen, Celso de Melo, and Alan Yuille. 3dsrbench: A comprehensive 3d spatial reasoning benchmark. In Proceed-ings of the IEEE/CVF International Conference on Com-puter Vision , pages 6924–6934, 2025. 1, 12 [43] Xiaojian Ma, Silong Yong, Zilong Zheng, Qing Li, Yitao Liang, Song-Chun Zhu, and Siyuan Huang. Sqa3d: Situated question answering in 3d scenes, 2023. 12 [44] Arjun Majumdar, Anurag Ajay, Xiaohan Zhang, Pranav Putta, Sriram Yenamandra, Mikael Henaff, Sneha Silwal, Paul Mcvay, Oleksandr Maksymets, Sergio Arnaud, et al. Openeqa: Embodied question answering in the era of foun-dation models. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 16488– 16498, 2024. 12 [45] Damiano Marsili, Rohun Agrawal, Yisong Yue, and Geor-gia Gkioxari. Visual agentic ai for spatial reasoning with a dynamic api. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 19446–19455, 2025. 1, 5, 8, 3, 12, 13 [46] Qirui Mi, Zhijian Ma, Mengyue Yang, Haoxuan Li, Yisen Wang, Haifeng Zhang, and Jun Wang. Skill-pro: Learning reusable skills from experience via non-parametric ppo for llm agents. arXiv preprint arXiv:2602.01869 , 2026. 1, 4, 8, 2, 13 [47] Siru Ouyang, Jun Yan, I Hsu, Yanfei Chen, Ke Jiang, Zifeng Wang, Rujun Han, Long Le, Samira Daruki, Xiangru Tang, et al. Reasoningbank: Scaling agent self-evolving with rea-soning memory. In International Conference on Learning Representations , pages 94327–94354, 2026. 1, 8, 13 [48] Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. Memgpt: Towards llms as operating systems, 2024. 13 [49] Joon Sung Park, Joseph O’Brien, Carrie Jun Cai, Mered-ith Ringel Morris, Percy Liang, and Michael S Bernstein. Generative agents: Interactive simulacra of human behavior. In Proceedings of the 36th annual acm symposium on user interface software and technology , pages 1–22, 2023. 13 [50] Arijit Ray, Jiafei Duan, Ellis Brown, Reuben Tan, Dina Bashkirova, Rose Hendrix, Kiana Ehsani, Aniruddha Kem-bhavi, Bryan A. Plummer, Ranjay Krishna, Kuo-Hao Zeng, and Kate Saenko. Sat: Dynamic spatial aptitude training for multimodal language models, 2025. 1, 5, 8, 3, 12 [51] Timo Schick, Jane Dwivedi-Yu, Roberto Dess` ı, Roberta Raileanu, Maria Lomeli, Eric Hambro, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. Toolformer: Lan-guage models can teach themselves to use tools. In Advances in Neural Information Processing Systems , pages 68539– 68551, 2023. 13 [52] Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, YK Li, Yang Wu, et al. Deepseekmath: Pushing the limits of math-ematical reasoning in open language models. arXiv preprint arXiv:2402.03300 , 2024. 2 [53] Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. Reflexion: Language agents with verbal reinforcement learning. Advances in neural in-formation processing systems , 36:8634–8652, 2023. 1, 8, 13 [54] Chan Hee Song, Valts Blukis, Jonathan Tremblay, Stephen Tyree, Yu Su, and Stan Birchfield. Robospatial: Teaching spatial understanding to 2d and 3d vision-language models for robotics, 2026. 1, 5, 2, 12 [55] Xiangru Tang, Tianrui Qin, Tianhao Peng, Ziyang Zhou, Daniel Shao, Tingting Du, Xinming Wei, Peng Xia, Fang Wu, He Zhu, et al. Agent kb: Leveraging cross-domain experience for agentic problem solving. arXiv preprint arXiv:2507.06229 , 2025. 1, 8, 13 [56] Gemini Robotics Team et al. Gemini robotics: Bringing ai into the physical world, 2025. 5, 2, 12 [57] Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Mandlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan, and Anima Anandku-mar. Voyager: An open-ended embodied agent with large language models, 2023. 1, 8, 13 [58] Pan Wang, Yihao Hu, Xiujin Liu, Jingchu Yang, Hang Wang, and Zhihao Wen. Atlasva: Self-evolving visual skill memory for teacher-free vlm agents, 2026. 13 [59] Ruicheng Wang, Sicheng Xu, Yue Dong, Yu Deng, Jianfeng Xiang, Zelong Lv, Guangzhong Sun, Xin Tong, and Jiaolong Yang. Moge-2: Accurate monocular geometry with metric scale and sharp details. Advances in Neural Information Pro-cessing Systems , 38:35928–35959, 2026. 13, 18 [60] Wenqi Wang, Reuben Tan, Pengyue Zhu, Jianwei Yang, Zhengyuan Yang, Lijuan Wang, Andrey Kolobov, Jianfeng Gao, and Boqing Gong. Site: towards spatial intelligence thorough evaluation. In Proceedings of the IEEE/CVF Inter-national Conference on Computer Vision , pages 9058–9069, 2025. 1, 12 [61] Zehan Wang, Haifeng Huang, Yang Zhao, Ziang Zhang, and Zhou Zhao. Chat-3d: Data-efficiently tuning large language model for universal dialogue of 3d scenes, 2023. 12 [62] Zehan Wang, Ziang Zhang, Tianyu Pang, Chao Du, Heng-shuang Zhao, and Zhou Zhao. Orient anything: Learning robust object orientation estimation from rendering 3d mod-els. arXiv preprint arXiv:2412.18605 , 2024. 13, 18 [63] Zora Zhiruo Wang, Jiayuan Mao, Daniel Fried, and Gra-ham Neubig. Agent workflow memory. arXiv preprint arXiv:2409.07429 , 2024. 1, 8, 13 [64] Zora Zhiruo Wang, Apurva Gandhi, Graham Neubig, and Daniel Fried. Inducing programmatic skills for agentic tasks. 
+
+arXiv preprint arXiv:2504.06821 , 2025. 13 [65] Runsen Xu, Xiaolong Wang, Tai Wang, Yilun Chen, Jiang-miao Pang, and Dahua Lin. Pointllm: Empowering large language models to understand point clouds. In European Conference on Computer Vision , pages 131–147. Springer, 2024. 12 [66] Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. A-mem: Agentic memory for llm agents. In Advances in Neural Information Processing Sys-tems , pages 17577–17604, 2025. 13 [67] Jihan Yang, Shusheng Yang, Anjali W Gupta, Rilyn Han, Li Fei-Fei, and Saining Xie. Thinking in space: How mul-timodal large language models see, remember, and recall spaces. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 10632–10643, 2025. 1, 12 [68] Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiao-gang Xu, Jiashi Feng, and Hengshuang Zhao. Depth any-thing v2. In Advances in Neural Information Processing Sys-tems , pages 21875–21911, 2024. 13 [69] Rui Yang, Hanyang Chen, Junyu Zhang, Mark Zhao, Cheng Qian, Kangrui Wang, Qineng Wang, Teja Venkat Koripella, Marziyeh Movahedi, Manling Li, Heng Ji, Huan Zhang, and Tong Zhang. Embodiedbench: Comprehensive benchmark-ing multi-modal large language models for vision-driven em-bodied agents, 2025. 12 [70] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. React: Synergizing reasoning and acting in language models. arXiv preprint arXiv:2210.03629 , 2022. 5, 3, 13 [71] Yi Yu, Liuyi Yao, Yuexiang Xie, Qingquan Tan, Jiaqi Feng, Yaliang Li, and Libing Wu. Agentic memory: Learning uni-fied long-term and short-term memory management for large language model agents, 2026. 13 [72] Haokai Zhang, Yuhang Ding, Yunshu Zhou, Xinze Du, Shengtao Zhang, Zhiyue Zhao, Yuling Xi, and Hao Chen. Spatial memory agent: Experience-grounded pro-cedure memory for spatial intelligence. arXiv preprint arXiv:2608.12743 , 2026. 1, 2, 5, 8, 3, 7, 13 [73] Qizheng Zhang, Changran Hu, Shubhangi Upasani, Boyuan Ma, Fenglu Hong, Vamsidhar Kamanuru, Jay Rainton, Chen Wu, Mengmeng Ji, Hanchen Li, et al. Agentic context en-gineering: Evolving contexts for self-improving language models. In International Conference on Learning Represen-tations , pages 86069–86100, 2026. 1, 13 [74] Shengtao Zhang, Jiaqian Wang, Ruiwen Zhou, Junwei Liao, Yuchen Feng, Zhuo Li, Yujie Zheng, Weinan Zhang, Ying Wen, Zhiyu Li, Feiyu Xiong, Yutao Qi, Bo Tang, and Muning Wen. Memrl: Self-evolving agents via runtime rein-forcement learning on episodic memory, 2026. 1, 2, 5, 8, 3, 7[75] Zeyu Zhang, Quanyu Dai, Xiaohe Bo, Chen Ma, Rui Li, Xu Chen, Jieming Zhu, Zhenhua Dong, and Ji-Rong Wen. Asurvey on the memory mechanism of large language model-based agents. ACM Transactions on Information Systems , 43 (6):1–47, 2025. 13 [76] Andrew Zhao, Daniel Huang, Quentin Xu, Matthieu Lin, Yong-Jin Liu, and Gao Huang. Expel: Llm agents are ex-periential learners. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 19632–19642, 2024. 1, 8, 13 [77] Enhan Zhao, Wei Wu, Yuanrui Zhang, Xueliang Zhao, and Di He. Ouroboros-spatial: Closing the data-model loop for spatial reasoning, 2026. 1, 8, 12 [78] Boyuan Zheng, Michael Y Fatemi, Xiaolong Jin, Zora Zhiruo Wang, Apurva Gandhi, Yueqi Song, Yu Gu, Jayanth Srinivasa, Gaowen Liu, Graham Neubig, et al. Skillweaver: Web agents can self-improve by discovering and honing skills. arXiv preprint arXiv:2504.07079 , 2025. 1, 8, 13 [79] Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yan-lin Wang. Memorybank: Enhancing large language models with long-term memory. In Proceedings of the AAAI con-ference on artificial intelligence , pages 19724–19731, 2024. 13 [80] Yang Zhou, Zixuan Huang, Sunzhu Li, Zhuo Yang, Chen Zhang, Shunian Chen, Caijun Yan, Jianyao Xu, Shunyu Liu, Weijie Fu, Peiliang Li, Xiaozhi Chen, and Yuxiang Cai. Spa-tialcli: Learning to reason with spatial tools, then without them, 2026. 1, 8, 13 [81] Ziyu Zhu, Xiaojian Ma, Yixin Chen, Zhidong Deng, Siyuan Huang, and Qing Li. 3d-vista: Pre-trained transformer for 3d vision and text alignment. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 2911– 2921, 2023. 12 SpatialCraft: Evolving Procedural Intelligence from Experience and Skills for Spatial Reasoning Agents 
+
+# Supplementary Material 
+
+Table 4. Main notation. 
+
+Symbol Meaning 
+
+T = ( q, I) Task: spatial query and image inputs 
+
+Mexec , Mkb Frozen executor; knowledge-operation instance 
+
+F Tool set 
+
+R(τ ) = ⊮[ˆ y =
+
+y∗]
+
+Binary reward of trajectory τ
+
+Denv , Ddep Accumulation and deployment splits 
+
+k = ( ωk , π k , β k ) Skill: activation, procedure, termination 
+
+e = ( c, a, α e, ve) Experience: condition, action, anchor, embedding 
+
+E∅ Global Experiences ( αe = ∅)
+
+Eret , Eanc  
+
+> k
+
+Retrieved global / anchored Experiences of kN Rollouts per accumulation task 
+
+Mi(e) Exposure subset of e on task i, |Mi(e)| = ⌊N/ 2⌋
+
+X+ 
+
+> i
+
+(e), X− 
+
+> i
+
+(e) Eligible rollouts where e is shown / withheld 
+
+Ai(k), ¯Ai(k) Rollouts where k is / is not activated 
+
+δi(·) Within-task contrast 
+
+(S, n ) Accumulated contrast and number of contrasts 
+
+U (e), Score( k) Shrunk utility, S/ (λ + n)
+
+λ, nmin , τg Shrinkage, probation length, graduation threshold 
+
+gi, ¯gk Semantic gradient; aggregated gradient 
+
+Gk Graduated Experiences anchored to k
+
+C(k), Nc Candidate revisions of k and their number 
+
+ji(k′), J(k′) Per-state judge score; mean over B states 
+
+B, Np Trajectories per revision; Skills revised per round 
+
+## A. Methodology 
+
+A.1. Accumulation Algorithm 
+
+Algorithm 1 summarizes accumulation on Denv . Utility statistics are updated before the critique, so that the mod-ification rule uses the latest U (e).
+
+A.2. Contrastive Utility Estimation 
+
+Lazy exposure assignment. An anchored Experience be-comes eligible only when its Skill is activated, which can-not be known before the rollouts start. We therefore fix 
+
+Mi(e) in advance by seeding a pseudo-random permuta-tion of {1, . . . , N } with a hash of the task and Experience identifiers, and look it up only when e becomes eligible in rollout j. A global Experience is eligible in every rollout once it is retrieved and kept by Experience Rewrite, which outputs one entry per Experience identifier so that each can be withheld individually. 
+
+Why the contrast is unbiased. Whether e becomes eli-gible is decided before e is shown, so it cannot depend on 
+
+e’s own exposure. Conditioned on eligibility, exposure is thus independent of how the rollout would otherwise un-fold, and E[δi(e)] equals the effect of showing e on task 
+
+Algorithm 1 Knowledge accumulation 
+
+Require: Denv , frozen Mexec , Mkb , seeds K0
+
+1: K ← K 0, E ← ∅
+
+2: for each task Ti ∈ D env do 
+
+3: Eret ← Rewrite(DecompRetrieve( Ti, E∅)) ▷ Eq. (8) 4: Run N rollouts: select kt at boundaries (Eq. (9)), inject Eanc  
+
+> kt
+
+; show eligible e in rollout j iff j ∈ Mi(e)
+
+5: for each e with X+ 
+
+> i
+
+(e), X − 
+
+> i
+
+(e)̸ = ∅ do 
+
+6: Se += δi(e); ne += 1 ▷ Eq. (3) 7: end for 
+
+8: for each k with Ai(k), ¯Ai(k)̸ = ∅ do 
+
+9: Sk += δi(k); nk += 1 ▷ Eq. (7) 10: end for 
+
+11: Si ← Summary; ∆Ei ← Critique ▷ Eq. (2) 12: Apply ∆Ei with anchors; merge duplicates 13: Evict by ascending U if |E| > N E
+
+> max
+
+14: Remove retired e; collect graduated into Gk
+
+15: for up to Np eligible Skills k do 
+
+16: ¯gk ← Agg( {gi}Bi=1 ) ▷ Eq. (4) 17: C(k) ← { k ⊕ (¯ gk , Gk )}Nc ▷ Eq. (5) 18: if max k′∈C (k) J(k′) > 0 then ▷ Eq. (6) 19: Replace k by the best k′; remove absorbed Gk from E
+
+20: end if 
+
+21: end for 
+
+22: Prune K; set αe ← ∅ for e anchored to removed Skills 23: end for 
+
+24: return frozen KB = ( K, E)
+
+i. Because Experiences are randomized independently, this effect is averaged over the exposure of co-occurring Expe-riences: U (e) estimates the marginal effect of e when other Experiences are present about half of the time, rather than under the full exposure used at deployment. 
+
+Probation under capacity limits. When E exceeds 
+
+N E
+
+> max
+
+, Experiences past probation are evicted first in as-cending order of U ; probationary entries are evicted only if no others remain. This prevents a new Experience from being removed on the basis of its first few noisy contrasts. 
+
+Small N . With N = 1 , ⌊N/ 2⌋ = 0 and no task yields a contrast. In the rollout-count study (Sec. 3.4), eligible Experiences are therefore always shown when N = 1 , and all remain in probation. 
+
+A.3. Skill Evolution Details 
+
+Trigger and batch composition. A Skill becomes eligi-ble for revision once it has been active in B new trajectories since its last revision. Each round revises at most Np eligi-ble Skills, prioritizing those with the most pending trajec-tories. The B trajectories combine the lowest- and highest-Table 5. Initial skill seeds with their activation conditions ωk , termination conditions βk , and execution procedures πk .
+
+Skill seed Activation ωk Termination βk Execution procedure πk
+
+Structured CoT 
+
+When a decision requires reasoning over multiple constraints or previously observed feedback. A concrete action satisfying the identified constraints has been selected.  
+
+> 1
+
+Identify the immediate objective of the current decision.  
+
+> 2
+
+Enumerate the constraints implied by the current state and interaction history.  
+
+> 3
+
+Summarize previous observations and feedback relevant to the decision.  
+
+> 4
+
+Compare candidate actions according to these constraints.  
+
+> 5
+
+Select the action that best satisfies the current objective. 
+
+ReAct Decision 
+
+When new environmental feedback becomes available and should affect the next decision. The next action has been selected based on the newly incorporated feedback.  
+
+> 1
+
+Interpret the most recent environmental feedback.  
+
+> 2
+
+Update the current belief about plausible states or outcomes.  
+
+> 3
+
+Determine whether additional evidence is required.  
+
+> 4
+
+Select the next action according to the updated belief. 
+
+Hypothesis Elimination 
+
+When multiple competing hypotheses remain plausible under the available evidence. An action targeting the unresolved hypothesis uncertainty has been selected.  
+
+> 1
+
+Enumerate the major hypotheses consistent with existing observations.  
+
+> 2
+
+Remove hypotheses that contradict known evidence.  
+
+> 3
+
+Identify the uncertainty that distinguishes the remaining hypotheses.  
+
+> 4
+
+Select an action that is expected to reduce this uncertainty. 
+
+Self-Consistency Check 
+
+When a candidate decision must satisfy known constraints or remain consistent with previous observations. A candidate passes all identified consistency checks.  
+
+> 1
+
+Generate a candidate action or conclusion.  
+
+> 2
+
+Check the candidate against known constraints and previous feedback.  
+
+> 3
+
+Revise the candidate if any inconsistency is detected.  
+
+> 4
+
+Repeat the verification until no clear contradiction remains. 
+
+Explore--Exploit Arbitration 
+
+When several plausible actions are available and the agent must balance information gathering against exploiting existing evidence. An action has been selected according to an explicit exploration or exploitation decision.  
+
+> 1
+
+Assess the current uncertainty and the information gained from recent actions.  
+
+> 2
+
+Favor exploration when uncertainty remains high or recent information gain is insufficient.  
+
+> 3
+
+Favor exploitation when accumulated evidence strongly supports a particular action.  
+
+> 4
+
+Select the action corresponding to the chosen exploration–exploitation strategy. 
+
+Strategic Planning 
+
+At the beginning of a task, when little or no task-specific interaction feedback is available. An initial strategy has been instantiated and the first informative feedback becomes available.  
+
+> 1
+
+Identify the overall task objective and available action space.  
+
+> 2
+
+Establish an initial hypothesis or search space from the task constraints.  
+
+> 3
+
+Select an informative initial strategy that can reduce uncertainty. 
+
+return halves, so that semantic gradients reflect both failure modes and successful practice. 
+
+Revision acceptance. An accepted refinement replaces k
+
+and inherits (Sk, n k) under the Experience modification rule: the statistics are kept if Score( k) > 0 and reset other-wise, in which case the revision re-enters probation. A Skill synthesized in discovery mode covers a situation that k does not, so it is added alongside k with S = n = 0 . Graduated Experiences in Gk are removed from the bank only after the revision that absorbs them is accepted; otherwise they re-main as anchored Experiences. 
+
+A.4. Skill Seeds 
+
+We adopt the six general-purpose seeds of Skill-Pro [46] (Table 5). They encode domain-agnostic reasoning pro-cedures and contain no spatial or tool-specific knowl-edge. Spatially specialized Skills, such as ObjGround 
+
+and MetricCompare in Fig. 4, emerge from these seeds through refinement and discovery. 
+
+## B. Experimental Setup 
+
+B.1. Benchmarks and Splits 
+
+Benchmarks. RoboSpatial [54] poses three question types on single indoor images: context questions ask for im-age points marking free space that satisfies a spatial relation, while configuration and compatibility questions ask yes/no whether two objects stand in a given relation or whether an object fits a target location. ERQA [56] contains multiple-choice questions on robot-centric scenes, spanning spatial relations, state estimation, and action and trajectory rea-soning, with one or more images per question. Omni3D-Bench [45] builds open-ended queries on single real images that depend on 3D quantities, such as metric size, distance ratios, and 3D-conditioned counting; answers are numbers, yes/no, or short phrases. SAT [50] asks two-option ques-tions over one or two frames about ego motion, object mo-tion, action consequences, goal aiming, and perspective tak-ing. ViewSpatial [35] asks multiple-choice direction and orientation questions that must be answered either from the camera’s viewpoint or from that of a person in the scene. 
+
+Splits. Except for SAT, we split each benchmark into Denv 
+
+and Ddep by shuffling every question category with seed 42 and assigning half of it to each split; when a category has an odd size, the extra item goes alternately to Denv and Ddep ,starting with Denv . For SAT, Ddep is the official test set with circular option expansion, and Denv consists of an equal number of validation items drawn to match its question-type distribution. Table 6 lists the resulting sizes.                    
+
+> Table 6. Split sizes. All results are reported on Ddep .
+> Benchmark Total |D env ||D dep |
+> RoboSpatial 350 175 175 ERQA 400 200 200 Omni3D-Bench 501 251 250 SAT 600 300 300 ViewSpatial 5,712 2,856 2,856
+
+Scoring. Multiple-choice and yes/no answers are scored by exact match after normalizing case and option format. A RoboSpatial context answer is correct if the predicted point lies inside the ground-truth region. A numeric Omni3D-Bench answer is correct if its relative error is at most 10%, and a short-phrase answer if it matches the reference af-ter normalization. Answers that are missing or cannot be parsed count as incorrect. 
+
+B.2. Implementation and Hyperparameters 
+
+Table 7 lists all settings. Open-weight backbones run in non-thinking mode for every call, including those of Mkb 
+
+and the Judge. If an execution call reaches its token limit without producing a valid action, one shorter recovery call is issued without consuming a step. Once a trajectory reaches the step limit, a final call produces the answer with-out further tool use. 
+
+B.3. Baselines 
+
+All memory-based baselines use the same backbone, 
+
+Denv /Ddep splits, N = 4 accumulation rollouts per task, and tool library as S PATIAL CRAFT , and their memories are frozen at deployment. They differ only in what is stored and how it is selected. • No memory (CoT) answers directly with a chain-of-thought prompt, without tools or memory. • Tool-Only (ReAct) [70] interleaves reasoning and tool calls without accumulated knowledge, isolating the effect of tool access. • RAG [34] stores raw accumulation trajectories and re-trieves those of the most similar tasks as in-context demonstrations, without distillation or utility estimates. • MemP [20] distills trajectories into procedural memo-ries retrieved by semantic similarity, without feedback on their later usefulness. • MemRL-R [74] attaches a value to each memory, updates it from runtime rewards, and ranks retrieval by similarity and value; its reflection sees only the reward. • MemRL-GT is identical except that reflection also sees the ground-truth answer, matching the supervision avail-able to S PATIAL CRAFT .• SMA [72] stores procedural memory cards and re-ranks similarity-filtered candidates by a Transfer Reliability Score, the shrunk mean reward of tasks on which each card was retrieved. 
+
+B.4. Evaluation Metrics 
+
+Accuracy. We report the fraction of Ddep questions an-swered correctly under the scoring rules of Appendix B.1, together with its macro average over benchmarks. 
+
+Reuse. Let M be the stored units of a method: Skills and Experiences for S PATIAL CRAFT (reported separately), tra-jectories for RAG, and memory cards for MemP and SMA. A unit is used in an episode if it enters the executor’s con-text: an Experience shown after retrieval or anchoring, a Skill activated, or a baseline memory retrieved. For a target split D and executor Mexec ,
+
+Reuse( D, Mexec ) = |{ u ∈ M : u is used on D by Mexec }| |M| .
+
+(10) With M accumulated by GPT-5.4-mini on RoboSpa-tial, in-domain reuse evaluates RoboSpatial Ddep with the source executor, cross-task reuse evaluates Omni3D-Bench and SAT with the source executor, and cross-agent reuse evaluates RoboSpatial with Qwen3.5-9B or 
+
+Qwen3.6-27B .
+
+Efficiency. Total stored tokens and average tokens per unit measure the size of M, counted with the same tok-enizer for all methods. ∆Prompt tokens per step is the mean difference, over decision steps, between the execu-tor’s prompt length with and without memory content. Re-trieval ratio is the fraction of decision steps at which mem-ory is accessed, by retrieval or by Skill selection; it reflects Table 7. Hyperparameters of S PATIAL CRAFT , shared across backbones and benchmarks. 
+
+Parameter Value Description 
+
+Execution ( Mexec )
+
+Temperature / top-p (accumulation) 0.7 / 0.9 Diverse rollouts for contrast Temperature (deployment) 0 Greedy decoding Output budget per call 16,384 Execution calls Steps per trajectory 50 Tool and answer steps Recovery call ≤1 per step, 1,024 Issued after truncation; consumes no step Forced final answer 512 No tools after the step limit Image resolution ∼1M pixels Maximum per input image 
+
+Experience accumulation ( Mkb )
+
+Rollouts per task N 4 Knowledge fixed within a task’s rollouts Rollout summary Temp. 0, 8,192 Per task Cross-rollout critique Temp. 0, 16,384 Per task Pairwise merge 1,024 Triggered at similarity > θ sim 
+
+Bank-level merge 8,192 Triggered when |E| > N E
+
+> max
+
+Experience length 64 words Per Experience Merge threshold θsim 0.70 Cosine similarity Bank capacity N E 
+
+> max
+
+100 Experiences 
+
+Contrastive utility estimation 
+
+Exposure ratio ⌊N/ 2⌋/N = 2 /4 Shown fraction among eligible rollouts Shrinkage λ 2 Shared by U (e) and Score( k)
+
+Probation nmin 3 Contrasts before retirement, graduation, or pruning Graduation threshold τg 0.2 On U (e), anchored Experiences only 
+
+Skill evolution ( Mkb )
+
+Trajectories per revision B 6 3 lowest- and 3 highest-return Skills per round Np 2 Most pending trajectories first Candidates per Skill Nc 3 Per revision Gradient / generation budget 8,192 / 16,384 Per trajectory / per candidate Stored Skill length 1,024 tokens Per Skill Judge Same backbone, temp. 0 Unlabeled, randomly ordered action pairs Acceptance J(k′) > 0 Best candidate only Pool capacity N K 
+
+> max
+
+20 Skills Pending trajectories Discarded Not reused after a revision is accepted 
+
+Inference (accumulation and deployment) 
+
+Embedding model text-embedding-3-large Retrieval, merging, and Skill activation Task decomposition Once per task, 1,024 At task start Global retrieval Top-3 per subtask, θmin = 0 .40 Over E∅
+
+Experience Rewrite Temp. 0, 2,048 One entry per Experience identifier Skill activation Top-1, θact = 0 .50 At task start and after termination Anchored Experiences Top-3 per activation Ranked by similarity to the query Skill horizon Hmax 8 steps Forced termination Termination check Temp. 0, 256 Per Skill boundary 
+
+access frequency rather than cost and should be read to-gether with ∆Prompt tokens per step. 
+
+## C. Analysis Protocols 
+
+Unless stated otherwise, analyses use GPT-5.4-mini ,the settings of Table 7, and greedy single-run deployment on Ddep . Results are averaged over three independent accu-mulation runs. 
+
+C.1. Component Ablations 
+
+Table 2 evaluates RoboSpatial and Omni3D-Bench; each benchmark accumulates on its own Denv . Variants fall into two groups. 
+
+Deployment-time variants. These reuse the three knowl-edge bases of the full model and disable one stream only at deployment. • w/o Experiences : neither global nor anchored Experi-ences are shown; Skill activation is unchanged. • w/o Skills : no Skill is activated. Anchored Experiences join E∅ and are retrieved and rewritten as global ones. 
+
+Accumulation-time variants. These disable one mecha-nism, re-run accumulation with the same task order, and deploy the resulting knowledge base. • w/o Anchoring : the critique sets αe = ∅ for every Ex-perience, so all Experiences are retrieved once per task. Because graduation requires an anchor, consolidation is also inactive; this drop therefore upper-bounds the effect of anchoring alone. • w/o Consolidation : the lifecycle is unchanged, but ⊕ re-ceives Gk = ∅, so graduated Experiences stay in the bank as anchored Experiences. • w/o CUS : Mkb decides retirement, graduation, and evic-tion without outcome contrasts. • w/o Skill Evolution : Φ is disabled and the pool keeps the six seeds. Experiences are still anchored to seeds, and graduated ones remain in the bank. • w/o Decomposition Retrieval : global Experiences are retrieved with the full query as a single retrieval query, with the number retrieved matched to the full model’s av-erage. • w/o Experience Rewrite : retrieved global Experiences are shown verbatim; eligibility for randomized exposure then follows retrieval alone. 
+
+C.2. Accumulation Curves 
+
+Shared protocol. Both panels of Fig. 2(a,b) use Denv of RoboSpatial. All variants start from the six seed Skills and an empty Experience Bank, use randomized exposure, and process the same shuffled task order. Each configuration is run three times. 
+
+Efficiency-adjusted return. Let S(τ ) ∈ { 0, 1} be cor-rectness under the scoring rules of Appendix B.1, with missing answers counted as incorrect. Let ntool (τ ) count task-execution tool-call attempts, including failed calls, in-valid tool names, and retries, but excluding knowledge op-erations such as retrieval, rewriting, Skill selection, termi-nation checks, and Judge calls. We define 
+
+C(τ ) = ntool (τ )
+
+Btool 
+
+, R(τ ) = S(τ ) [1 − κ C (τ )] , (11) with Btool = 50 and κ = 0 .2, so correct answers receive returns in [0 .8, 1] . A trajectory that exhausts either bud-get produces a final answer without tools and is scored nor-mally. This return is used only for reporting; learning uses the binary reward. 
+
+Skill-evolution variants. Experience accumulation re-mains enabled under identical rules. • w/o Semantic Gradients : Mkb receives neutral sum-maries of the same B trajectories instead of semantic gra-dients; Gk and Nc are unchanged. • w/o Candidate Verification : one of the Nc candidates, sampled uniformly, replaces the parent without Judge comparison. • w/o Online Score : Skill scores are not used for pruning; when the pool exceeds capacity, the earliest-added Skill is evicted (FIFO). Redundancy removal is unchanged. The x-axis counts Skill Pool update rounds. A round occurs after a task whenever at least one Skill is eligible for revi-sion, including rounds in which no candidate is accepted. The y-axis reports the mean return of all rollouts collected since the previous round. 
+
+Experience-evolution variants. Skill evolution remains enabled under identical rules, so the resulting Skill Pools may differ as an indirect effect. • w/o Visual Grounding : the rollout summary receives the task text, actions, and textual tool outputs but no images; the executor and Skill evolution keep their visual inputs. • w/o Cross-Rollout Critique : Experiences are extracted from each rollout separately, under the same per-task pro-posal budget and 64-word limit; anchoring and merging are unchanged. • w/o CUS : utility statistics are not computed. After each task, Mkb labels each Experience shown in it as retained, retired, or graduated from its content and the rollout sum-maries, and also selects the entries removed when the bank exceeds capacity. Randomized exposure is kept so that all variants see the same exposure pattern. The x-axis counts processed tasks. The y-axis reports the mean return of the N = 4 rollouts of each task, measured before they are used to update the knowledge base. 
+
+Plotting. Each run is smoothed by a trailing moving av-erage over ten points, using the available prefix for the first nine. Lines and shaded areas show the mean and standard deviation across the three runs, at indices reached by all of them. 
+
+C.3. Number of Accumulation Rollouts 
+
+Fig. 2(c) varies N ∈ {0, 1, 2, 3, 4} on RoboSpatial for 
+
+GPT-5.4-mini , Qwen3.6-27B , and Qwen3.5-9B ,keeping all other settings fixed. N = 0 deploys the six seed Skills with an empty bank and no accumulation. With 
+
+N = 1 , no contrast exists, so eligible Experiences are al-ways shown and none leave probation (Appendix A.2); ca-pacity ties are then broken by insertion order. Since B
+
+counts trajectories across tasks, Skill revision remains pos-sible for every N ≥ 1.
+
+C.4. Reuse and Efficiency 
+
+All methods use the memory accumulated by 
+
+GPT-5.4-mini on RoboSpatial, frozen and deployed without modification. Cross-task runs deploy it on Ddep of Omni3D-Bench and SAT with the same executor; cross-agent runs deploy it on RoboSpatial with Qwen3.5-9B or 
+
+Qwen3.6-27B , which then also perform the deployment-time knowledge operations (decomposition, rewriting, and termination checks). Token counts use the cl100k base tokenizer for all methods, counting the full text of a Skill and the condition and action of an Experience. Efficiency metrics are measured in the in-domain setting. For S PA -
+
+> TIAL
+
+CRAFT , a step counts toward the Skill retrieval ratio if a Skill is selected at it, and toward the Experience ratio if global retrieval or anchored injection occurs at it. 
+
+C.5. Tool-Use Error Analysis 
+
+We deploy the same frozen knowledge base on RoboSpa-tial. Skill Only disables Experiences; Experience Only dis-ables Skills, so that anchored Experiences are retrieved as global ones, matching the deployment-time variants in Ap-pendix C.1. 
+
+Attempts and categories. An attempt is any model out-put submitted to the tool-call interface. Attempts are recorded before parsing, final answers are excluded, and each retry counts as a new attempt. A failed attempt is as-signed to the first check it fails: • Format : the output cannot be parsed into a valid call, e.g ., malformed JSON, missing call fields, or several calls in one step. • Resolution : the call is well formed but names an unregis-tered tool. Choosing an existing but unsuitable tool is not counted. • Validation : the tool resolves, but its arguments fail pre-execution checks, e.g ., missing, ill-typed, or out-of-range arguments, or references to nonexistent artifacts. • Execution : the call passes all checks but the tool raises an exception, times out, or returns an explicit failure. A valid empty result, such as no detected object, is not a failure. Each rate divides the number of failures in its category by the total number of attempts, so all four categories share one denominator. Failures outside the tools, such as API errors and job interruptions, are excluded. 
+
+Efficiency. Average tool calls is the number of attempts per task. The exact repeat rate is the fraction of attempts that match an earlier attempt in tool and normalized argu-ments on the same input state, with no relevant state change in between. 
+
+## D. Additional Experimental Results 
+
+D.1. Accuracy under Knowledge Transfer 
+
+Table 3 measures whether transferred units are invoked ;here we measure whether they help . We use the same deployments as Sec. 3.5 (protocol in Appendix C.4): the knowledge base accumulated by GPT-5.4-mini on Ro-boSpatial is frozen and deployed unchanged in-domain, cross-task on Omni3D-Bench and SAT, and cross-agent on RoboSpatial with Qwen3.5-9B and Qwen3.6-27B as executors. Two reference rows bound each column: ReAct uses no memory, and the bottom row is S PATIAL CRAFT ac-cumulated on the target setting itself (Table 1). The w/o Ex-periences and w/o Skills rows disable one stream at deploy-ment, so their in-domain values coincide with Table 2. Over the four transfer settings, Rec. is the share of the target-accumulated gain that a method recovers: 
+
+Rec . = Acc m − Acc ReAct 
+
+Acc target − Acc ReAct 
+
+, (12) where Acc averages accuracy over the four settings. Aver-aging before taking the ratio avoids the unstable per-setting denominator on Qwen3.5-9B , whose target-accumulated gain is only 2.4 points. 
+
+SPATIAL CRAFT retains most of its gain after transfer. 
+
+Across the four transfer settings, S PATIAL CRAFT averages 63.5%, 11.1 points above ReAct, and recovers 78.4% of the gain obtained by accumulating on each target directly. SMA, MemP, and RAG recover 45.9%, 27.7%, and 8.3%. Retention is highest on SAT (25.0 of 30.1 points) and low-est on Omni3D-Bench (9.6 of 16.5), whose metric queries depend on scale estimation that RoboSpatial rarely requires. 
+
+Raw trajectories do not survive a shift in task or ex-ecutor. RAG falls below ReAct on Omni3D-Bench and with both Qwen executors (by 0.5, 2.2, and 2.8 points), and MemP falls below it on Qwen3.5-9B . Retrieved trajecto-ries carry the objects, coordinates, and tool outputs of their source tasks, which mislead once the task or the executor changes. These are also the methods with the lowest reuse rates in Table 3. 
+
+Reuse translates into accuracy. Fig. 7 plots each method’s accuracy gain against its reuse rate. Within ev-ery setting, the gain increases monotonically with reuse, and S PATIAL CRAFT lies at the upper right in all four. The higher reuse of S PATIAL CRAFT in Table 3 therefore reflects knowledge that helps once invoked, not merely knowledge that is invoked often. 
+
+A weaker executor benefits from knowledge distilled by a stronger one. On Qwen3.5-9B , the transferred knowledge base reaches 60.3%, above the 59.4% ob-tained when Qwen3.5-9B accumulates its own; on 
+
+Qwen3.6-27B , it stays below (69.4% vs. 70.5%). This agrees with Fig. 2(c), where Qwen3.5-9B gains only 1.7 points from its own accumulation: it can follow knowledge that it cannot reliably distill. XSkill [32] reports that trans-ferred knowledge can hurt weaker executors; here the gain Table 8. Accuracy (%) after transferring the knowledge base accumulated by GPT-5.4-mini on RoboSpatial, without modification. Cross-task columns keep GPT-5.4-mini as the executor; cross-agent columns evaluate RoboSpatial with the listed executor. Avg. and Rec. cover the four transfer settings; Rec. is the share of the target-accumulated gain over ReAct that is recovered. Gray rows are references. Mean ±std over three runs. Bold: best; shaded: second best among memory-based methods. 
+
+In-domain Cross-task Cross-agent Transfer summary Method RoboSpatial Omni3D SAT Qwen3.5-9B Qwen3.6-27B Avg. Rec. (%) 
+
+ReAct (no memory) 55.2 ±1.2 29.5 ±1.0 60.2 ±0.8 57.0 ±2.2 62.9 ±1.5 52.4 0.0 RAG 61.5 ±2.0 29.0 ±1.3 70.4 ±1.6 54.8 ±1.9 60.1 ±1.7 53.6 ↑1.2 8.3 MemP 63.8 ±2.2 30.6 ±1.4 74.6 ±1.3 55.9 ±1.6 64.2 ±1.5 56.3 ↑3.9 27.7 SMA 67.4 ±2.1 32.8 ±1.1 79.2 ±1.0 57.6 ±1.3 66.0 ±1.2 58.9 ↑6.5 45.9 SPATIAL CRAFT 70.9 ±0.6 39.1 ±1.2 85.2 ±0.8 60.3 ±0.9 69.4 ±1.0 63.5 ↑11.1 78.4 
+
+w/o Experiences 61.3 ±0.9 33.6 ±1.0 70.7 ±1.1 57.6 ±1.4 65.6 ±1.2 56.9 ↑4.5 31.6 w/o Skills 58.9 ±0.6 31.9 ±1.3 67.2 ±1.2 58.4 ±1.1 64.5 ±1.3 55.5 ↑3.1 21.9 SPATIAL CRAFT (target-accumulated) 70.9 ±0.6 46.0 ±1.4 90.3 ±0.7 59.4 ±0.6 70.5 ±1.8 66.6 100.0 20 40 60 80 010 20 30             
+
+> Gain over ReAct (pts)
+> below ReAct
+> (a) Cross-task ⋅GPT-5.4-mini
+> +25.0 +9.6
+> 20 40 60 80 −4 −2 02468
+> below ReAct
+> (b) Cross-agent ⋅RoboSpatial
+> +6.5 +3.3
+> Reuse rate of stored units (%)
+> RAG MemP SMA SpatialCraft Native ±1 s.d.
+
+Figure 7. Accuracy gain over ReAct versus reuse rate (Table 3) un-der (a) cross-task and (b) cross-agent transfer. Each line connects the four memory-based methods within one setting. The reuse rate of S PATIAL CRAFT pools its 12 Skills and 45 Experiences. 
+
+stays positive, plausibly because the stored units are com-pact and anchored Experiences enter the context only when their Skill activates. 
+
+The two streams remain complementary under transfer. 
+
+Disabling either stream at deployment recovers only 31.6% (w/o Experiences) or 21.9% (w/o Skills) of the target-accumulated gain, against 78.4% with both, so the com-bined gain exceeds the sum of the individual ones, as in-domain (Table 2). Which stream matters more depends on the executor and task: Skills contribute more cross-task and on Qwen3.6-27B , whereas Experiences contribute more on Qwen3.5-9B (58.4% vs. 57.6%), matching the reuse pattern in Table 3. 
+
+D.2. Diagnosing the Contrastive Utility Score 
+
+Sec. 2.3 argues that valuing an Experience by the rewards of the episodes in which it appears is confounded by task difficulty, and that randomized exposure removes this con-found. We test this claim directly on RoboSpatial with 
+
+GPT-5.4-mini , using three diagnostics: (i) whether each score tracks task difficulty, (ii) how the Experience lifecy-cle evolves during accumulation, and (iii) whether the score identifies the Experiences that carry the accuracy gain at deployment. Diagnostics (i) and (ii) are computed from the accumulation logs and require no additional rollouts; (iii) changes only the deployed knowledge base. 
+
+Setup. For (i), we consider every Experience that com-pleted probation ( ne ≥ nmin ). Each receives two scores computed from the same accumulation rollouts. The naive score is the mean reward of the eligible rollouts in which e
+
+was shown, which corresponds to the reward-based valua-tion of SMA [72] and MemRL [74] without retrieval-time re-ranking. For the Table 2 ablation, we replace U (e) with the naive score minus the global mean reward during ac-cumulation, keeping randomized exposure and all lifecycle thresholds unchanged. The second is U (e), taken when the state of e was last decided. As a difficulty proxy that shares no rollouts with either score, we run the memory-free Re-Act agent three times on every task of Denv and average its success over the tasks on which e was eligible. Using the withheld rollouts instead would correlate spuriously with 
+
+U (e), since δi(e) subtracts their outcomes. For (iii), we rank the Experiences of the deployed bank that have com-pleted probation by U (e) or by the naive score, and remove or add 20% of the bank size at deployment, leaving Skills unchanged. The added Experiences are drawn uniformly from the retired ones and keep their original anchors, or be-come global if their anchor Skill no longer exists. Random removal is averaged over three draws. 0.0 0.2 0.4 0.6 0.8 1.0                     
+
+> ReAct success on eligible tasks (easier →)
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Naive score (mean reward when shown)
+> Pearson r= 0.68
+> (a) Reward-based valuation
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> ReAct success on eligible tasks (easier →)
+> −0.4
+> −0.2 0.0 0.2 0.4 0.6
+> Contrastive Utility Score  U(e) Pearson r=−0.08
+> τg
+> (b) Contrastive Utility Score
+> 150 100 150 175
+> Accumulation task (RoboSpatial env )
+> 050 100 150 200 250
+> Experiences
+> in bank 239 created
+> (c) Experience lifecycle
+> Probation Retained Graduated Retired
+
+Figure 8. Diagnostics of the Contrastive Utility Score on RoboSpatial with GPT-5.4-mini . (a, b) Each point is an Experience that completed probation, plotted against the success rate of the memory-free ReAct agent on the tasks where it was eligible, and colored by its final state; black lines are least-squares fits. The naive score follows task difficulty, whereas U (e) does not. Retained points above τg in (b) are global Experiences, which cannot graduate. (c) Cumulative fate of all created Experiences over accumulation; the black line is the bank size (probation and retained, including graduated Experiences awaiting absorption). Table 9. Deployment-time removal and addition of Experiences with GPT-5.4-mini . Each variant removes or adds 20% of the deployed bank size; Skills are unchanged. Arrows give the change from the full knowledge base. Mean ±std over three runs. 
+
+Deployed Experience bank RoboSpatial Omni3D 
+
+Full knowledge base 70.9 ±0.6 46.0 ±1.4
+
+− Top 20% by U (e) 66.3 ±0.9 ↓4.6 43.1 ±1.2 ↓2.9 
+
+− Top 20% by naive score 68.6 ±1.0 ↓2.3 44.7 ±1.3 ↓1.3 
+
+− Random 20% 68.9 ±0.8 ↓2.0 44.9 ±1.1 ↓1.1 
+
+− Bottom 20% by U (e) 71.2 ±0.7 ↑0.3 46.3 ±1.2 ↑0.3 
+
++ 20% retired Experiences 69.3 ±0.9 ↓1.6 45.2 ±1.3 ↓0.8 
+
+w/o Experiences (Table 2) 61.3 ±0.9 ↓9.6 40.5 ±0.6 ↓5.5 
+
+Reward-based valuation tracks task difficulty; the Con-trastive Utility Score does not. Fig. 8(a) shows that the naive score rises with the ReAct success rate on the tasks where an Experience was eligible: an Experience retrieved mostly for easy tasks scores high regardless of its own effect. U (e) is nearly uncorrelated with the same proxy (Fig. 8b), because each contrast compares rollouts of the same task. The two scores rank Experiences differently (Spearman ρ = 0 .46 ). Of the 155 Experiences retired by CUS, 59 (38%) score above the median naive value, so a reward-based valuation would have kept them. 
+
+Most distilled Experiences are retired, and the bank stays compact. Of the 239 Experiences created during ac-cumulation, 155 (65%) are retired, 41 graduate (39 of them already absorbed into their anchor Skills), 31 are retained, and 12 remain in probation (Fig. 8c). The bank peaks at 68 entries and ends at 45 while creation continues, so retire-ment and consolidation, rather than the capacity limit, keep it compact. The high retirement rate is consistent with our motivation of CUS: many lessons that read as plausible do not improve outcomes once their exposure is randomized. 
+
+The score identifies the Experiences that carry the gain. 
+
+Table 9 shows that removing the top 20% of Experiences by 
+
+U (e) costs 4.6 points on RoboSpatial, nearly half of the 9.6 points lost by removing all of them, and more than twice the cost of removing a random 20%. Removing the top 20% by naive score costs about as much as random removal, so the naive ranking carries little information about which Experi-ences matter. Removing the bottom 20% by U (e) leaves ac-curacy unchanged, and restoring retired Experiences lowers it, confirming that retirement discards entries that are use-less or harmful. Omni3D-Bench shows the same ordering. 
+
+D.3. Skill Evolution Diagnostics 
+
+Sec. 3.4 tracks returns under ablations of Skill evolution, and Fig. 3 traces the lineage of the RoboSpatial Skill Pool. Here we examine the evolution process itself: how often revisions are accepted and whether accepted revisions im-prove full trajectories (Table 10), how each evolution mech-anism changes these statistics (Table 11), and which lin-eage patterns recur across benchmarks (Fig. 9). All statis-tics come from the accumulation logs of GPT-5.4-mini .
+
+Definitions. A revision attempt revises one Skill in one round with Nc candidates, and is accepted if its best candi-date has J(k′) > 0. A Judge tie is a replayed state scored 
+
+0, including states at which the parent and candidate ac-tions are identical. Because J compares single actions, it cannot show whether a revision improves full trajectories. 1 50 100 150 200 
+
+ERQA (a) In-place specialization           
+
+> v6 +1 +2 +1 +2 read the question type metric →Reconstruct fi rst relation →SAM3 →Geometry multi-image: match views robot frame: gripper is origin
+
+StrategicPlanning SpatialPlan renamed    
+
+> 150 100 150
+
+RoboSpatial (b) Experience-fed growth       
+
+> v4 +2 +1 empty mask →simpler noun thin parts: SAM3, not Detect always run Detect fi rst occluded: crop and re-prompt glass: draw box, re-segment score ≤0
+
+ReActDecision generic seed 
+
+ObjGround locate the queried object      
+
+> 150 100 150 200 250
+
+Omni3D (c) Collapse and reset recovery       
+
+> v4 +1 +1 v5 +2 +1 +2 Score 0
+> score ≤0
+
+StructuredCoT generic seed 
+
+ScaleCalib unknown metric scale 
+
+MetricCompare compare sizes, distances     
+
+> v3: pixel height used as size v4: median depth + 3D extent
+> 1100 200 300
+
+SAT (d) Veri fi cation-blocked decline     
+
+> Score 0
+> v5 +1 +2 +1 score ≤0
+
+ExploreExploitArbitration generic seed 
+
+EgoMotion camera moved or object moved?     
+
+> Judge rejects: “sample more views ”
+> 11000 2000 2856
+
+Accumulation task on the benchmark's D env 
+
+ViewSpatial (e) Convergence and redundancy         
+
+> v5 +2 +3 +1 +2 +1 v4 +1 +2 score ≤0redundant with FrameAlign score ≤0
+
+HypothesisElimination generic seed 
+
+FrameAlign camera vs. person view 
+
+PersonView take the person's perspective 
+
+ReActDecision generic seed 
+
+PoseOrient which way does it face?    
+
+> 150 100 150
+
+Accumulation task on the benchmark's D env 
+
+RoboSpatial (f) 2nd-generation fork, boundary tuning   
+
+> v4 +1 +2 v5 +1 +1
+
+SpatialPlan re fi ned from StrategicPlanning    
+
+> ωβωπ
+
+FreeSpace mark a free point or region 
+
+> ω: only for point / region answers
+> β: stop once the point lies outside every object mask
+
+generic seed spatial Skill survives probation discovery fork accepted re fi nement rejected by Judge Exp. absorbed (+n) pruned anchored Exp. → global Experience track online Score(k) revised part ( ω / π / β)Figure 9. Six recurring modes of Skill evolution, each taken from accumulation with GPT-5.4-mini on a different benchmark (top right of each panel); the x-axis counts accumulation tasks on that benchmark’s Denv . (a) In-place specialization: StrategicPlanning 
+
+acquires spatial steps through successive refinements and is renamed SpatialPlan ; labels give what each refinement adds. (b) Experience-fed growth: ObjGround , forked from ReActDecision , absorbs graduated Experiences from its anchored track, while the retired “always run Detect first” is never absorbed. (c) Collapse and reset recovery: the online score of MetricCompare falls below zero after v3 uses pixel height as size; v4 replaces it with median depth and 3D extent, restarts probation, and recovers. (d) Verification-blocked decline: the Judge rejects most revisions of ExploreExploitArbitration , whose score declines until it is pruned, while its fork EgoMotion survives. (e) Convergence and redundancy: PersonView , forked from ReActDecision , dupli-cates FrameAlign and is pruned as redundant; PoseOrient survives. (f) Second-generation fork with boundary tuning: FreeSpace 
+
+forks from SpatialPlan , itself refined from a seed, and three of its four refinements revise the activation ( ω) or termination ( β) condi-tion rather than the procedure ( π). 
+
+We therefore also report the post-acceptance contrast : the fraction of accepted revisions whose within-task contrast P δi(k), summed over the first nmin contrasts after accep-tance, is positive. Unlike Score( k), this quantity excludes the statistics inherited from the parent. 
+
+The Judge is selective, and its local verdicts carry over to full trajectories. Across benchmarks, 41–52% of revi-sion attempts are accepted (Table 10), and 72–81% of ac-cepted revisions have a positive contrast over the following tasks. When a randomly chosen candidate is adopted in-stead, this fraction drops to 51.7% (Table 11), close to what an unhelpful revision would produce by chance. Wins at re-Table 10. Skill evolution statistics with GPT-5.4-mini . Ac-cepted revisions are split into refinements (Ref.) and discoveries (Disc.). Post-acc. δ > 0: fraction of accepted revisions whose contrast over the next nmin tasks is positive. Created Skills in-clude the six seeds.                                                          
+
+> Robo. ERQA Omni. SAT View.
+> |D env |175 200 251 300 2,856 Revision attempts 188 221 274 318 3,042 Acceptance rate (%) 48.9 46.6 51.5 41.2 44.8 Accepted (Ref. / Disc.) 78 / 14 89 / 14 124 / 17 117 / 14 1,321 / 42 Judge ties (%) 34.7 38.2 29.6 41.5 36.9 Post-acc. δ > 0(%) 81.4 77.9 79.1 72.3 80.6 Experiences absorbed 39 41 63 48 312 Skills created 20 20 23 20 48 Pruned (seed / spatial) 4 / 4 4 / 5 4 / 6 5 / 5 5 / 27 Final pool 12 11 13 10 16
+
+Table 11. Internal statistics of the Skill-evolution variants of Fig. 2(a) on RoboSpatial with GPT-5.4-mini , at the end of accumulation. Final Score: mean Score( k) over the final pool. Spatial: discovered Skills in the final pool of 12.                         
+
+> Variant Accept. (%) Post-acc. δ > 0(%) Final Score Spatial
+> SPATIAL CRAFT (full) 48.9 81.4 0.12 10
+> w/o Semantic Gradients 36.2 68.5 0.06 7w/o Candidate Verification 100.0 51.7 0.02 9w/o Online Score (FIFO) 47.3 79.8 −0.01 6
+
+played decision states therefore predict improvement on full trajectories, which the Judge cannot observe directly. SAT has the lowest acceptance and the most ties: its two-frame questions leave few alternative actions at a single replayed state, so parent and candidate often choose the same action. Fig. 9(d) shows the extreme case. 
+
+Refinement dominates, but discovery builds the spatial pool. Discoveries account for only 3–15% of accepted re-visions, yet discovered Skills make up most of each final pool, for example 10 of 12 on RoboSpatial (Table 11), while four or five of the six seeds are pruned on every benchmark. Refinements also carry consolidation: on RoboSpatial, they fold 39 graduated Experiences into their anchor Skills, the same Experiences counted as absorbed in Appendix D.2. 
+
+Each mechanism protects a different property of the pool. Table 11 explains the curves of Fig. 2(a). Without semantic gradients, candidates written from neutral sum-maries are accepted less often (36.2%) and help less once accepted, and fewer spatial Skills emerge. Without candi-date verification, every revision is adopted, half of them fail to help, and the mean final Score falls to 0.02. FIFO evic-tion leaves acceptance and post-acceptance contrast nearly unchanged but ends with the lowest final Score and only six spatial Skills, because it removes Skills by age, includ-ing mature ones that have recovered from earlier setbacks. Revision quality and retention thus fail independently and require separate mechanisms. 
+
+Six recurring lineage modes. Fig. 9 shows six patterns that recur across benchmarks, each illustrating a distinct mechanism. • Specialization without discovery (a). Refinement alone can turn a generic procedure into a spatial one. Each accepted revision of StrategicPlanning on ERQA adds one spatial step, such as routing metric questions to 
+
+Reconstruct first or treating the gripper as the origin of the robot frame, until the Skill is renamed to reflect its new role. • Consolidation filtered by utility (b). ObjGround ab-sorbs three of the Experiences anchored to it, written into the steps at which their triggers arise. The plausible-sounding “always run Detect first” is retired by CUS be-fore it can graduate, so it never enters the procedure. • Recovery through reset (c). An accepted revision can still be harmful: v3 of MetricCompare wins at the re-played states yet lowers full-trajectory outcomes, and its online score turns negative. Because the next accepted revision inherits no statistics from a negative-scoring par-ent (Appendix A.3), v4 restarts probation instead of being pruned, and its score recovers. Verification and online scoring thus correct each other’s errors. • Decline under verification (d). On SAT, candidates for ExploreExploitArbitration , such as “sam-ple more views,” do not change the action at replayed states, since the task provides at most two frames. The Judge rejects them, the seed cannot adapt, and its score drifts below zero until it is pruned. Its fork EgoMotion ,which addresses the camera-versus-object motion ques-tion directly, is refined and survives. • Convergent Skills (e). Skills forked from different seeds can converge to the same function: PersonView and 
+
+FrameAlign both resolve whose viewpoint a question refers to. Redundancy pruning removes the younger one and keeps the pool compact, while PoseOrient ,which addresses object orientation, survives alongside 
+
+FrameAlign .• Boundary tuning of mature Skills (f). Once a procedure stabilizes, revisions shift to its boundaries. FreeSpace 
+
+is restricted to point and region answers ( ω) and told to stop once the point lies outside every object mask ( β). This addresses premature or misplaced activation rather than the procedure itself. In four of the six panels, the generic seed is pruned after spawning spatial Skills, and its anchored Experiences be-come global. Seeds therefore act as scaffolding: they supply the initial procedures from which spatial Skills are forked, and are removed once their descendants handle the states Table 12. Composition of the final knowledge bases. Experiences in the final bank are split into anchored (anc.) and global (glob.). Created counts Experiences committed after merging; every created Experience is absorbed into a Skill, retired, or still in the bank, so Created =
+
+Absorbed + Retired + Experiences. Grad. rate: Absorbed / Created. Stored tokens list the total with the per-unit average in parentheses. The RoboSpatial / GPT-5.4-mini row appears in both blocks and matches Table 3.                                                                                              
+
+> Final knowledge base Experience lifecycle Stored tokens Setting Skills Experiences (anc./glob.) Created Absorbed Retired Grad. rate (%) Skills Experiences Total
+> GPT-5.4-mini across benchmarks
+> RoboSpatial 12 45 (24 / 21) 239 39 155 16.3 2,580 (215) 3,510 (78) 6,090 ERQA 11 52 (27 / 25) 268 41 175 15.3 2,178 (198) 3,848 (74) 6,026 Omni3D-Bench 13 58 (33 / 25) 331 63 210 19.0 3,146 (242) 4,814 (83) 7,960 SAT 10 49 (24 / 25) 287 48 190 16.7 1,870 (187) 3,479 (71) 5,349 ViewSpatial 16 96 (51 / 45) 2,214 312 1,806 14.1 3,696 (231) 7,680 (80) 11,376
+> RoboSpatial across backbones
+> GPT-5.4 13 41 (20 / 21) 221 44 136 19.9 3,068 (236) 3,444 (84) 6,512
+> GPT-5.4-mini 12 45 (24 / 21) 239 39 155 16.3 2,580 (215) 3,510 (78) 6,090
+> Qwen3.6-27B 11 52 (25 / 27) 263 31 180 11.8 2,244 (204) 3,952 (76) 6,196
+> Qwen3.5-9B 961 (26 / 35) 302 18 223 6.0 1,584 (176) 4,209 (69) 5,793
+
+Table 13. Accumulation cost per Denv task on RoboSpatial with 
+
+GPT-5.4-mini : LLM calls, input and output tokens (thou-sands), and share of total tokens. Baselines use the same N =4 
+
+rollouts; Rel. is the cost relative to each baseline.                                                                           
+
+> Component Calls Input (k) Output (k) Share (%)
+> Rollouts
+> Execution ( N=4 )31.2 268.3 11.9 46.4 Decomposition & rewrite 2.0 3.7 0.6 0.7 Termination checks 8.4 23.5 0.4 4.0
+> Experience accumulation
+> Rollout summary 1.0 46.0 2.6 8.1 Cross-rollout critique 1.0 11.0 1.4 2.1 Experience merge 0.7 1.3 0.2 0.2 Contrastive Utility Score 0.0 0.0 0.0 0.0
+> Skill evolution
+> Semantic gradients 6.4 39.7 4.5 7.3 Aggregation & candidates 4.3 24.1 6.0 5.0 Key-state replay 19.3 108.1 5.8 18.9 Judge 12.6 42.8 1.9 7.4
+> SPATIAL CRAFT total 86.9 568.5 35.2 100.0 Baseline Calls Input (k) Output (k) Rel.
+> RAG 31.2 257.6 11.9 2.24 ×
+> MemP 35.2 293.6 15.1 1.96 ×
+> MemRL-GT 35.2 295.6 14.7 1.95 ×
+> SMA 35.2 299.6 15.5 1.92 ×
+
+they covered. 
+
+D.4. Knowledge Statistics and Accumulation Cost 
+
+Table 3 reports the size and deployment cost of the knowl-edge base accumulated by GPT-5.4-mini on RoboSpa-tial. Here we report the composition of every knowledge base used in Table 1 (Table 12) and the cost of build-ing it (Table 13). Stored tokens are counted with the 
+
+cl100k base tokenizer as in Appendix C.4. Accumula-tion tokens are those reported by the API, including image tokens, and cover every call made while processing Denv .
+
+The knowledge base stays small as accumulation grows. 
+
+Every final knowledge base holds 9–16 Skills and 41–96 Experiences, totaling 5.3k–11.4k stored tokens (Table 12). Even the largest, accumulated over the 2,856 tasks of ViewSpatial, is smaller than the 22.5k and 39.2k tokens that MemP and SMA store for RoboSpatial alone (Table 3). ViewSpatial has 16 times as many accumulation tasks as RoboSpatial but only a 1.9 times larger knowledge base, because retirement and consolidation remove Experiences about as fast as new ones are created once the common question types are covered. 
+
+Most Experiences leave the bank, mostly through retire-ment. Across benchmarks, 63–82% of created Experi-ences are retired and 14–19% are absorbed into Skills. The rest remain in the bank, about half anchored and half global. ViewSpatial retires the largest share (82%): its long accu-mulation repeatedly produces near-duplicate lessons about the same viewpoint questions, which add no contrast once an equivalent entry exists. Omni3D-Bench has the highest graduation rate (19.0%) and the longest Skills (242 tokens), consistent with its multi-step metric procedures, which offer more steps into which a tactic can be folded. 
+
+Weaker backbones keep more Experiences and gradu-ate fewer. On RoboSpatial, the graduation rate falls from 19.9% with GPT-5.4 to 6.0% with Qwen3.5-9B , while the bank grows from 41 to 61 Experiences and the pool shrinks from 13 to 9 Skills. A weaker executor follows a shown Experience less consistently, which shrinks its con-trast, so fewer Experiences reach τg and more remain as separate prompts instead of being folded into Skills. This agrees with Fig. 2(c), where Qwen3.5-9B gains least from accumulation, and with Appendix D.1, where it benefits from a knowledge base distilled by a stronger backbone. Half of the accumulation cost is rollouts that every base-line also pays. SPATIAL CRAFT spends 604k tokens per accumulation task, about 106M tokens over RoboSpatial’s 175 tasks (Table 13). Half of this (51.1%) comes from the 
+
+N =4 rollouts, which all memory-based baselines also run. The Contrastive Utility Score adds no calls, since it reuses the outcomes of these rollouts. Experience accumulation adds two calls per task (10.3% of tokens). Skill evolution accounts for the remaining 38.6%, most of it from key-state replay and the Judge (26.3% together). This is the price of verifying revisions without token likelihoods, so that the same procedure applies to proprietary backbones. Remov-ing it (w/o Candidate Verification) would save about a quar-ter of the tokens but lets half of the accepted revisions fail to help (Table 11). 
+
+The extra cost is paid once, before deployment. Over-all, accumulation costs 1.9–2.2 × that of the baselines per task. The cost is incurred once per benchmark and back-bone, and knowledge is frozen afterwards. At deployment, Skills and Experiences together add 555.9 prompt tokens per step (209.3 and 346.6), fewer than MemP (601.8) and SMA (632.6; Table 3), so the per-step cost does not grow despite the richer knowledge. The same knowledge base can also be reused across tasks and executors without fur-ther accumulation (Appendix D.1). 
+
+## E. Case Study 
+
+E.1. Knowledge Base Examples 
+
+Fig. 10 shows part of the knowledge base accumulated by GPT-5.4-mini on Omni3D-Bench (statistics in Ta-ble 12) and traces how it guides the agent on one deploy-ment query. 
+
+E.2. From Rollouts to Experiences 
+
+As shown in Figure 11, the rollouts share the images and the Skill and differ only in which anchored Experiences they are shown. The summary locates where they diverge, and the critique turns the failure of R2 into [E12] , anchored to the Skill that was active when the wrong decision was made. The same rollouts also update the utility of the Expe-riences under test: [E8] reaches the graduation threshold, 
+
+[E10] receives a negative contrast, and R4, correct without evidence, contributes to the contrasts but to no lesson. 
+
+E.3. Semantic Gradients 
+
+Figure 12 illustrates the case of semantic gradients genera-tion. Each of the six batched trajectories yields a semantic gradient that names the faulty component: the failures ex-pose a missing object frame ( π), a too narrow activation ( ω), and a premature stop ( β), while the successes mark what to keep. The aggregated gradient and the graduated [E23] 
+
+are written into candidate C1, which wins the key-state re-play against two alternatives and becomes v4. The Judge also penalizes the one state at which C1’s wider activation adds an unnecessary call, so the revision is accepted on its net effect rather than on uniform agreement. 
+
+E.4. Failure Cases 
+
+Fig. 13 shows three representative deployment failures, one per source. In (a), a tool error on a transparent surface passes through a procedure step that is correct for opaque objects; in (b), a Skill activates on the wording of a ques-tion whose condition its procedure does not cover; in (c), a weaker executor follows a transferred procedure but binds its tool call to the wrong object. Each failure type is rare in its accumulation split, so it produces too few contrasts or failed trajectories for the Contrastive Utility Score and se-mantic gradients to correct it before the knowledge base is frozen. 
+
+## F. Full Related Work 
+
+Spatial reasoning benchmarks. A growing set of bench-marks probes the spatial abilities of MLLMs. BLINK [21] shows that models that describe images fluently still fail at perceptual tasks such as relative depth and correspondence, and 3DSRBench [42], OmniSpatial [31], SITE [60], and VSI-Bench [67] extend evaluation to 3D, multi-view, and video settings. Other benchmarks isolate specific capabil-ities: perspective taking in ViewSpatial [35], robot-centric relations in RoboSpatial [54] and EmbSpatial-Bench [19], embodied reasoning in ERQA [56], dynamic and ego-centric reasoning in SAT [50], and metric 3D queries in Omni3D-Bench [45]. Earlier work on 3D and embodied question answering [4, 17, 43, 44] and embodied agent benchmarks [69] assesses spatial understanding inside re-constructed or simulated scenes. We evaluate on RoboSpa-tial, ERQA, Omni3D-Bench, SAT, and ViewSpatial, which together cover robot-centric, embodied, metric, dynamic, and perspective reasoning. 
+
+Training MLLMs for spatial reasoning. One line of work equips models with 3D inputs, encoding point clouds or scene features directly [26, 30, 61, 65, 81]. Another post-trains 2D MLLMs on synthesized spatial question-answer data [8, 10, 13, 18, 50]. Recent methods close the loop be-tween data and model, deriving training signals from de-terministic geometric environments [36], from the consis-tency of geometric logic [38], or from an iterated data-model pipeline [77], and whether explicit object localiza-tion is needed for spatial reasoning at all is itself under study [40]. These approaches improve the backbone, so they must be repeated whenever the backbone or toolset changes. SPATIAL CRAFT keeps the backbone frozen and instead improves how it uses existing tools. Tool-augmented spatial agents. Vision foundation mod-els now provide reliable geometric primitives: monocu-lar and multi-view geometry [6, 27, 37, 59, 68], open-vocabulary detection and segmentation [9, 39], and object orientation [62]. Following tool-using language agents [51, 70], spatial agents compose these modules into explicit computations. VADAR [45] lets the agent synthesize new API functions for 3D queries, pySpatial [41] generates 3D visual programs zero-shot, and GCA [12] first formalizes a query as geometric constraints and then solves it under them. SpaceTools [11] and S-Agent [16] train the pol-icy to call spatial tools, SpatialClaw [15] redesigns the ac-tion interface through which the agent operates, and Spa-tialCLI [80] learns to reason with spatial tools and then without them. General multimodal agents follow the same trend [23, 25], and dedicated benchmarks evaluate tool-enabled visual reasoning [3, 22]. These agents either re-quire training or approach each task anew. S PATIAL CRAFT 
+
+adds a knowledge base that a frozen agent accumulates across tasks, recording when and how to orchestrate the same tools. 
+
+Memory and self-evolving agents. LLM agents extend their context with external memory, through hierarchi-cal memory management [48, 71], long-term memory stores [14, 66, 79], retrieval-augmented generation [7, 34], and the memory streams of generative agents [49]; surveys summarize this design space [24, 28, 75]. Self-evolving agents use such memory to improve without parameter up-dates. They store reflective insights [47, 53, 55, 76] or evolving context playbooks [73], induce reusable work-flows [20, 63], and build libraries of procedural skills, writ-ten as executable code [57, 64, 78] or as natural-language procedures [2, 46]. XSkill [32] combines action-level experiences with task-level skills in multimodal agents, and multimodal memory has been developed for visual skills [58] and semantic knowledge [5]. Closest to our set-ting, SMA [72] accumulates experience-grounded procedu-ral memory for spatial reasoning without tools. S PATIAL -CRAFT differs in how the two forms of knowledge interact: an Experience is anchored to the Skill it serves, is injected only while that Skill is active, and, once proven useful, is consolidated into its procedure. This last step parallels the proceduralization of declarative knowledge in human skill acquisition [1]. (a) Evolved Skill 
+
+MetricCompare/SKILL.md grown from the seed StructuredCoT 
+
+## When to activate 
+
+The query compares sizes, distances, or other 3D quantities between objects in a single image, e.g. “taller than”, “farther from the camera”, or “how many times longer”. 
+
+## Procedure 
+
+1. Ground every queried object with Detect, keeping all instances of a plural category and their scores. 
+
+2. Segment each box with SAM3, one object per call; segment overlapping boxes separately. from [E19] 
+
+3. Reconstruct the frame. For each mask, read the median depth over its points, not the value at the box center, and drop points beyond 1.5× the median (wall bleed). 
+
+4. Measure size as the 3D extent of the masked points along the gravity axis, never as pixel height. 
+
+from [E07] (the v4 fix) 
+
+5. If Scale reports low confidence, compare ratios within one reconstruction instead of absolute meters. 
+
+6. Compute the requested quantity with Geometry. If two compared values differ by less than 10%, re-check them in the bird’s-eye view before answering. 
+
+## When to stop 
+
+Every queried object has a 3D measurement and the requested comparison is computed, or an object still cannot be grounded after one re-prompt; then report which object is missing. 
+
+(b) Experiences 
+
+Anchored to MetricCompare 
+
+[E33] When the query asks for a ratio, compute both quantities in the same reconstruction. 
+
+task 142, ratio of two shelf heights: the rollout that took each height from a separate reconstruction answered 0.6; the one using a single reconstruction answered 1.4, the ground truth. 
+
+[E41] When an object rests on the floor, compare heights from the ground plane, not from the camera. 
+
+task 87: two rollouts measured table heights from the camera and disagreed on which was taller; the one using the ground plane was right. 
+
+Global retrieved once per task, then rewritten 
+
+[E1] When comparing distances, use the median depth over the mask, not the depth at the box center. 
+
+task 23: the box center of a chair fell on the wall behind it and read 4.0 m; the mask median gave 1.9 m. 
+
+[E2] When SAM3 returns an empty mask, re-prompt with a simpler noun before switching tools. 
+
+task 61: “wooden dining chair” returned an empty mask in every rollout; “chair” segmented it at once. 
+
+Retired read as sound advice, but did not help 
+
+[E27] When the camera height is unknown, assume 1.5 m to convert pixel offsets into meters. 
+
+shown in four tasks; rollouts given this rule answered worse than those without it, since camera heights in Omni3D-Bench range from about 0.4 m to 2 m. 
+
+[E58] When a depth reading looks implausible, rerun Reconstruct until it changes. 
+
+with a single input image every rerun returns the same depth, so it only added calls. 
+
+(c) The Skill at work 
+
+Query “How many chairs are farther from the camera than the bowl?” 
+
+Answer type: integer. Input: one RGB image, 640×480, no depth or intrinsics given. Tools available: Detect, SAM3, Reconstruct, Scale, Geometry, Pose, Mask, Draw. 
+
+Task start 
+
+Decomposition: g1 find every chair and the bowl; g2 distance of each from the camera; g3 compare and count. 
+
+Global retrieval: [E1] for g2, [E2] for g1, [E9] for g1. Rewrite: [E1] kept as “use the median depth inside each chair mask”; [E2] kept; [E9] dropped, since it concerns counting across several views. 
+
+Skill selection: MetricCompare matches best (similarity 0.62, above the activation threshold of 0.50; next is DepthOrder at 0.58). Its anchored [E33] and [E41] are injected. 
+
+Step 1 procedure step 1 
+
+Thought: “Chairs” is plural, so every chair has to be found before any comparison; I keep all instances and their scores.     
+
+> Detect(image, ["chair", "bowl"], threshold=0.3) → chair#1 0.91 chair#2 0.88 chair#3 0.84 chair#4 0.79 → bowl 0.86; IoU(chair#3, chair#4) = 0.31
+
+Step 2 procedure step 2, then [E2] 
+
+Thought: Chairs 3 and 4 overlap, so one box would mix two chairs; each box is segmented on its own.   
+
+> SAM3.segment_image_by_box(image, box_i) for i = 1..5 → 4 masks; chair#4: empty mask (occluded by chair#3)
+
+Thought: An empty mask is the case of [E2]: before switching tools, re-prompt with the plain noun inside chair#4’s box. 
+
+> SAM3.segment_image(crop(box_4), "chair") → 1,842-px mask
+
+Step 3 procedure steps 3 and 5 
+
+Thought: Distances from the camera need metric depth. I reconstruct the frame and check whether the scale can be trusted before using absolute meters.  
+
+> Reconstruct([frame]); Scale.estimate(recon) → depth 640×480, intrinsics recovered → scale confidence 0.83 ≥ 0.7: absolute meters usable
+
+Step 4 procedure step 3, as in [E1] 
+
+Thought: For each mask I take the median depth over its points and drop points beyond 1.5× the median, so that wall pixels behind a chair do not leak in.  
+
+> Geometry.median_depth(recon, mask_i, clip=1.5) → bowl 2.10 m; chairs 1.62 / 2.41 / 2.74 / 1.93 m → chair#2 box center would read 4.05 m (wall)
+
+Step 5 procedure step 6 
+
+Thought: Chair 4 (1.93 m) is within 10% of the bowl (2.10 m), so the Skill asks for a bird’s-eye check before counting. 
+
+> recon.render_bev(masks, labels); Geometry.compare_along_view_axis(...) → chair#4 lies 0.21 m in front of the bowl → farther than the bowl: chair#2, chair#3
+
+Termination check 
+
+Every queried object has a 3D measurement and the comparison is computed, so the stop condition holds and MetricCompare returns control. Its anchored [E33] was in context but unused, since no ratio was asked; it is withdrawn with the Skill. At this boundary no Skill passes the activation threshold, so the agent answers directly. 
+
+Answer: 2 correct; 7 tool calls, 1 re-prompt 
+
+Tool-only ReAct on the same image called Detect once, compared the bottoms of the 2D boxes, and answered 3: chair 4 sits low in the image but is closer than the bowl. Figure 10. Knowledge base representative case example (a) ERQA accumulation task #57 
+
+> view 1 — kitchen side, bikes view 2 — two chairs behind a bike wheel view 3 — wall clock, table edge view 4 — clock again, far side of the table
+
+Question “These images show a room from several angles. How many chairs in total are at the blue dining table?” 
+
+Options: A) 4 B) 5 C) 6 D) 7. Ground truth: B. 
+
+Knowledge at this task. Skill selected at start in every rollout: CrossViewCount v2 (activation: the question counts objects that may appear in several images). Eligible anchored Experiences: [E8] (S = 0.5, n = 2) and [E10] (probation, n = 0). 
+
+Exposure draw. Fixed per task by hashing the task and Experience ids: [E8] shown in R1, R3; [E10] shown in R2, R3. 
+
+(b) Four rollouts of task #57 
+
+R1 [E8] shown [E10] withheld 
+
+t1 Detect(view_k, ["chair","table"]), k=1..4 → 2 / 2 / 1 / 2 chairs in views 1–4. 
+
+t2 Following [E8], looks for landmarks: the clock links only views 3–4 and the window only views 1–2. 
+
+t3 Reconstruct(views 1-4) → four camera poses in one frame. 
+
+t4 SAM3.segment_image_by_box ×7;  
+
+> seg.centroid_3d
+
+for each mask. 
+
+t5 Geometry.cluster(c, r=0.35 m) → five clusters: one chair appears in views 1 and 2, another in views 3 and 4. 
+
+Answer B (5) correct; 13 tool calls 
+
+R2 [E8] withheld [E10] shown 
+
+t1 Detect(view_k, ["chair","table"]), k=1..4 → 2 / 2 / 1 / 2 chairs. 
+
+t2 The chair in view 3 is small, so [E10] applies: crop + Detect → still one chair. 
+
+t3 Counts the chairs view by view as CrossViewCount step 2 says, then adds them: 2 + 2 + 1 + 2 = 7. Never checks whether a chair appears in two views. 
+
+t4 Skill terminates: every view has been counted. 
+
+Answer D (7) wrong; 5 tool calls 
+
+R3 [E8] shown [E10] shown 
+
+t1 Detect(view_k, ["chair","table"]), k=1..4 → 2 / 2 / 1 / 2 chairs. 
+
+t2 Following [E8], anchors views 3 and 4 on the wall clock: Draw.boxes on both views shows that view 4 adds one chair to view 3. 
+
+t3 Anchors views 1 and 2 on the window: the left chair of view 2 is the chair at the corner in view 1. 
+
+t4 [E10] is shown but not needed: all boxes are large enough. Total 3 + 2 = 5 after removing shared chairs. 
+
+Answer B (5) correct; 6 tool calls 
+
+R4 [E8] withheld [E10] withheld 
+
+t1 Skips the tools: “view 2 shows two chairs on one long side; a table of this size usually seats five or six.” 
+
+t2 Answers without counting any other view. 
+
+Answer B (5) correct; 0 tool calls 
+
+correct, but by a prior about tables, not by evidence 
+
+(c) Rollout summary excerpt 
+
+R1’s reconstruction, top view: cameras 1–4 and five chairs around one table 
+
+Decision point 1 (all rollouts). Detect returns 2 / 2 / 1 / 2 chairs; boxes agree across rollouts. Active Skill: CrossViewCount, step 2. 
+
+Decision point 2 (diverges). R1 lifts the seven instances to 3D and clusters them; R3 aligns views on the clock and the window; R2 adds per-view counts; R4 uses no tool. 
+
+Visual evidence. The window links views 1–2 and the clock links views 3–4; the chair at the table corner in view 1 reappears at the left of view 2, with the same grey seat. 
+
+Failure cause (R2). Chairs visible in two views are counted twice; the crop suggested by [E10] did not change any count. 
+
+(d) Critique: why R2 counted seven 
+
+R1, R2 and R3 see identical detections, so the error arises after detection. R1 and R3 succeed only because each identifies chairs shared between views, R1 in 3D and R3 through landmarks; R2 never does. R3’s landmark route works here, but landmarks link only pairs of views; R1’s 3D merge needs no landmark and checks all views at once. R4 is correct but gathers no evidence, so it supports no lesson. 
+
+Proposed operations  
+
+> ADD [E12]
+
+“When counting across views, lift instances to 3D and merge duplicates before summing.”  
+
+> anchor
+
+CrossViewCount, active at R2’s summing step (t3).  
+
+> merge
+
+nearest is [E5] at cosine 0.61 < 0.70; kept separate.  
+
+> MODIFY
+
+none; [E8] already states the landmark tactic.  
+
+> DROP
+
+“dining tables seat five”, supported only by R4. 
+
+The anchor follows the summary: the decision that went wrong was made while CrossViewCount was active, so [E12] will be injected whenever that Skill runs. 
+
+(e) Utility after task #57 
+
+[E8] 
+
+shown R1, R3: 1, 1; withheld R2, R4: 0, 1 δ = 1.0 − 0.5 = +0.5 S 0.5 → 1.0, n 2 → 3 U = 1.0 / (2 + 3) = 0.20, at the threshold 
+
+graduates; queued for CrossViewCount’s next revision 
+
+[E10] 
+
+shown R2, R3: 0, 1; withheld R1, R4: 1, 1 δ = 0.5 − 1.0 = −0.5 S 0 → −0.5, n 0 → 1; U = −0.17 
+
+stays in probation (n < 3) 
+
+[E12] 
+
+new entry: S = n = 0 
+
+probation 
+
+CrossViewCount 
+
+active in all four rollouts, so no rollout without it: no Skill contrast from this task 
+
+R4’s lucky guess lowers [E8]’s contrast in this task; single contrasts are noisy, which is why U is shrunk by λ = 2. Figure 11. From rollouts of one accumulation task to a new Experience. (a) FrameAlign v3 and the six trajectories batched for its revision  
+
+> FrameAlign/SKILL.md v3
+
+## When to activate 
+
+The question asks for a direction (left/right, front/behind) from a stated viewpoint: “from the camera”, “from the person’s view”, “facing X”. 
+
+## Procedure 
+
+1. Decide the reference frame from the wording: camera or person. 
+
+2. Camera frame: read directions in the image plane after Reconstruct. 
+
+3. Person frame: call Pose on the person and rotate into their facing direction. 
+
+4. Express the target’s offset from the anchor in the chosen frame and map it to an option. 
+
+## When to stop 
+
+Pose has returned an orientation for the frame’s owner. 
+
+v3 has been active in six new trajectories since its last revision, so it is due for one; tasks 412, 977 and 1530 failed under it. Online score before this revision: +0.04 after 12 contrasts, positive but barely. The previous revision, v2 → v3, added the Reconstruct call in step 2. 
+
+τ₁ task 412 return 0, wrong 
+
+“If you sit on the sofa under the window, facing the coffee table, is the floor lamp on your left or right?” 
+
+FrameAlign active. Step 1 sees no person, so it picks the camera frame; the lamp is at the image left → left . Truth: right.   
+
+> gπ:
+
+step 1 knows only camera and person frames; a viewer placed by furniture needs an object frame: Pose on the sofa, then rotate. 
+
+τ₂ task 977 return 0, wrong 
+
+“Standing behind the bar stools and facing the counter, is the wine glass left or right of the book?” 
+
+Not activated (similarity 0.44 < 0.50); compares image x → right . The viewer faces the camera: truth is left.   
+
+> gω:
+
+misses viewpoints set by posture and facing (“standing behind … facing”), not by “from the … view”. 
+
+τ₃ task 1530 return 0, wrong 
+
+“From the chair by the wall, facing the table, is the other chair in front of it or behind it?”  
+
+> Pose(chair_1)
+
+→ yaw 92°, conf. 0.78. The stop condition already holds, so the Skill exits before step 4; the agent reads the image → in front . Truth: behind.   
+
+> gβ:
+
+stops when Pose returns, before rotating; stop once the target is in the chosen frame. 
+
+τ₄ task 233 return 1, correct 
+
+“From the camera’s viewpoint, is the glass coffee table in front of or behind the white sofa?” 
+
+Step 1 picks the camera frame; 
+
+> Reconstruct
+
+: table 1.8 m, sofa 2.6 m → 
+
+in front . Correct, three calls.   
+
+> gπ:
+
+the explicit frame choice in step 1 avoided an unneeded Pose call; keep it. 
+
+τ₅ task 1802 return 1, correct 
+
+“For someone seated on the right sofa facing the coffee table, is the window ahead of them or to their left?” 
+
+Outside the procedure, calls Pose(sofa) 
+
+(conf. 0.91), faces away from its back, rotates → to their left . Correct.   
+
+> gπ:
+
+Pose on the furniture that seats the viewer made it work; write that into the procedure. 
+
+τ₆ task 2290 return 1, correct 
+
+“In the image, which is closer to the left edge: the wine glass or the book?” 
+
+No viewpoint is stated, so FrameAlign stays inactive; the agent compares box x-coordinates → the book . Correct, one call.   
+
+> gω:
+
+correctly inactive for a plain image-coordinate question; keep excluding questions without a viewpoint. 
+
+(b) Aggregated gradient 
+
+ω from g₂, g₆: also activate when the viewer is placed by posture and facing (“sit on”, “standing behind … facing”); keep excluding questions that state no viewpoint. 
+
+π from g₁, g₄, g₅: add an object frame to step 1; insert a step that calls Pose on the object placing the viewer, facing away from its back when Pose is unsure; keep the camera branch. 
+
+β from g₃: stop only after the target’s offset is expressed in the chosen frame. 
+
+Graduated Experience to absorb  
+
+> [E23]
+
+When a question places the viewer on a piece of furniture, take the facing direction from Pose on that furniture, not from the camera. 
+
+U = +0.27 after 4 contrasts, anchored to FrameAlign; it leaves the bank once the revision is accepted. 
+
+(c) Candidate C1, written from the gradient 
+
+## When to activate 
+
+The question asks for a direction from a stated viewpoint: “from the camera”, “from the person’s view”, “facing X”. 
+
+or a viewer placed by posture and facing (“sit on the sofa, facing the table”). Not for plain image-coordinate questions. 
+
+## Procedure 
+
+1. Decide the reference frame from the wording: camera or person. , person, or object (the furniture that places the viewer). 2. Camera frame: read directions in the image plane after Reconstruct. 3. Person frame: call Pose on the person and rotate into their facing direction. 
+
+3. Person or object frame: call Pose on it; if orientation confidence < 0.5, face away from the object’s back. ←
+
+from [E23] 
+
+4. Express the target’s offset from the anchor in the chosen frame and map it to an option. 
+
+## When to stop 
+
+Pose has returned an orientation for the frame’s owner. The target’s offset is expressed in the chosen frame and mapped to an option. 
+
+(d) Key-state replay and Judge 
+
+State v3 (parent) action C1 action C1 C2 C3 Judge’s reason (random A/B order) τ₁ step 2 frame = camera; lamp at image left → “left” frame = object (sofa); Pose(sofa) before answering 
+
++1 +1 −1 B fixes the sitter’s facing; A answers in image left/right, which the question does not ask for. 
+
+τ₂ start Skill inactive; compare image x → “right” FrameAlign active; frame = object (stools), viewer faces the camera 
+
++1 0 +1 A notices that the stated viewer faces the camera; B ignores the viewpoint. 
+
+τ₃ step 4 exit after Pose; read the image → “in front” rotate the offset by yaw 92°, then answer +1 0 +1 A completes the change of frame that the question requires; B stops halfway. 
+
+τ₄ step 1 frame = camera frame = camera 0 0 0 identical actions, scored 0 without a Judge call. 
+
+τ₅ step 2 Pose(sofa), confidence 0.91 Pose(sofa), confidence 0.91 0 0 −1 identical; C3 instead rotates before calling Pose. 
+
+τ₆ start no Skill; compare box x FrameAlign active; Reconstruct first −1 0 −1 B adds a reconstruction that a plain image question does not need. 
+
+Scores. J(C1) = (1 + 1 + 1 + 0 + 0 − 1) / 6 = +0.33; J(C2) = +0.17 (procedure change only); J(C3) = −0.17 (rotates before measuring the facing). Decision. C1 has the highest J and J > 0, so it replaces v3 as FrameAlign v4. Score(k) > 0, so v4 inherits v3’s statistics; [E23] is removed from the bank and the six pending trajectories are discarded. Figure 12. Semantic gradients example. (a) Depth through glass: the coffee-table top lands on the rug 
+
+> input: the glass top is nearly invisible SAM3 table mask (blue): mostly rug seen through glass Reconstruct: table points near the floor
+
+Question “By how many centimeters is the seat of the white sofa higher than the top of the glass coffee table?” 
+
+Ground truth 8 cm (seat 46 cm, table top 38 cm); answers within ±10% of the truth count as correct. 
+
+start MetricCompare activates (similarity 0.66); global [E1] “use the median depth over the mask” is retrieved and kept. 
+
+t1 Detect(img, ["sofa","coffee table"]) → sofa 0.93, coffee table 0.71 (glass, low score). 
+
+t2 SAM3.segment_image_by_box ×2 → the table mask covers the glass top and the rug visible through it. 
+
+t3 Reconstruct([img]); Scale.estimate → scale confidence 0.81; depth inside the table mask is bimodal: 1.92 m (frame, 14% of pixels) and 2.35 m (rug, 86%). 
+
+t4 Procedure step 3 and [E1]: take the median over the mask → 2.33 m, i.e. the rug. Table-top height from the floor plane: 3 cm. ← the error enters here 
+
+t5 Geometry.height_above_floor(sofa_seat) → 46 cm. 
+
+t6 Stop condition holds (both objects measured). Answer: 46 − 3 = 43 cm . Wrong. 
+
+elsewhere Tool-only ReAct answers 31 cm, also wrong. GPT-5.4 with its own knowledge base answers 9 cm: its EvidenceCheck activates at t3 and re-reads depth on the table frame only. 
+
+Diagnosis 
+
+Source Reconstruct sees through glass; the mask is 86% rug. 
+
+How often 6 of the 90 sampled failures involve glass, mirrors or screens. 
+
+Knowledge involved median depth (step 3, [E1]) is right for opaque objects and here selects the rug instead of rejecting it. 
+
+Why it was not caught EvidenceCheck flags bimodal depth but did not activate (similarity 0.41). Only 3 of 251 accumulation tasks involve glass surfaces: too few contrasts for CUS or a gradient. 
+
+What would help a stop condition requiring a unimodal mask depth, or a transparency-aware depth tool. 
+
+(b) A census instead of a filter: “how many” activates CrossViewCount 
+
+> image 4: the doorway and the table’s far side image 2: two chairs on the near long side
+
+Question “How many chairs are within one step (about 0.7 m) of the doorway shown in image 4?” A) 0 B) 1 C) 3 D) 5 
+
+Ground truth B (one chair, at the table corner nearest the door). 
+
+start Skill selection: CrossViewCount (similarity 0.57 > 0.50), next RelInfer (0.49). Anchored [E12] “lift instances to 3D and merge duplicates” is injected. 
+
+t1 Detect(view_k, ["chair","door"]) ×4 → 2 / 2 / 1 / 2 chairs; door in image 4. 
+
+t2 Reconstruct(views 1-4) ; SAM3 ×7; seg.centroid_3d → seven instances lifted to 3D, as [E12] says. 
+
+t3 Geometry.cluster(c, r=0.35 m) → five chairs. The door centroid is also available: distances 0.6, 1.4, 1.9, 2.2, 2.6 m. 
+
+t4 The procedure ends at “merge and report the total”; the stop condition (every view counted) holds. The 0.7 m condition is never applied. ← the error enters here 
+
+t5 Answer D (5) . Wrong; the distances computed at t3 already contained the answer. 
+
+elsewhere GPT-5.4-mini’s ERQA knowledge base answers B: its RelInfer v3 activates on “within … of” phrasing and filters by distance before counting. 
+
+Diagnosis 
+
+Source the Skill matched the words “how many chairs”, not the distance condition. 
+
+How often 11 of the 90 failures are conditional counts or comparisons answered as plain ones. 
+
+Knowledge involved CrossViewCount and [E12] are both correct for plain counts; no Skill in this pool filters a count by distance. 
+
+Why it was not caught its activation excludes nothing; distance-filtered counts are rare in ERQA’s accumulation split, so no failed trajectory reached a semantic gradient. 
+
+What would help an activation that excludes conditional counts, or a discovered filtering Skill like CountFilter on Omni3D-Bench. 
+
+(c) The procedure is right, the call is not: Pose on the counter instead of the stool 
+
+> input: stools along the bar counter Pose ran on the counter (box); its long axis became the facing
+
+Question “Sitting on the stool nearest the wall and facing the counter, is the window on your left or your right?” 
+
+Ground truth right. 
+
+start FrameAlign v4 activates (similarity 0.71); its step 3 reads “Person or object frame: call Pose on it”, the object being the stool that seats the viewer. 
+
+t1 Step 1: frame = object. Correct. 
+
+t2 Detect(img, ["stool","counter","window"]) → 3 stools, counter, window. 
+
+t3 Pose(img, "bar counter") → yaw 8°, confidence 0.88: the counter’s long axis, not the stool’s front. ← the error enters here 
+
+t4 Rotates into a frame turned 90° from the seated viewer; the window falls “ahead”, which is not an option, and the agent picks the closer one. 
+
+t5 Answer left . Wrong. 
+
+elsewhere GPT-5.4-mini, executing the same knowledge base, calls Pose on the stool and answers right. Qwen3.5-9B binds the argument correctly in 7 of 12 similar questions. 
+
+Diagnosis 
+
+Source the executor bound Pose to the wrong argument; the instruction itself was correct. 
+
+How often on the same knowledge base, such deviations are about three times as frequent with Qwen3.5-9B as with GPT-5.4-mini. 
+
+Knowledge involved FrameAlign v4 was distilled by GPT-5.4-mini; Qwen3.5-9B follows its steps but not their arguments. 
+
+Why it was not caught at deployment the knowledge base is frozen, and the procedure names the object only by its role (“that places the viewer”). 
+
+What would help stating the argument explicitly (“Pose on the seat, e.g. the stool or sofa”), which a weaker executor can copy. Figure 13. Representative failure cases. G. Tool APIs 
+
+G.1. tools.Reconstruct tools.Reconstruct is a client wrapper for the per-ception serving role. Its single entry method calls Depth Anything 3 [37] on a frame batch and returns a 
+
+Reconstruction object that exposes per-frame depth, camera intrinsics, camera-to-world extrinsics, a dense per-frame point map in world coordinates, and a top-down ren-dering helper function. The output coordinate system is gravity-aligned with respect to the first camera: +Y points up, the ground plane sits at Y ≈ 0, and the first camera looks toward −Z. The output spatial resolution matches the input frame resolution, so masks from tools.SAM3 
+
+can be combined directly with the reconstructed point maps without resizing. Table 14 summarizes the interface. 
+
+G.2. tools.SAM3 tools.SAM3 is a client wrapper for the perception serv-ing role and exposes single-frame and video-mode seg-mentation against SAM3 [9], together with an object-existence check. All segmentation methods return a
+
+PerFrameMask whose absolute video frame indices align with those of any Reconstruction the agent has built. Table 15 summarizes the image-mode methods, existence check, and mask interface. Each image-mode method oper-ates on a single PIL image and returns masks for one frame. 
+
+G.3. tools.Geometry tools.Geometry is a static class that provides the nu-merical primitives most commonly needed for spatial rea-soning over reconstructed scenes. All methods operate on 
+
+numpy arrays. Table 16 summarizes their inputs and out-puts. 
+
+G.4. tools.Mask tools.Mask is a static class that provides standard mask statistics over the boolean mask arrays returned by 
+
+tools.SAM3 . All inputs are 2D numpy arrays with shape 
+
+(H, W ) unless otherwise noted. Table 17 summarizes the interface. 
+
+G.5. tools.Draw tools.Draw is a static class that produces PIL-based an-notation overlays. All methods accept a numpy (H, W, 3) 
+
+uint8 array, a PIL image, or an InputImages[i] en-try, and return a PIL image of the same size; the input image is never modified. Colours may be passed as an (R, G, B) uint8 tuple or as any matplotlib or CSS4 colour name. Each method accepts either a single primitive or a list of primitives, with a matching list of colours when per-primitive colouring is desired. Table 18 summarizes the drawing methods. 
+
+G.6. tools.Detect tools.Detect is a proposed client wrapper for an open-vocabulary detector such as GroundingDINO [39]. It complements vlm.locate and text-prompted SAM3 segmentation by exposing detector-native boxes, labels, and confidence scores without requiring a separate VLM session. The output boxes use pixel-space xyxy co-ordinates and can be passed directly to tools.SAM3. segment image by box . Table 19 summarizes the pro-posed interface and its composition with SAM3. 
+
+G.7. tools.Pose tools.Pose is a proposed object-centric pose tool that combines a reconstructed object point set with a single-image semantic orientation estimator such as Orient Any-thing [62]. It estimates a semantic object frame rather than only an unoriented 3D bounding box. Following GCA [12], the local origin is placed at the robust centroid of the masked object points, +Zobj points toward the ob-ject’s semantic front, +Yobj points toward its semantic bot-tom, and +Xobj follows the right-hand rule. This object frame enables perspective-taking and reference-frame rea-soning such as “left of the chair from the chair’s viewpoint.” Tables 20 and 21 summarize the proposed interface and re-turned object. 
+
+G.8. tools.Scale tools.Scale is an optional client wrapper for metric-scale verification with a monocular metric-geometry model such as MoGe-2 [59]. Its purpose is to estimate a multi-plicative correction factor and model disagreement, rather than to assume that the original reconstruction is scale-free. Table 22 summarizes the interface and explicit correction. 
+
+When to apply the correction. The correction should be applied only when the cross-model disagreement is accept-able and the task requires absolute metric quantities. Rel-ative directions, angles, rankings, and normalized trajecto-ries do not require this tool. Table 14. Interface of tools.Reconstruct and its returned Reconstruction object. Throughout, fi denotes an absolute video frame index, rather than a position in the input list. 
+
+Field Type / shape Description A. Reconstruction call 
+
+Reconstruct(frames, frame indices=None) frames List of FrameImage or PIL images Input batch, with at most reconstruct max frames entries (64 in our experiments). PIL denotes Python Imaging Library. 
+
+frame indices Optional frame indices For FrameImage inputs, absolute indices are extracted from each image’s frame index attribute, so this argument may be omitted. Return value Reconstruction Per-frame geometry, camera parameters, and a top-down rendering helper. 
+
+B. Reconstruction attributes 
+
+frame indices list[int] Absolute frame indices in the same order as frames .
+
+num frames int Number of reconstructed frames. 
+
+metric scale float Metric scale value. 
+
+depth[fi] (H, W ); float32 Depth map at absolute frame fi .
+
+extrinsics[fi] (4 , 4) ; float64 Camera-to-world SE(3) matrix in OpenCV convention. 
+
+intrinsics[fi] Dictionary Camera intrinsics with keys fx , fy , cx , and cy .
+
+points[fi] (H, W, 3) ; float32 Dense per-frame point map in world coordinates. 
+
+C. Bird’s-eye-view rendering 
+
+recon.render bev(masks=None, labels=None, ref frame=0, ego trajectory=True) masks PerFrameMask or boolean array Per-frame object masks; raw arrays have shape (N, N obj , H, W ).
+
+labels Object names Per-object names when masks are supplied as a raw array. 
+
+ref frame Absolute frame index Reference camera frame; defaults to 0.
+
+ego trajectory bool Toggles drawing of the camera path; defaults to True .Return value VisualFeedback Inspected by the agent with show() . Stationary objects use oriented bounding boxes; moving objects use colour-graded trajectory lines. Table 15. Interface of tools.SAM3 and its returned PerFrameMask object. Throughout, fi is an absolute video frame index, and k is an object index or string label. 
+
+Field Type / shape Description A. Image-mode segmentation 
+
+segment image by text(image, prompt, label=None) 
+
+Inputs PIL image; text image : input image; prompt : free-form text description. Return value PerFrameMask One channel per detected instance. 
+
+segment image by points(image, points, point labels, label="object") 
+
+Inputs PIL image; point and label lists points : [x, y] pixel coordinates; point labels : parallel list with 1 for foreground and 0 for background. Return value PerFrameMask Mask for the prompted object. 
+
+segment image by box(image, box, label="object") 
+
+Inputs PIL image; bounding box box : [x1, y1, x2, y2] in pixels, using the xyxy convention. Return value PerFrameMask Mask for the boxed object. 
+
+B. Object-existence check 
+
+is object exist(images, object name) 
+
+Inputs List of PIL images; text images : input images; object name : text description. Return value Dictionary exists : list of booleans; counts : list of instance counts per image; 
+
+summary : short text summary. 
+
+C. PerFrameMask attributes 
+
+frame indices Frame indices Absolute video frame indices aligned with Reconstruction .
+
+labels Object labels Labels associated with the segmented objects. 
+
+num frames Frame count Number of frames in the mask object. 
+
+num objects Object count Number of objects in the mask object. 
+
+D. PerFrameMask access patterns 
+
+seg.get mask(frame=fi, object=k) 
+
+Return value (H, W ); boolean 2D mask of object k at frame fi .
+
+seg[fi] 
+
+Return value (Nobj , H, W ); boolean Stack of object masks at frame fi .
+
+seg.get centroid 3d(recon, frame=fi, object=k) 
+
+Return value 3D position or None Median world position of the masked points, or None .
+
+seg.get masked points(recon, frame=fi, object=k) 
+
+Return value (K, 3) array Masked points in world coordinates. 
+
+seg.visualize(fi) 
+
+Return value VisualFeedback Mask overlay for verification with show() .Table 16. Numerical primitives provided by tools.Geometry for spatial reasoning over reconstructed scenes. 
+
+Field Type / shape Description A. Distances and angles 
+
+euclidean distance(p1, p2) 
+
+Inputs Two (3 , ) arrays Two 1D arrays of length 3. Return value float Euclidean distance between p1 and p2 .
+
+angle between vectors(v1, v2) 
+
+Inputs Two 3D vectors Vectors v1 and v2 .Return value float Angle between the vectors, in degrees. 
+
+B. Projection and transformations 
+
+project point to camera(point 3d, c2w, fx, fy, cx, cy) 
+
+Inputs 3D point; (4 , 4) matrix; four scalars World point, camera-to-world SE(3) matrix, and intrinsics fx , fy , cx ,
+
+cy .Return value (u, v) or None Pixel coordinates; None when the point is behind the camera. 
+
+rotation matrix from vectors(v from, v to) 
+
+Inputs Two 3D vectors Source and target vectors; unit length is not required. Return value (3 , 3) matrix Rotation matrix aligning v from with v to .
+
+transform points(points, matrix) 
+
+Inputs (. . . , 3) array; (4 , 4) matrix Point array and an SE(3) transformation matrix. Return value Same shape as input Transformed point array. 
+
+C. Ground-plane estimation 
+
+fit ground plane ransac(points, confidence, conf threshold=0.3, n iterations=1000, inlier threshold=0.05) 
+
+Inputs (H, W, 3) or (N, 3) point cloud Point cloud and matching confidence array. Thresholds and iteration count are optional, with defaults shown above. Return value Normal and inlier mask (plane normal, inlier mask) via RANSAC, or (None, None) if fitting fails. The normal’s sign is unspecified and disambiguated by the caller. 
+
+D. Coordinate conversion 
+
+normalized to pixel(coords, width, height) 
+
+Inputs Coordinate sequence; image dimensions Coordinates on the 0–1000 normalized scale used by vlm.locate ;image width and height in pixels. Return value list[float] Pixel coordinates. Table 17. Mask statistics and operations provided by tools.Mask . Coordinates are expressed in pixels. 
+
+Field Type / shape Description A. Centroids and area 
+
+centroid(mask) 
+
+Input (H, W ); boolean A 2D boolean mask. Return value (cx, cy) Median pixel coordinates of the mask; (nan, nan) when the mask is empty. 
+
+centroids(masks) 
+
+Input (N, H, W ); boolean A batch of N boolean masks. Return value List of (cx, cy) pairs One centroid per element of the batch. 
+
+area(mask) 
+
+Input (H, W ); boolean A 2D boolean mask. Return value int Number of True pixels. 
+
+B. Bounding boxes 
+
+bounding box(mask) 
+
+Input (H, W ); boolean A 2D boolean mask. Return value Coordinate tuple or None (x1, y1, x2, y2) in pixels, or None for an empty mask. When the mask contains more than 100 True pixels, the box is computed from the 1st and 99th percentiles to discard outliers. 
+
+mask to bbox(mask) 
+
+Input (H, W ); boolean A 2D boolean mask. Return value (4 , ) numpy array or None [x1, y1, x2, y2] in pixels, or None for an empty mask. 
+
+C. Overlap and intersection 
+
+iou(mask a, mask b) 
+
+Inputs Two (H, W ) boolean masks Masks of identical shape. Return value float Intersection over union. 
+
+intersection(mask a, mask b) 
+
+Inputs Two (H, W ) boolean masks Masks of identical shape. Return value (H, W ); boolean Element-wise AND of the input masks, with the same shape as the inputs. Table 18. Annotation overlays provided by tools.Draw . All primitive coordinates are expressed in pixels. 
+
+Field Type / shape Description A. Bounding-box overlays 
+
+draw bbox(image, bboxes, colors=None, thickness=None) bboxes Single box or list of boxes Each box is (x1, y1, x2, y2) in pixels. Return value PIL image Axis-aligned rectangle outlines drawn on a new image of the same size. 
+
+B. Line overlays 
+
+draw line(image, lines, colors=None, thickness=None) lines Single segment or list of segments Each segment is (x1, y1, x2, y2) in pixels. Return value PIL image Line segments drawn on a new image of the same size. 
+
+C. Point overlays 
+
+draw point(image, points, colors=None, radius=None) points Single point or list of points Each point is (x, y) in pixels. Return value PIL image Filled circles drawn on a new image of the same size. Table 19. Proposed interface of tools.Detect , returned detection fields, and composition with SAM3. Here, N is the number of retained detections, and fi is an absolute frame index. 
+
+Field Type / shape Description A. Detection call 
+
+detect(image, prompt, box threshold=0.35, text threshold=0.25) image PIL image, FrameImage , or 
+
+InputImages[i] entry Input image. 
+
+prompt String or list of text descriptions Open-vocabulary detection prompt. 
+
+box threshold Confidence threshold Detector confidence filtering; defaults to 0.35 .
+
+text threshold Confidence threshold Detector confidence filtering; defaults to 0.25 .Return value DetectionResult Empty result when no candidate survives thresholding. 
+
+B. DetectionResult attributes and visualization 
+
+boxes (N, 4) ; float32 Array of [x1, y1, x2, y2] boxes in pixels. 
+
+labels list[str] ; length N Labels of the retained detections. 
+
+scores (N, ); float32 Detector confidence scores. 
+
+num objects int Number of detections, equal to N .
+
+result.visualize(image) 
+
+Return value VisualFeedback Overlay with indexed boxes, labels, and scores for inspection with 
+
+show() .Table 20. Proposed pose estimation and visualization interface of tools.Pose .
+
+Field Type / shape Description A. Object-pose estimation 
+
+predict obj pose(image, recon, seg, frame, object=0, label="object") image PIL image or FrameImage Image used for orientation estimation. 
+
+recon Reconstruction Corresponding reconstructed scene. 
+
+seg Single-frame PerFrameMask Aligned with recon . Whenever possible, the selected mask should contain one complete, non-occluded object. 
+
+frame Absolute frame index Frame used for orientation estimation. 
+
+object Channel index or string label Selects the object mask; defaults to 0.
+
+label Display string Human-readable name for visualization; defaults to "object" .Return value ObjectPose or None Returns None if too few valid reconstructed points remain, or if the orientation model determines that the object has no meaningful semantic front. 
+
+B. Pose visualization 
+
+pose.visualize(recon, frame=None) recon Reconstruction Source reconstruction. 
+
+frame Optional camera frame Selects the camera used for projection; defaults to pose.frame index when omitted. Return value VisualFeedback Overlay of projected object axes, centroid, and object-aligned bounding box. Intended for verification with show() before the pose is used in downstream computation. 
+
+Table 21. Attributes of the proposed ObjectPose object. The object-aligned bounding box is expressed in world coordinates. 
+
+Field Type / shape Description A. Frame and identity 
+
+frame index int Absolute frame used for orientation estimation. 
+
+label str Object label. 
+
+B. Semantic object frame 
+
+centroid (3 , ); float32 Robust object centroid in world coordinates. 
+
+rotation (3 , 3) ; float64 Object-to-world rotation matrix. Columns are the local +X, +Y , and 
+
++Z axes expressed in world coordinates. 
+
+object to world (4 , 4) ; float64 SE(3) homogeneous transformation matrix with rotation and 
+
+centroid as its rotational and translational components. 
+
+front (3 , ); float64 Normalized semantic-front vector +Zobj in world coordinates. 
+
+orientation confidence float in [0 , 1] Available when provided by the orientation backend. 
+
+C. Object-aligned bounding box 
+
+obb center (3 , ); float32 Object-aligned bounding-box center. 
+
+obb extent (3 , ); float32 Object-aligned bounding-box extent. 
+
+obb corners (8 , 3) ; float32 Eight corners of the object-aligned bounding box. Table 22. Metric-scale verification interface of tools.Scale and its returned ScaleEstimate . The method does not mutate recon .
+
+Field Type / shape Description A. Scale estimation 
+
+estimate scale(recon, frames, frame indices=None, max frames=3) recon Reconstruction Reconstruction to be checked. 
+
+frames Input images Images corresponding to the reconstruction. 
+
+frame indices Optional absolute frame indices Selects absolute frame indices; defaults to None .
+
+max frames View-count limit Limits the number of high-confidence views used for estimation; defaults to 3.Return value ScaleEstimate or None Returns None when no frame contains enough mutually valid depth pixels. 
+
+B. ScaleEstimate attributes 
+
+correction factor float Robust multiplicative factor s such that dcorrected = s d recon .
+
+per frame factors dict[int, float] Maps absolute frame indices to valid scale estimates. 
+
+selected frames list[int] Absolute frame indices used for the final estimate. 
+
+relative disagreement float Robust dispersion statistic over valid pixel-wise and per-frame depth ratios. Smaller values indicate stronger agreement between the reconstruction and metric-geometry backends. 
+
+num valid pixels int Total number of pixels contributing to the estimate. 
+
+C. Applying the correction 
+
+Metric distances and reconstructed points can be corrected explicitly: 
+
+distance m = raw distance * scale.correction factor points m = recon.points[fi] * scale.correction factor H. Prompt Design 
+
+Detailed prompt design for each phase of the framework provided here. 
+
+H.1. System Prompts 
+
+Prompt: Direct CoT 
+
+You are a spatial reasoning agent. Your goal is to answer spatial questions grounded in the provided visual observations. # INSTRUCTIONS: 1. Understand the task : Identify the queried objects, spatial relations, reference frame, and relevant visual evidence. 2. Reason spatially : Analyze geometric cues such as relative position, depth, distance, orientation, occlusion, scale, and viewpoint when relevant. Avoid relying on semantic or commonsense priors when they conflict with visual evidence. 3. Verify : Check that the predicted relation is consistent with the available observations and the specified reference frame. 4. Answer : Once confident, provide the final answer inside <answer>...</answer> tags. If the visual evidence is ambiguous, reason conservatively and use the most directly supported spatial interpretation. Prompt: Experience- and Skill-Augmented Spatial Decision Making 
+
+System Instruction: 
+
+You are a tool-augmented spatial reasoning agent. Your goal is to solve spatial reasoning tasks by grounding each decision in the current visual state, reliable tool-derived evidence, reusable procedural Skills, and context-specific Experiences. 
+
+Inputs: 
+
+• Current State : {state} , including the task query, current visual observations, previous tool calls, and feedback history. • Active Skill : {skill_text} , the temporally extended procedure currently guiding the agent, or None if no Skill is active. • Global Experiences : {global_experiences} , condition–action guidance retrieved for this task and already rewritten for its query and images. • Anchored Experiences : {anchored_experiences} , condition–action guidance attached to the Active Skill, which ap-plies only while that Skill is active. • Available Tools : the spatial reasoning tools listed below. 
+
+Available Spatial Tools: 
+
+Reconstruct , Scale , SAM3 , Detect , Geometry , Pose , Mask , Draw 
+
+Instructions for Knowledge Usage: 
+
+1. Follow Skill : If a Skill is active, use its procedure as the primary multi-step guidance and identify which step the Current State has reached. If no Skill is active, reason from the Experiences and the evidence alone. 2. Apply Experiences : Examine both sets of Experiences and apply only those whose triggering conditions match the Current State. Use them as local tactical guidance to refine tool selection, evidence gathering, or error recovery. 3. Ground in Evidence : Treat Skills and Experiences as guidance rather than facts. Current visual observations and verified tool outputs take precedence whenever conflicts arise. 4. Act : Select the single next action that best advances the active procedure while resolving the most relevant spatial uncertainty. 
+
+Spatial Reasoning Principles: 
+
+• Explicitly identify the relevant objects and reference frame before reasoning about spatial relations. • Prefer direct geometric or tool-derived evidence over semantic or commonsense assumptions. • Use dedicated tools for depth, pose, or metric quantities when those properties cannot be reliably inferred from raw appearance. • If spatial cues conflict, gather or verify additional evidence before committing to a conclusion. • Avoid unnecessary tool calls when the available evidence is already sufficient. 
+
+Response Requirements: 
+
+At each interaction step, output either one tool action or the final answer. For a tool action: 
+
+<think> skill_step: the current procedure step, or None experience: applicable experience(s), or None evidence_needed: the spatial uncertainty to resolve </think> <action>[Specific Tool Action]</action> 
+
+When sufficient evidence has been obtained: 
+
+<think> verify: concise consistency check using the available spatial evidence </think> <answer>[Final Answer]</answer> 
+
+Important: 
+
+• Output only one tool action per turn. • Do not blindly follow an Experience that is irrelevant to the Current State. • Keep following the Active Skill until the system replaces it; whether its termination condition holds is checked separately after each step. • The final answer MUST be enclosed in complete <answer>...</answer> tags. Prompt: Active Skill Termination 
+
+You are a controller for a spatial reasoning agent. After each action taken while a Skill is active, your task is to determine whether the Skill’s termination condition is satisfied, so that control returns to the agent. 
+
+Inputs: 
+
+• Current Spatial State : {state} , including the task query, visual observations, tool outputs, and interaction history. • Active Skill :
+
+– Name: {skill.name} 
+
+– Execution Procedure: {skill.procedure} 
+
+– Termination Condition: {skill.termination} 
+
+Decision Criteria: 
+
+1. Return TERMINATE if the Termination Condition is satisfied by the current spatial state or by newly obtained tool evidence. 2. Otherwise, return CONTINUE . Do not terminate because intermediate uncertainty remains, or because a procedure step has not yet produced the expected evidence. Judge only from the visual observations, tool outputs, and interaction history in the current state; do not assume actions or results that are not recorded there. 
+
+Response Requirements: 
+
+Return exactly one status tag with no additional explanation: 
+
+<skill_status>CONTINUE</skill_status> 
+
+or 
+
+<skill_status>TERMINATE</skill_status> 
+
+Prompt: Semantic Gradient Generation 
+
+You are a procedural knowledge evaluator for a spatial reasoning agent. Your task is to analyze the execution of an active Skill and generate structured semantic gradients that specify how the Skill should be refined based on the observed trajectory outcome. 
+
+Inputs: 
+
+• Skill Definition : {skill_info} , including the Activation Condition, Execution Procedure, and Termination Condition. • Skill-Conditioned Trajectory : {trajectory} , containing the states, visual observations, tool calls, tool outputs, and actions observed while the Skill was active. • Task Outcome : {reward} , the binary reward of the trajectory (1 if the final answer is correct, 0 otherwise). 
+
+Analysis Instructions: 
+
+1. Outcome Attribution : Determine how the active Skill contributed to the observed outcome. Base the diagnosis on concrete evidence from the visual observations, tool feedback, spatial state transitions, and executed actions. 2. Component Diagnosis : Attribute systematic weaknesses to the appropriate Skill component: • Activation Condition : Refine when the Skill was selected for an unsuitable spatial situation, or when its applicability was defined too broadly or narrowly. • Execution Procedure : Refine when the procedure selected inappropriate tools, ignored relevant spatial evidence, used an incorrect reference frame, or failed to resolve geometric uncertainty. • Termination Condition : Refine when the Skill terminated before sufficient spatial evidence was obtained, or remained active after its intended reasoning objective had already been achieved. For a successful trajectory, state which parts of the Skill contributed to the success and should be preserved, rather than proposing changes the evidence does not support. 3. Semantic Update : For each affected component, provide a concise and actionable refinement direction that can generalize beyond the current task instance. 
+
+Constraints: 
+
+• Leave a component empty if the trajectory provides no reliable evidence that it should be changed. • Set is related to false only when the Skill had no meaningful influence on the observed outcome. • Do not encode task-specific answers, object identities, or instance-specific coordinates into the update. • Prefer reusable spatial reasoning principles over corrections that merely fit the current trajectory. 
+
+Response Requirements (JSON Format): 
+
+{"diagnosis": "Concise evidence-grounded explanation of the outcome.", "is_related": true/false, "semantic_gradient": {"activation": "...", "procedure": "...", "termination": "..." }}
+
+Prompt: Skill Evolution from Aggregated Semantic Gradients 
+
+You are a procedural skill optimizer for a spatial reasoning agent. Your task is to update a Skill using aggregated semantic feedback derived from its execution trajectories and the graduated Experiences anchored to it, while preserving reusable reasoning structure and avoiding task-specific overfitting. 
+
+Inputs: 
+
+• Current Skill : {old_skill_definition} , including its Activation Condition, Execution Procedure, and Termination Condition. • Semantic Gradients : {semantic_gradients} , a collection of component-wise refinement signals obtained from multiple Skill-conditioned trajectories. • Graduated Experiences : {graduated_experiences} , condition–action Experiences anchored to this Skill whose con-trastive utility has proven consistently positive. • Skill Pool : {skill_pool_summary} , the names and activation conditions of the other Skills in the pool. 
+
+Optimization Instructions: 
+
+1. Aggregate Feedback : Identify recurring weaknesses and consistent improvement signals across the semantic gradients, and summarize them as one aggregated update direction ¯gk per component. Ignore contradictory, low-confidence, or trajectory-specific suggestions. 2. Refine Skill Structure : Use ¯gk and the Graduated Experiences Gk to produce a candidate Skill 
+
+k′ = k ⊕ (¯ gk , Gk ).
+
+Update the Skill components as follows: • Activation Condition : Refine when and under what spatial situations the Skill should be invoked. • Execution Procedure : Revise the multi-step reasoning or tool-use procedure to address recurring spatial failure modes while preserving the Skill’s core purpose. • Termination Condition : Refine the stopping criterion so that the Skill terminates only when its intended spatial reasoning objective has been sufficiently achieved. 3. Consolidate Experiences : In REFINE mode, write each Graduated Experience into the procedure step, or the termination condition, at which its triggering condition arises, phrased as part of the procedure rather than appended as a separate tip. 4. Preserve Generality : Remove instance-specific object names, coordinates, answers, or environment details unless they repre-sent reusable procedural structure. Keep the Skill concise, within about 1,000 tokens. 
+
+Evolution Mode: 
+
+• REFINE : Improve the current Skill while preserving its procedural identity and intended role. • DISCOVER : Create a new candidate Skill only when the aggregated evidence consistently reveals a reusable procedural pattern that is not adequately represented by the current Skill or any Skill in the Skill Pool. The new Skill is added alongside the current one, so do not absorb the Graduated Experiences in this mode. 
+
+Response Requirements (JSON Format): 
+
+{"mode": "REFINE" or "DISCOVER", "aggregated_gradient": {"activation": "...", "procedure": "...", "termination": "..." }, "skill_name": "ConciseSkillName", "activation": "When ...", "procedure": ["Step 1: ...", "Step 2: ...", "Step 3: ..." ], "termination": "Terminate when ...", "absorbed_experiences": ["<experience id>: <step or termination>", ...] }
+
+Prompt: Experience Rollout Summary 
+
+You are an expert trajectory analyst for a tool-augmented spatial reasoning agent. Given several completed rollouts of the same task, summarize how the agent used visual observations, spatial tools, Experiences, and procedural Skills in each rollout to solve the task. 
+
+Input: 
+
+<task>{task}</task> <images>{task_images}</images> <rollouts>{trajectories}</rollouts> <verified_answer>{ground_truth}</verified_answer> 
+
+Summarization Guidelines: 
+
+1. For each rollout , state whether its final answer matches the verified answer, then, for each interaction step: 
+
+• Describe the current spatial state, the action or tool call taken, and the key parameters or target entities involved. • Explain what spatial uncertainty or reasoning need motivated the action and what new evidence was obtained from the resulting observation or tool output. • Record the Active Skill (or None ) and the identifiers of the Experiences shown to the agent at this step. • Record whether any shown Experience was applied, and explain how it influenced local decision making. • If an Active Skill was used, identify the relevant procedural step and explain how it guided the current action. 2. Track spatial evidence and state transitions: 
+
+• Summarize the spatial evidence accumulated across the rollout, such as object locations, depth, distance, orientation, view-point, motion, scale, or reference-frame information. • Explain how each new observation or tool result changed the agent’s current belief or spatial state and influenced subsequent decisions. 3. Analyze success and failure patterns: 
+
+Given the rollouts, the task images, and the verified answer, identify inefficient tool calls, unsupported spatial assumptions, incorrect reference frames, misleading visual cues, premature conclusions, unnecessary exploration, or other failure patterns. Explain their causes and their impact on the final outcome. Also note how Experiences, Skills, or later tool evidence corrected or mitigated these errors. 4. Preserve decision-critical information: 
+
+Retain the important outcomes of every step, including failed or redundant actions when they reveal useful evidence about the agent’s reasoning process. 5. Analyze intermediate visual and geometric evidence: 
+
+• For intermediate visualizations or spatial representations produced by tools, such as segmentation masks, depth maps, 3D reconstructions, bird’s-eye views, pose overlays, motion fields, or geometric annotations, summarize the evidence they provide, checking them against the task images. • Explain whether the evidence was interpreted correctly and whether additional spatial verification could have improved the decision. Provide a concise and structured summary, organized by rollout, that emphasizes decision-critical spatial evidence, tool-use pat-terns, Experience usage, Skill execution, and the causes of success or failure. 
+
+Prompt: Cross Rollout Critique 
+
+You are an expert analyst for tool-augmented spatial reasoning. Given multiple rollouts of the same spatial task, compare their outcomes and extract concise, reusable Experiences that can improve future local decisions. 
+
+Input: 
+
+<task>{question}</task> <rollout_summary>{summary}</rollout_summary> <experiences_used>{experiences}</experiences_used> <verified_answer>{groundtruth}</verified_answer> 
+
+Analysis Framework: 
+
+1. Cross-Rollout Analysis: 
+
+• Identify which decisions, spatial cues, or tool operations consistently contributed to successful reasoning. • Identify failure patterns such as incorrect reference-frame assumptions, insufficient geometric evidence, inappropriate tool selection, misleading visual cues, or premature conclusions. • Compare successful and failed rollouts to determine which differences were causally relevant to the outcome. • Examine how the shown Experiences influenced decisions: determine which were followed, which were ignored, and whether any states its condition or action inaccurately. • Analyze effective combinations of spatial tools and how their outputs were interpreted or verified. 
+
+2. Experience Extraction: 
+
+Extract local condition–action guidance in two complementary categories: • Tool-Use Guidance : Practical rules about when to invoke a spatial tool, what evidence to obtain, and how to interpret or verify its output. • Spatial Decision Guidance : Context-sensitive rules for resolving ambiguity, selecting reference frames, gathering additional evidence, or checking spatial consistency. For each proposed update, choose one of the following operations: • add : Introduce a new Experience whose lesson is not covered by the Experiences used in this task; near-duplicates of other stored Experiences are merged automatically. • modify : Refine an existing Experience when the observed rollouts reveal that its condition or recommended action should be made more accurate, specific, or actionable. The <experiences_used> field lists the Experiences shown during the rollouts, including global Experiences retrieved for this task and anchored Experiences that entered with an active Skill. Evaluate them against the verified rollout outcomes only to decide whether they should be modified; whether an Experience is useful is estimated separately and is not your decision. 
+
+Anchoring: For each added Experience, set anchor to the Skill that the summary records as active at the step whose decision the Experience addresses. Set it to none if no Skill was active at that step or if the lesson spans several Skills. Use only Skill names recorded in the summary. A modified Experience keeps the anchor of the Experience it refines. You may produce at most {max ops } updates. 
+
+3. Experience Quality Requirements: 
+
+• Keep each Experience under 64 words. • Express each Experience as a clear triggering condition followed by an actionable recommendation. • Generalize across similar spatial situations rather than memorizing task-specific objects, coordinates, or answers. • Prefer guidance grounded in observable visual or tool-derived evidence. • Avoid high-level multi-step procedures that should instead be represented as Skills. Conclude with the Experience updates in the following format: 
+
+[{ "option": "add", "experience": {"condition": "When ...", "action": "..." }, "anchor": "SkillName" or "none" }, { "option": "modify", "experience": {"condition": "When ...", "action": "..." }, "modified_from": "E17" }]Prompt: Experience Merge 
+
+You are responsible for consolidating a spatial reasoning Experience Bank. A newly added Experience overlaps semantically with existing entries. Merge the following Experiences into a single compact and reusable Experience. 
+
+Input (each Experience is listed with its anchor Skill, or none if global): 
+
+{experiences text }
+
+Requirements: 
+
+1. Preserve all decision-critical spatial insights that are consistent across the input Experiences. 2. Express the merged result as a concise condition–action rule: specify when the guidance applies and what the agent should do. 3. Remove redundant, conflicting, or instance-specific details such as object identities, exact coordinates, or task-specific answers. 4. Keep the result actionable, spatially grounded, and generalizable to similar situations. 5. If the input Experiences have different anchors, the merged Experience becomes global; state its condition in terms of the observable situation rather than a step of a particular Skill. 6. Keep the merged Experience within 64 words. Output ONLY: 
+
+{"experience": {"condition": "When ...", "action": "..." }}
+
+Prompt: Experience Manage 
+
+You are responsible for maintaining the Experience Bank of a spatial reasoning agent. The bank has exceeded its capacity and may contain Experiences that express substantially the same guidance. Perform a global merging pass that removes such redundancy while preserving useful and diverse spatial knowledge. 
+
+Input (each Experience is listed with its identifier and its anchor Skill, or none if global): 
+
+<experiences>{experiences}</experiences> 
+
+Current Bank Size: {exp count } Experiences 
+
+Capacity: {capacity } Experiences 
+
+Refinement Objectives: 
+
+1. Merge Semantic Redundancy : Consolidate Experiences that express substantially the same triggering condition and recom-mended action while preserving complementary spatial insights. 2. Generalize While Merging : When merging, abstract task-specific object identities, coordinates, viewpoints, or isolated ob-servations into reusable spatial patterns supported by the merged Experiences. 3. Preserve Knowledge Diversity : Retain Experiences covering distinct spatial situations, tool-use decisions, ambiguity-resolution strategies, and failure-recovery patterns. 
+
+Allowed Operation: 
+
+• merge : Combine two or more semantically redundant Experiences into one generalized Experience and provide their IDs in 
+
+merged from .Do not delete Experiences. If the bank still exceeds capacity after merging, the system evicts entries in ascending order of their estimated utility. 
+
+Experience Quality Criteria: 
+
+• Each Experience should remain under 64 words and express concise condition–action guidance. • The triggering condition should be grounded in observable visual states, tool-derived evidence, or spatial uncertainty. • The recommended action should provide concrete guidance for spatial reasoning, tool selection, evidence verification, or error recovery. • Avoid task-specific answers, unnecessary object identities, and exact coordinates unless structurally essential. • If the merged Experiences have different anchors, the result becomes global; state its condition in terms of the observable situation rather than a step of a particular Skill. • Do not merge local Experiences into a multi-step procedural workflow; such knowledge belongs to the Skill Pool. 
+
+Important: • Merge only when redundancy is sufficiently clear. • Preserve complementary Experiences even when they concern similar spatial situations but recommend different actions under different conditions. • If no clear redundancy remains, return an empty list. Return the merge operations in the following format: 
+
+[{"option": "merge", "experience": {"condition": "When ...", "action": "..." }, "merged_from": ["E12", "E23"] }]
+
+Prompt: Task Decomposition 
+
+You are a spatial reasoning strategist. Your task is to decompose the current spatial reasoning problem into 2–3 abstract subtasks that can be used to retrieve relevant global Experiences from the Experience Bank. 
+
+Task: {task description }
+
+Visual Context: {visual context }
+
+Global Experiences are concise condition–action guidance learned from previous spatial reasoning trajectories and apply across procedures; Experiences tied to a specific Skill are provided separately when that Skill is active. The decomposition should therefore identify local reasoning needs rather than construct a complete multi-step solution plan. 
+
+For each subtask, generate a JSON object with: 
+
+• Type : A concise category describing the spatial reasoning need. • Query : A short retrieval query describing the underlying technical situation and the kind of tactical guidance that would be useful. 
+
+The decomposition may focus on subtasks such as: 
+
+1. Spatial Evidence Acquisition : How to obtain missing evidence about depth, distance, orientation, motion, object extent, or reference frames. 2. Tool-Use Decisions : When and how to apply spatial tools such as detection, segmentation, reconstruction, geometry, pose, or metric-scale verification. 3. Ambiguity Resolution : How to handle conflicting cues, uncertain viewpoints, occlusion, weak geometric evidence, or insuf-ficient observations. 4. Consistency Verification : How to check whether an inferred spatial relation is supported by the available visual and tool-derived evidence. 
+
+Important: 
+
+• Abstract away from task-specific object identities, exact coordinates, and final answers. • Focus on the underlying spatial reasoning challenge rather than directly prescribing an entire procedural workflow. • Each subtask should address a distinct reasoning need, so that different queries retrieve different Experiences. • Each query should be specific enough to retrieve actionable Experiences but general enough to match related spatial situations. 
+
+Required Output Format:                      
+
+> [{"type": "depth_ambiguity", "query": "Guidance for resolving uncertain depth relations using geometric evidence" }, {"type": "reference_frame", "query": "Strategies for determining the correct viewpoint before judging directional relations" }]
+
+Output ONLY the complete and valid JSON array. Prompt: Experience Rewrite 
+
+You are a spatial reasoning knowledge adaptor. Your task is to adapt retrieved global Experiences to the current task and visual context while preserving their original reusable insight. 
+
+Task: {task description }
+
+Visual Context: {visual context }
+
+Retrieved Global Experiences: {experiences text }
+
+Each Experience represents local condition–action guidance. Rewrite only the Experiences that are relevant to the current spatial situation so that they can provide actionable tactical support to the execution agent. The rewritten text is used only for the current task; the stored Experiences are not modified. 
+
+Rewriting Guidelines: 
+
+1. Preserve the Core Insight : Retain the original condition–action relationship and do not introduce a new reasoning principle unsupported by the retrieved Experience. 2. Ground the Triggering Condition : Adapt the condition to the current visual state, spatial uncertainty, available evidence, or tool feedback so that it is clear when the Experience should be applied. 3. Operationalize the Action : Translate generic advice into concrete local guidance for evidence acquisition, spatial tool selec-tion, geometric verification, reference-frame checking, or error recovery when appropriate. 4. Respect Evidence : Do not convert retrieved Experiences into factual claims about the current scene. Visual observations and verified tool outputs remain the primary evidence. 5. Avoid Procedural Overreach : Keep the rewritten Experience as concise tactical guidance rather than expanding it into a complete multi-step Skill or task plan. 6. Filter Irrelevant Guidance : Omit any Experience whose triggering condition is not supported by the current task or visual context. 7. Keep One Entry per Identifier : Rewrite each kept Experience separately under its original identifier. Do not combine, split, or add Experiences. Use concise and constructive language. Avoid task-specific answers and unnecessary memorization of exact object identities or coordinates. 
+
+Required Output Format:                                                   
+
+> {"E3": {"condition": "When the left-right relation is ambiguous because the viewpoint is unclear, ...", "action": "First establish the relevant camera or object reference frame before comparing positions." }, "E8": {"condition": "When apparent object size is being used as aproxy for depth, ...", "action": "Verify the relation using reconstruction or explicit depth evidence before concluding." }}
+
+Output ONLY a valid JSON object. If no retrieved Experience is applicable, output: 
+
+{}
