@@ -1,0 +1,179 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-28T02:09:55.962554+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 2,
+    "deep_cap": 6,
+    "deep_selected": 2,
+    "quick_candidates": 1,
+    "quick_skim_target": 11,
+    "quick_selected": 1
+  },
+  "deep_dive": [
+    {
+      "id": "2611.31800v1",
+      "source": "arxiv",
+      "title": "Learning Compact State Abstractions for LLM Agents",
+      "abstract": "LLM agents commonly use the full interaction history as a proxy for state, retaining all past observations and actions regardless of whether they remain relevant. We instead ask what information an agent actually needs to carry forward. We define agent state as a compact abstraction of interaction history that preserves the competence of a fixed reference agent, with the minimal such abstraction as the ideal. Because matching the reference agent's behavior is unnecessarily restrictive and difficult for black-box policies, we define sufficiency through task performance rather than behavior matching. We represent state abstractions as deterministic recursive programs and search over them using an LLM-guided genetic algorithm. Across ALFWorld and ScienceWorld, the learned abstractions preserve near-reference task success while reducing mean policy input by up to 71% and 57%, respectively. The resulting programs are directly inspectable, providing an explicit account of what information is retained, updated, and discarded during interaction.",
+      "authors": [
+        "Yaswanth Chittepu",
+        "Raghavendra Addanki",
+        "Anup Rao",
+        "Branislav Kveton",
+        "Scott Niekum"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CL",
+        "cs.NE"
+      ],
+      "published": "2026-11-24T01:52:56+00:00",
+      "link": "https://arxiv.org/pdf/2611.31800v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Learns compact state abstraction from interaction history for LLM agents",
+      "llm_evidence_cn": "为LLM智能体从交互历史中学习紧凑状态抽象",
+      "llm_evidence": "为LLM智能体从交互历史中学习紧凑状态抽象",
+      "canonical_evidence": "为LLM智能体从交互历史中学习紧凑状态抽象",
+      "llm_tldr_en": "Proposes learning minimal state abstractions for LLM agents via LLM-guided genetic algorithm, preserving task performance while reducing memory.",
+      "llm_tldr_cn": "针对LLM智能体通常保留全部交互历史导致冗余的问题，本文提出用确定性递归程序表示状态抽象，并通过LLM引导的遗传算法搜索最小充分抽象，以任务性能而非行为匹配为充分性标准。在ALFWorld和ScienceWorld上的实验表明，学习到的抽象能在保持能力的同时大幅压缩状态空间，为智能体记忆设计提供了新思路。",
+      "llm_tldr": "针对LLM智能体通常保留全部交互历史导致冗余的问题，本文提出用确定性递归程序表示状态抽象，并通过LLM引导的遗传算法搜索最小充分抽象，以任务性能而非行为匹配为充分性标准。在ALFWorld和ScienceWorld上的实验表明，学习到的抽象能在保持能力的同时大幅压缩状态空间，为智能体记忆设计提供了新思路。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "agent memory system design",
+      "matched_requirement_id": "req-4",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.32085v1",
+      "source": "arxiv",
+      "title": "ExpGuard: Guarding Long-Horizon LLM Agents against Corrupted Experience",
+      "abstract": "Long-horizon large language model (LLM) agents distill past trajectories into reusable experiences. Misleading or adversarial guidance in source trajectories can corrupt these experiences, allowing harmful instructions to persist across tasks and influence future agent actions. Assessing the risks of potentially corrupted experiences poses three challenges: (1) modeling provenance and execution dependencies before experience reuse, (2) learning task-conditioned risk from trajectory outcomes, and (3) repairing risky experiences at online inference. To address these challenges, we present ExpGuard, a framework for retrieval-triggered experience risk assessment and online repair. Specifically, to tackle challenge (1), ExpGuard integrates experience semantics with provenance and execution dependencies in a task-conditioned heterogeneous graph to predict attack and task-failure risks before experience reuse. To enable task-conditioned risk supervision and tackle challenge (2), we conduct matched counterfactual replays of each original experience and its minimally neutralized counterpart from the same task and environment checkpoint, deriving separate risk labels from differences in attack success and legitimate task completion. To tackle challenge (3) at inference time, ExpGuard repairs candidate experiences flagged as high-risk by the graph-based predictor at retrieval and re-predicts their risks before they enter the agent's active experience context. Extensive experiments demonstrate the effectiveness of ExpGuard in identifying risky experiences and defending agents against experience corruption.",
+      "authors": [
+        "Yuzhou Chen",
+        "Licheng Pan",
+        "Zhixuan Chu",
+        "Yunsheng Lu",
+        "Yichen Sun",
+        "Han Zheng",
+        "Yan Wang",
+        "Bingyu Zhu",
+        "Haiwen Hong",
+        "Longtao Huang",
+        "Kui Ren"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-24T07:09:54+00:00",
+      "link": "https://arxiv.org/pdf/2611.32085v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "guarding long-horizon agents against corrupted experience reuse",
+      "llm_evidence_cn": "保护长程智能体免受损坏经验重用影响",
+      "llm_evidence": "保护长程智能体免受损坏经验重用影响",
+      "canonical_evidence": "保护长程智能体免受损坏经验重用影响",
+      "llm_tldr_en": "ExpGuard integrates experience semantics, provenance, and execution dependencies to assess risk and repair corrupted experiences for long-horizon LLM agents.",
+      "llm_tldr_cn": "ExpGuard针对长程LLM智能体从轨迹中提取可重用经验时可能被误导或对抗性指导污染的问题，提出检索触发的经验风险评估与在线修复框架。通过建模来源和执行依赖、学习任务条件化风险并修复高风险经验，ExpGuard能防止有害指令跨任务传播。实验表明该方法能有效识别和修复损坏经验。",
+      "llm_tldr": "ExpGuard针对长程LLM智能体从轨迹中提取可重用经验时可能被误导或对抗性指导污染的问题，提出检索触发的经验风险评估与在线修复框架。通过建模来源和执行依赖、学习任务条件化风险并修复高风险经验，ExpGuard能防止有害指令跨任务传播。实验表明该方法能有效识别和修复损坏经验。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "long-term memory in AI agents",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2611.30254v1",
+      "source": "arxiv",
+      "title": "Innata-0: A Native Embodied World System with Model-Agent Co-Design",
+      "abstract": "The physical world is open-ended, dynamic, and partially observable. While foundation models have advanced embodied intelligence, standalone models struggle with long-horizon execution, and simply integrating models with agents may lead to inconsistencies between planning and physical control. To support reliable and adaptive behaviors in the physical world, we introduce Innata-0, a native embodied world system. Innata-0 jointly designs an embodied world-action model and an agent to combine their complementary strengths. The model, Innata-0-WAM, adopts a tri-tower Mixture-of-Transformers architecture that integrates understanding, prediction, and action generation. The agent, Innata-0-Agent, coordinates long-horizon execution through memory, verification, and recovery. A co-design protocol is further proposed to align model training with agent execution and leverage validated experiences to support subsequent adaptation and model improvement. Extensive evaluations demonstrate strong embodied capabilities across understanding, world prediction, and robotic manipulation. Innata-0 represents our first step toward physical intelligence, and we see it as the beginning of a much longer journey.",
+      "authors": [
+        "Innata Team",
+        "Yu Bai",
+        "Ziyi Bai",
+        "Yuxuan Cai",
+        "Chenrui He",
+        "Wenhao Li",
+        "Zhe Lin",
+        "Heng Wang",
+        "Hai Yuan",
+        "Zhiwei Yu",
+        "Yuanhang Zhang",
+        "Luyou Chen",
+        "Tiezhu Gao",
+        "Zheng Geng",
+        "Jinbang Guo",
+        "Dongxu Han",
+        "Diqi He",
+        "Börje F. Karlsson",
+        "Jintao Li",
+        "Zhiyu Li",
+        "Xiongkun Linghu",
+        "Guang Liu",
+        "You Liu",
+        "Zhen Luo",
+        "Mengsi Lyu",
+        "Yufeng Lyu",
+        "Zheng Lyu",
+        "Quanyue Ma",
+        "Chunlei Men",
+        "Ziqiang Ni",
+        "Tengfei Pan",
+        "Yijun Shen",
+        "Liang Sun",
+        "Shaoxuan Xie",
+        "Xiang Yang",
+        "Guocai Yao",
+        "Hongjun Zhang",
+        "Yingli Zhao",
+        "Yonghua Lin",
+        "Zhongyuan Wang",
+        "Huan Yang"
+      ],
+      "primary_category": "cs.RO",
+      "categories": [
+        "cs.RO",
+        "cs.CV"
+      ],
+      "published": "2026-11-23T08:20:59+00:00",
+      "link": "https://arxiv.org/pdf/2611.30254v1",
+      "tags": [
+        "keyword:agent-memory",
+        "query:agent-memory"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "agent coordinates long-horizon execution through memory",
+      "llm_evidence_cn": "通过记忆协调长程执行",
+      "llm_evidence": "通过记忆协调长程执行",
+      "canonical_evidence": "通过记忆协调长程执行",
+      "llm_tldr_en": "Innata-0 jointly designs an embodied world-action model and an agent that uses memory, verification, and other mechanisms to coordinate long-horizon execution in physical environments.",
+      "llm_tldr_cn": "Innata-0针对物理世界中基础模型难以处理长程任务的问题，提出模型-智能体协同设计，其中智能体通过记忆、验证等机制协调长程执行。实验表明该系统能够实现更可靠和自适应的行为，为具身智能中的记忆架构提供了实例。",
+      "llm_tldr": "Innata-0针对物理世界中基础模型难以处理长程任务的问题，提出模型-智能体协同设计，其中智能体通过记忆、验证等机制协调长程执行。实验表明该系统能够实现更可靠和自适应的行为，为具身智能中的记忆架构提供了实例。",
+      "llm_tags": [
+        "query:agent-memory"
+      ],
+      "matched_query_tag": "query:agent-memory",
+      "matched_query_text": "memory architecture for AI agents",
+      "matched_requirement_id": "req-3",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "label": "2026-11-28",
+  "date": "2026-11-28",
+  "generated_at": "2026-11-28T02:16:04",
+  "count": 3,
+  "papers": [
+    {
+      "paper_id": "202611/28/2611.31800v1-learning-compact-state-abstractions-for-llm-agents",
+      "section": "deep",
+      "title_en": "Learning Compact State Abstractions for LLM Agents",
+      "authors": "Yaswanth Chittepu, Raghavendra Addanki, Anup Rao, Branislav Kveton, Scott Niekum",
+      "date": "2026-11-24",
+      "pdf": "https://arxiv.org/pdf/2611.31800v1",
+      "score": "9.0",
+      "evidence": "为LLM智能体从交互历史中学习紧凑状态抽象",
+      "tldr": "LLM智能体通常用完整交互历史作为状态，导致输入冗余。本文学习紧凑状态抽象，保留任务必需信息。用语言模型引导的遗传算法搜索确定性递归程序来表示抽象，在ALFWorld和ScienceWorld上保持接近参考智能体的任务成功率，同时平均策略输入分别减少71%和57%。这些程序可直接检查，明确说明了信息的保留、更新与丢弃。",
+      "tags": "query:agent-memory",
+      "abstract_en": "LLM agents commonly use the full interaction history as a proxy for state, retaining all past observations and actions regardless of whether they remain relevant. We instead ask what information an agent actually needs to carry forward. We define agent state as a compact abstraction of interaction history that preserves the competence of a fixed reference agent, with the minimal such abstraction as the ideal. Because matching the reference agent's behavior is unnecessarily restrictive and difficult for black-box policies, we define sufficiency through task performance rather than behavior matching. We represent state abstractions as deterministic recursive programs and search over them using an LLM-guided genetic algorithm. Across ALFWorld and ScienceWorld, the learned abstractions preserve near-reference task success while reducing mean policy input by up to 71% and 57%, respectively. The resulting programs are directly inspectable, providing an explicit account of what information is retained, updated, and discarded during interaction.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "paper_id": "202611/28/2611.32085v1-expguard-guarding-long-horizon-llm-agents-against-corrupted-experience",
+      "section": "deep",
+      "title_en": "ExpGuard: Guarding Long-Horizon LLM Agents against Corrupted Experience",
+      "authors": "Yuzhou Chen, Licheng Pan, Zhixuan Chu, Yunsheng Lu, Yichen Sun, Han Zheng, Yan Wang, Bingyu Zhu, Haiwen Hong, Longtao Huang, Kui Ren",
+      "date": "2026-11-24",
+      "pdf": "https://arxiv.org/pdf/2611.32085v1",
+      "score": "8.0",
+      "evidence": "保护长程智能体免受损坏经验重用影响",
+      "tldr": "长期运行的LLM智能体将历史轨迹提炼为可复用经验，但被污染的经验会携带误导或对抗性指导，导致有害指令跨任务传播并影响后续决策。ExpGuard提出检索触发的经验风险评估与在线修复框架，构建任务条件异构图融合语义、来源和执行依赖，在复用前预测攻击与任务失败风险，并通过匹配反事实重放获得风险监督，在线修复高风险经验。实验证明ExpGuard能有效识别风险经验并防御经验污染，保障智能体长期安全。",
+      "tags": "query:agent-memory",
+      "abstract_en": "Long-horizon large language model (LLM) agents distill past trajectories into reusable experiences. Misleading or adversarial guidance in source trajectories can corrupt these experiences, allowing harmful instructions to persist across tasks and influence future agent actions. Assessing the risks of potentially corrupted experiences poses three challenges: (1) modeling provenance and execution dependencies before experience reuse, (2) learning task-conditioned risk from trajectory outcomes, and (3) repairing risky experiences at online inference. To address these challenges, we present ExpGuard, a framework for retrieval-triggered experience risk assessment and online repair. Specifically, to tackle challenge (1), ExpGuard integrates experience semantics with provenance and execution dependencies in a task-conditioned heterogeneous graph to predict attack and task-failure risks before experience reuse. To enable task-conditioned risk supervision and tackle challenge (2), we conduct matched counterfactual replays of each original experience and its minimally neutralized counterpart from the same task and environment checkpoint, deriving separate risk labels from differences in attack success and legitimate task completion. To tackle challenge (3) at inference time, ExpGuard repairs candidate experiences flagged as high-risk by the graph-based predictor at retrieval and re-predicts their risks before they enter the agent's active experience context. Extensive experiments demonstrate the effectiveness of ExpGuard in identifying risky experiences and defending agents against experience corruption.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "paper_id": "202611/28/2611.30254v1-innata-0-a-native-embodied-world-system-with-model-agent-co-design",
+      "section": "quick",
+      "title_en": "Innata-0: A Native Embodied World System with Model-Agent Co-Design",
+      "authors": "Innata Team, Yu Bai, Ziyi Bai, Yuxuan Cai, Chenrui He, Wenhao Li, Zhe Lin, Heng Wang, Hai Yuan, Zhiwei Yu, Yuanhang Zhang, Luyou Chen, Tiezhu Gao, Zheng Geng, Jinbang Guo, Dongxu Han, Diqi He, Börje F. Karlsson, Jintao Li, Zhiyu Li, Xiongkun Linghu, Guang Liu, You Liu, Zhen Luo, Mengsi Lyu, Yufeng Lyu, Zheng Lyu, Quanyue Ma, Chunlei Men, Ziqiang Ni, Tengfei Pan, Yijun Shen, Liang Sun, Shaoxuan Xie, Xiang Yang, Guocai Yao, Hongjun Zhang, Yingli Zhao, Yonghua Lin, Zhongyuan Wang, Huan Yang",
+      "date": "2026-11-23",
+      "pdf": "https://arxiv.org/pdf/2611.30254v1",
+      "score": "7.0",
+      "evidence": "通过记忆协调长程执行",
+      "tldr": "物理世界开放动态且部分可观测，基础模型难以应对长程执行，简单融合模型与智能体会造成规划与控制脱节。Innata-0提出模型-智能体协同设计的原生具身世界系统：Innata-0-WAM采用三塔混合专家架构集成理解、预测和动作生成，Innata-0-Agent通过记忆、验证和恢复协调长程执行。广泛评估显示其在理解、世界预测和机器人操作上表现突出，是迈向物理智能的首步。",
+      "tags": "query:agent-memory",
+      "abstract_en": "The physical world is open-ended, dynamic, and partially observable. While foundation models have advanced embodied intelligence, standalone models struggle with long-horizon execution, and simply integrating models with agents may lead to inconsistencies between planning and physical control. To support reliable and adaptive behaviors in the physical world, we introduce Innata-0, a native embodied world system. Innata-0 jointly designs an embodied world-action model and an agent to combine their complementary strengths. The model, Innata-0-WAM, adopts a tri-tower Mixture-of-Transformers architecture that integrates understanding, prediction, and action generation. The agent, Innata-0-Agent, coordinates long-horizon execution through memory, verification, and recovery. A co-design protocol is further proposed to align model training with agent execution and leverage validated experiences to support subsequent adaptation and model improvement. Extensive evaluations demonstrate strong embodied capabilities across understanding, world prediction, and robotic manipulation. Innata-0 represents our first step toward physical intelligence, and we see it as the beginning of a much longer journey.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "errors": []
+}
